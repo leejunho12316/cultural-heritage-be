@@ -10,12 +10,13 @@ from .state import _now
 app = FastAPI()
 graph = build_graph()
 
+# interrupt시 : 노드 실행이 일시정지되고 반환된 값을 표현.
+# 종료시 : 그냥 결과 전체 표현.
 def _format_response(result: dict) -> dict:
     if "__interrupt__" in result:
         payload = result["__interrupt__"][0].value
         return {"status": "waiting_for_input", "interrupt": payload}
     return {"status": "completed", "result": result}
-
 
 
 #tasks/{}/start를 실행할 때 Body로 받아야 하는 것 BaseModel로 스키마 정의
@@ -59,6 +60,8 @@ class ResumeTaskRequest(BaseModel):
 
 @app.post("/tasks/{task_id}/resume")
 def resume_task(task_id: str, req: ResumeTaskRequest):
+
     config = {"configurable": {"thread_id": task_id}}
     result = graph.invoke(Command(resume=req.resume), config=config)
+
     return _format_response(result)

@@ -36,13 +36,11 @@ out/
 ### VS Code ###
 .vscode/
 
-ai-service/.env
-ai-service/app/.env
-
-### Python ###
+### conservation-guide-ai ###
+ai-services/conservation-guide-ai/.env
+ai-services/conservation-guide-ai/.venv/
+ai-services/conservation-guide-ai/checkpoints.db
+ai-services/conservation-guide-ai/checkpoints.db-shm
+ai-services/conservation-guide-ai/checkpoints.db-wal
 __pycache__/
 *.pyc
-.venv/
-ai-service/checkpoints.db
-ai-service/checkpoints.db-shm
-ai-service/checkpoints.db-wal

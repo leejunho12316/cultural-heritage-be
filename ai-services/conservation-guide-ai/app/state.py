@@ -52,10 +52,8 @@ class State(TypedDict, total=False):
 
 class StageResult(TypedDict, total=False):
     status: Literal["pending", "in_progress", "completed", "skipped"]
-    select_options: dict            # 단계별로 사람이 선택한 값들
-    AI_reccomendations: dict        # AI가 제시했던 추천안 (근거/책임소재 기록용)
-    HITL_memo: Optional[str]        # 담당자가 남긴 메모
     photo: list                     # 이 단계에서 촬영/업로드한 이미지 경로
+    memo: Optional[str]        # 담당자가 남긴 메모
     state_datetime: Optional[str]
     stage_manager: Optional[str]
 
@@ -65,15 +63,13 @@ def _now():
   return (datetime.now() + KST).isoformat(timespec="seconds")
 
 # 노드에서 실행하는 StageResult 조립 함수
-def _build_result(select_options, ai_reco,  manager, memo = None):
+def _build_result(photo_urls : list, memo : str, manager : str):
   return {
       "status": "completed",
-      "select_options": select_options,
-      "AI_reccomendations": ai_reco,
-      'HITL_memo' : memo,
-      "photo": [],
-      "state_datetime": _now(),
+      "photo": photo_urls,
+      'memo' : memo,
       "stage_manager": manager,
+      "state_datetime": _now(),
   }
 
 def stage_guard(step_name):

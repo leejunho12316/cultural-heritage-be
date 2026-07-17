@@ -10,6 +10,7 @@ from .nodes.disassembly import (
   disassembly_confirm_tools_node,
   disassembly_method_node,
   disassembly_confirm_method_node,
+  disassembly_end,
 )
 
 # disassembly 단계를 구성하는 물리 노드 이름 (실행 순서대로)
@@ -20,6 +21,7 @@ DISASSEMBLY_NODE_CHAIN = [
     "disassembly_confirm_tools",
     "disassembly_method",
     "disassembly_confirm_method",
+    "disassembly_end",
 ]
 
 # disassembly 4단계 노드만 연결한 테스트 그래프
@@ -30,6 +32,7 @@ _disassembly_node_funcs = {
     "disassembly_confirm_tools": disassembly_confirm_tools_node,
     "disassembly_method": disassembly_method_node,
     "disassembly_confirm_method": disassembly_confirm_method_node,
+    "disassembly_end": disassembly_end,
 }
 
 def build_graph():
