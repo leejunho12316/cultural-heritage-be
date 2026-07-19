@@ -144,6 +144,43 @@ node별 interrupt()값, return 값 구체화.
 - AiServiceClient 클래스: startTask(taskId, initialState), resumeTask(taskId, resumeValue) 메서드
 - Spring 컨트롤러/서비스에서 이 클라이언트를 호출해 프론트엔드에 응답 전달, 필요한 비즈니스 데이터(담당자, 유물 정보 등)는 Spring 자체 DB(JPA/H2)에도 저장
 
+ㅇ) 5-1. application.yaml에 AI 서비스 주소 등록                                                                                                                                                              
+conservation-guide-ai:                                                                                                                                                                                 
+   base-url: http://localhost:8000                                                                                                                                                                      
+   나중에 docker-compose로 묶이면 이 값만 http://ai-service이름:8000으로 바뀌면 되니, 코드에 하드코딩하지 않고 프로퍼티로 뺍니다.
+
+ㅇ) 5-2. common/config/RestClientConfig.java — RestClient Bean 등록
+- application.yaml의 conservation-guide-ai.base-url을 @Value로 주입받아 RestClient.builder().baseUrl(...).build() Bean 하나 생성
+
+ㅇ) 5-3. common/ai/AiTaskResponse.java — 응답 DTO
+- FastAPI _format_response가 주는 {"status": "waiting_for_input"/"completed", "interrupt": {...}, "result": {...}} 구조를 그대로 받는 DTO
+- interrupt/result는 구조가 단계마다 달라지니 Map<String, Object> 정도로 느슨하게 받는 게 안전함 (나중에 X-RAY 등 다른 서비스도 같은 DTO 재사용 가능)
+
+ㅇ) 5-4. conservation_guide_ai 패키지에 요청 DTO
+- StartTaskRequest (task_name, task_manager, relic_info, relic_photo, flow — FastAPI의 StartTaskRequest랑 필드 맞추기)
+- ResumeTaskRequest (resume: Map<String, Object>)
+
+ㅇ) 5-5. ConservationGuideAiClient.java — 실제 호출 로직
+- startTask(taskId, StartTaskRequest) → POST /tasks/{taskId}/start
+- resumeTask(taskId, ResumeTaskRequest) → POST /tasks/{taskId}/resume
+- 둘 다 AiTaskResponse 반환
+
+ㅇ?) 5-6. ConservationGuideAiController.java — 프론트엔드에 노출할 엔드포인트
+- Client를 호출해서 결과를 그대로(or 가공해서) 프론트엔드에 전달
+
+ㅇ) 5-7. 테스트
+- 로컬 uvicorn(http://localhost:8000) 띄워둔 상태에서 Spring 켜고, Postman/curl로 Spring 엔드포인트 호출 → FastAPI까지 잘 이어지는지 확인
+
+-> DTO, Client, Server 등 폴더 나누기
+-> 파일 이름 알아볼 수 있게 바꾸기 (**DTO, **Client)
+
+
+
+
+
+
+
+
 6단계 — docker-compose로 통합
 
 - docker-compose.yml에 spring-backend, ai-service 두 서비스 정의, 내부 네트워크로 연결 (Spring이 http://ai-service:8000 호출)

@@ -4,3 +4,6 @@ server:
 spring:
   application:
     name: conservation_backend
+
+conservation-guide-ai:
+  base-url: http://localhost:8000
