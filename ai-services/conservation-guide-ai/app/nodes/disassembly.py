@@ -1,6 +1,6 @@
 from langgraph.types import interrupt
 
-from ..state import State, _now, stage_guard, _build_result
+from ..state import State, _now, stage_guard, _build_result, assign_ids
 from ..schemas import DisassemblyChecklist, ToolRecommendation, DisassemblyMethod
 from ..llm import llm
 
@@ -13,15 +13,21 @@ def _get_disassembly_checklist(relic_info: dict) -> dict:
 
     structured_llm = llm.with_structured_output(DisassemblyChecklist)
 
-    prompt = f"""당신은 문화재 보존처리 전문가입니다.
-아래 유물 정보를 참고해서, 해체 작업을 시작하기 전 반드시 확인해야 할
-체크리스트를 만들어주세요.
-
-유물 정보: {relic_info}"""
+    prompt = f"""
+    #역할
+    당신은 문화재 보존처리 전문가입니다.
+    아래 유물 정보를 참고해서, 해체 작업을 시작하기 전 반드시 확인해야 할 체크리스트를 만들어주세요.
+    
+    # 정보
+    유물 정보: {relic_info}"""
 
     result: DisassemblyChecklist = structured_llm.invoke(prompt)
-    return result.model_dump()   # 노드/State 는 dict 를 기대하므로 변환
-# %%
+
+    data = result.model_dump()
+    data["checklist"] = assign_ids(data["checklist"], "disassembly", "checklist")
+
+    return data   # 노드/State 는 dict 를 기대하므로 변환
+
 
 
 # 해체 도구 추천
@@ -37,14 +43,20 @@ def _get_recommended_tools(relic_info: dict, ai_checklist: dict, confirmed_check
     structured_llm = llm.with_structured_output(ToolRecommendation)
 
     prompt = f"""당신은 문화재 보존처리 전문가입니다.
-아래는 해체 작업 전 담당자가 확인(체크)한 항목들입니다.
-이 내용을 바탕으로 실제 해체 작업에 사용할 도구를 추천해주세요.
-도구 출력시 도구의 이름을 먼저 말하고 설명을 해주세요./
-유물 정보: {relic_info}
-확인된 체크리스트 항목: {checked_items}"""
+    아래는 해체 작업 전 담당자가 확인(체크)한 항목들입니다.
+    이 내용을 바탕으로 실제 해체 작업에 사용할 도구를 추천해주세요.
+    도구 출력시 도구의 이름을 먼저 말하고 설명을 해주세요.
+    
+    #정보
+    유물 정보: {relic_info}
+    확인된 체크리스트 항목: {checked_items}"""
 
     result: ToolRecommendation = structured_llm.invoke(prompt)
-    return result.model_dump()
+
+    data = result.model_dump()
+    data["recommended_tools"] = assign_ids(data["recommended_tools"], "disassembly", "tools")
+
+    return data
 
 
 # 해체 방법(단계별 절차)
@@ -60,16 +72,22 @@ def _get_disassembly_method(relic_info: dict, ai_checklist: dict, confirmed_chec
     structured_llm = llm.with_structured_output(DisassemblyMethod)
 
     prompt = f"""당신은 문화재 보존처리 전문가입니다.
-아래 유물 정보와, 담당자가 확정한 체크리스트 및 도구를 참고해서
-해체 작업을 처음부터 끝까지 수행할 수 있도록 순서대로 단계를 나눠 안내해주세요.
-각 단계마다 사용할 도구와 주의할 점도 함께 알려주세요.
-
-유물 정보: {relic_info}
-확정된 체크리스트: {checked_items}
-확정된 도구: {confirmed_tools}"""
+    아래 유물 정보와, 담당자가 확정한 체크리스트 및 도구를 참고해서
+    해체 작업을 처음부터 끝까지 수행할 수 있도록 순서대로 단계를 나눠 안내해주세요.
+    각 단계마다 사용할 도구와 주의할 점도 함께 알려주세요.
+    
+    유물 정보: {relic_info}
+    확정된 체크리스트: {checked_items}
+    확정된 도구: {confirmed_tools}"""
 
     result: DisassemblyMethod = structured_llm.invoke(prompt)
-    return result.model_dump()
+
+    data = result.model_dump()
+    data["steps"] = assign_ids(data["steps"], "disassembly", "method")
+
+    return data
+
+
 
 
 

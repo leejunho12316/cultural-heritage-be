@@ -35,7 +35,7 @@
 테스트 데이터 - Postman
 
 1. /tasks/{task_id}/start
-
+-> 처음 한 번만 실행
 ```
 {
   "taskName": "청자상감운학문매병 보존처리",
@@ -46,25 +46,28 @@
 }
 ```
 
-2, 3. /tasks/{task_id}/resume
-같은 task_id로 resume 반복호출.
+2. /tasks/{task_id}/resume
+-> 같은 task_id로 resume 반복호출.
+
 ```
 {
  "resume": {
-   "checked_ids": ["C1","C2","C3"]
+   "checked_ids": ["disassembly-checklist-01","disassembly-checklist-02","disassembly-checklist-03"]
  }
 }
 
 {
  "resume": {
-   "confirmed_tools": ["광학현미경", "고해상도 디카"]
+   "confirmed_tools": ["disassembly-tools-01","disassembly-tools-02","disassembly-tools-03"]
  }
 }
+
 {
  "resume": {
-  "completed_step_ids" : ["S1", "S2", "S3"]
+  "completed_step_ids" : ["disassembly-method-01","disassembly-method-02","disassembly-method-03"]
  }
 }
+
 {
  "resume": {
   "photo_urls" : ["/desktop/photo1.png", "/desktop/photo112.png"],

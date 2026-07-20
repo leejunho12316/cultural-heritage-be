@@ -16,6 +16,7 @@ def merge_results(left, right):
 def append_list(left, right):
     return (left or []) + (right or [])
 
+# State
 class State(TypedDict, total=False):
     # ── 작업 식별 (task_id 는 checkpointer 의 thread_id 로도 사용) ──
     task_id: str
@@ -57,6 +58,10 @@ class StageResult(TypedDict, total=False):
     state_datetime: Optional[str]
     stage_manager: Optional[str]
 
+
+
+#공통 함수 모음
+
 # 날짜 뱉는 함수
 def _now():
   KST = timedelta(hours=9)
@@ -89,3 +94,11 @@ def stage_guard(step_name):
       return wrapper
   return deco
 
+
+
+#LLM이 만든 결과 선택지들의 첫 부분에 ID 붙이는 함수
+def assign_ids(items: list[dict], major: str, minor: str) -> list[dict]:
+  return [
+      {"id": f"{major}-{minor}-{i:02d}", **item}
+      for i, item in enumerate(items, start=1)
+  ]
