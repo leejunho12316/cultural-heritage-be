@@ -5,7 +5,7 @@
    py -m venv .venv
 
 2. 가상환경 활성화
-   - Windows(PowerShell): .venv\Scripts\Activate.ps1
+   - Windows(PowerShell): ai-services/conservation-guide-ai/.venv/Scripts/Activate.ps1
    - Windows(cmd): .venv\Scripts\activate.bat
    - macOS/Linux: source .venv/bin/activate
 
@@ -15,6 +15,7 @@
 5. .env 파일 생성 (app/.env, git에는 포함 안 됨 — 각자 발급받은 키 사용)
    OPENAI_API_KEY=발급받은_키_입력
 
+
 ## 실행 방식 2가지
 1. 서버 실행 (ai-service/ 디렉터리에서)
    uvicorn app.main:app --reload
@@ -23,53 +24,50 @@
 2. Docker Build & 실행
    docker desktop 실행
 
-   cd ai-service
+   cd ai-services/conservation-guide-ai
    docker build -t ai-service .
    docker run -p 8000:8000 --env-file .env ai-service
 
 .dockerignore에 .env가 있어도 Dockerimage buld후 run 할 때 --env-file .env 로 키 받기 때문에 정상실행 가능.
 
-## swagger 테스트
-127.0.0.1:8000/docs 
+## API 테스트
 
-테스트 데이터
+테스트 데이터 - Postman
 
 1. /tasks/{task_id}/start
-
+-> 처음 한 번만 실행
 ```
-{                                                                                                                                                                                                      
- "task_name": "청자상감운학문매병 보존처리",                                                                                                                                                          
- "task_manager": "이준호",                                                                                                                                                                            
- "relic_info": {                                                                                                                                                                                      
-   "name": "청자상감운학문매병",                                                                                                                                                                      
-   "material": "도자기",                                                                                                                                                                              
-   "period": "고려시대",                                                                                                                                                                              
-   "condition": "표면 균열 및 이물질 부착"                                                                                                                                                            
- },                                                                                                                                                                                                   
- "relic_photo": [],                                                                                                                                                                                   
- "flow": ["disassembly"]                                                                                                                                                                              
-}   
-```
-
-2, 3. /tasks/{task_id}/resume
-같은 task_id로 resume 반복호출.
-```
-{                                                                                                                                                                                                      
- "resume": {                                                                                                                                                                                     
-   "checked_ids": ["CHK-01", "CHK-02", "CHK-03"]                                                                                                                                              
- }                                                                                                                                                                                                    
+{
+  "taskName": "청자상감운학문매병 보존처리",
+  "taskManager": "이준호",
+  "relicInfo": {"name": "청자상감운학문매병", "material": "도자기", "period": "고려시대", "condition": "표면 균열 및 이물질 부착"},
+  "relicPhoto": [],
+  "flow": ["disassembly"]
 }
+```
 
-{                                                                                                                                                                                                      
- "resume": {                                                                                                                                                                                          
-   "confirmed_tools": ["광학현미경", "고해상도 디카"]                                                                                                                                                          
- }
-}
+2. /tasks/{task_id}/resume
+-> 같은 task_id로 resume 반복호출.
+
+```
 {
  "resume": {
-  "completed_step_ids" : ["S1", "S2", "S3"]
+   "checked_ids": ["disassembly-checklist-01","disassembly-checklist-02","disassembly-checklist-03"]
  }
 }
+
+{
+ "resume": {
+   "confirmed_tools": ["disassembly-tools-01","disassembly-tools-02","disassembly-tools-03"]
+ }
+}
+
+{
+ "resume": {
+  "completed_step_ids" : ["disassembly-method-01","disassembly-method-02","disassembly-method-03"]
+ }
+}
+
 {
  "resume": {
   "photo_urls" : ["/desktop/photo1.png", "/desktop/photo112.png"],
@@ -90,9 +88,14 @@
 
 
 ---
+# 7/20
+MVC 패턴에 맞게 폴더 정리
+통신 방식별로 DTO 더 나누기.
+전체 노드 출력 통일
+API 명세서 작성.
 
 
-# 7/17~ 한 일
+# 7/17~19
 LangGraph 사용 notebook 파일을 /app에 기능별로 python 파일로 쪼개 작성.
 main.py에 FastAPI로 LangGraph 사용하는 API 2개(start, resume) 작성
 ai-service 모듈이 .venv python 가상환경을 사용해 안에 python 파일들을 실행하도록 환경설정.
@@ -173,12 +176,6 @@ conservation-guide-ai:
 
 -> DTO, Client, Server 등 폴더 나누기
 -> 파일 이름 알아볼 수 있게 바꾸기 (**DTO, **Client)
-
-
-
-
-
-
 
 
 6단계 — docker-compose로 통합
