@@ -5,7 +5,7 @@
    py -m venv .venv
 
 2. 가상환경 활성화
-   - Windows(PowerShell): .venv\Scripts\Activate.ps1
+   - Windows(PowerShell): ai-services/conservation-guide-ai/.venv/Scripts/Activate.ps1
    - Windows(cmd): .venv\Scripts\activate.bat
    - macOS/Linux: source .venv/bin/activate
 
@@ -23,7 +23,7 @@
 2. Docker Build & 실행
    docker desktop 실행
 
-   cd ai-service
+   cd ai-services/conservation-guide-ai
    docker build -t ai-service .
    docker run -p 8000:8000 --env-file .env ai-service
 
@@ -32,37 +32,32 @@
 ## swagger 테스트
 127.0.0.1:8000/docs 
 
-테스트 데이터
+테스트 데이터 - Postman
 
 1. /tasks/{task_id}/start
 
 ```
-{                                                                                                                                                                                                      
- "task_name": "청자상감운학문매병 보존처리",                                                                                                                                                          
- "task_manager": "이준호",                                                                                                                                                                            
- "relic_info": {                                                                                                                                                                                      
-   "name": "청자상감운학문매병",                                                                                                                                                                      
-   "material": "도자기",                                                                                                                                                                              
-   "period": "고려시대",                                                                                                                                                                              
-   "condition": "표면 균열 및 이물질 부착"                                                                                                                                                            
- },                                                                                                                                                                                                   
- "relic_photo": [],                                                                                                                                                                                   
- "flow": ["disassembly"]                                                                                                                                                                              
-}   
+{
+  "taskName": "청자상감운학문매병 보존처리",
+  "taskManager": "이준호",
+  "relicInfo": {"name": "청자상감운학문매병", "material": "도자기", "period": "고려시대", "condition": "표면 균열 및 이물질 부착"},
+  "relicPhoto": [],
+  "flow": ["disassembly"]
+}
 ```
 
 2, 3. /tasks/{task_id}/resume
 같은 task_id로 resume 반복호출.
 ```
-{                                                                                                                                                                                                      
- "resume": {                                                                                                                                                                                     
-   "checked_ids": ["CHK-01", "CHK-02", "CHK-03"]                                                                                                                                              
- }                                                                                                                                                                                                    
+{
+ "resume": {
+   "checked_ids": ["C1","C2","C3"]
+ }
 }
 
-{                                                                                                                                                                                                      
- "resume": {                                                                                                                                                                                          
-   "confirmed_tools": ["광학현미경", "고해상도 디카"]                                                                                                                                                          
+{
+ "resume": {
+   "confirmed_tools": ["광학현미경", "고해상도 디카"]
  }
 }
 {
@@ -173,12 +168,6 @@ conservation-guide-ai:
 
 -> DTO, Client, Server 등 폴더 나누기
 -> 파일 이름 알아볼 수 있게 바꾸기 (**DTO, **Client)
-
-
-
-
-
-
 
 
 6단계 — docker-compose로 통합

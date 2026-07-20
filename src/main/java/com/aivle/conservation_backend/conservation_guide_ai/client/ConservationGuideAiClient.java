@@ -1,29 +1,39 @@
-package com.aivle.conservation_backend.conservation_guide_ai;
+package com.aivle.conservation_backend.conservation_guide_ai.client;
 
+import com.aivle.conservation_backend.conservation_guide_ai.dto.ConservationGuideAiResponseDto;
+import com.aivle.conservation_backend.conservation_guide_ai.dto.ConservationGuideAiResumeRequestDto;
+import com.aivle.conservation_backend.conservation_guide_ai.dto.ConservationGuideAiStartApiRequestDto;
+import com.aivle.conservation_backend.conservation_guide_ai.dto.ConservationGuideAiStartRequestDto;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+@RequiredArgsConstructor
 @Service
 public class ConservationGuideAiClient {
-    private final RestClient restClient;
+    private final RestClient conservationGuideAiRestClient;
 
-    public ConservationGuideAiClient(RestClient conservationGuideAiRestClient){
-        this.restClient = conservationGuideAiRestClient;
-    }
+    public ConservationGuideAiResponseDto startTask(String taskId, ConservationGuideAiStartRequestDto request){
+        ConservationGuideAiStartApiRequestDto apiRequest = new ConservationGuideAiStartApiRequestDto(
+                request.taskName(),
+                request.taskManager(),
+                request.relicInfo(),
+                request.relicPhoto(),
+                request.flow()
+        );
 
-    public ConservationGuideAiResponse startTask(String taskId, ConservationGuideAiStartRequest request){
-        return restClient.post()
+        return conservationGuideAiRestClient.post()
                 .uri("/tasks/{taskId}/start", taskId)
-                .body(request)
+                .body(apiRequest)
                 .retrieve()
-                .body(ConservationGuideAiResponse.class);
+                .body(ConservationGuideAiResponseDto.class);
     }
 
-    public ConservationGuideAiResponse resumeTask(String taskId, ConservationGuideAiResumeRequest request){
-        return restClient.post()
+    public ConservationGuideAiResponseDto resumeTask(String taskId, ConservationGuideAiResumeRequestDto request){
+        return conservationGuideAiRestClient.post()
                 .uri("/tasks/{taskId}/resume", taskId)
                 .body(request)
                 .retrieve()
-                .body(ConservationGuideAiResponse.class);
+                .body(ConservationGuideAiResponseDto.class);
     }
 }
