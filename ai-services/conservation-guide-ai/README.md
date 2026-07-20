@@ -15,6 +15,7 @@
 5. .env 파일 생성 (app/.env, git에는 포함 안 됨 — 각자 발급받은 키 사용)
    OPENAI_API_KEY=발급받은_키_입력
 
+
 ## 실행 방식 2가지
 1. 서버 실행 (ai-service/ 디렉터리에서)
    uvicorn app.main:app --reload
@@ -29,8 +30,7 @@
 
 .dockerignore에 .env가 있어도 Dockerimage buld후 run 할 때 --env-file .env 로 키 받기 때문에 정상실행 가능.
 
-## swagger 테스트
-127.0.0.1:8000/docs 
+## API 테스트
 
 테스트 데이터 - Postman
 
@@ -88,9 +88,14 @@
 
 
 ---
+# 7/20
+MVC 패턴에 맞게 폴더 정리
+통신 방식별로 DTO 더 나누기.
+전체 노드 출력 통일
+API 명세서 작성.
 
 
-# 7/17~ 한 일
+# 7/17~19
 LangGraph 사용 notebook 파일을 /app에 기능별로 python 파일로 쪼개 작성.
 main.py에 FastAPI로 LangGraph 사용하는 API 2개(start, resume) 작성
 ai-service 모듈이 .venv python 가상환경을 사용해 안에 python 파일들을 실행하도록 환경설정.
