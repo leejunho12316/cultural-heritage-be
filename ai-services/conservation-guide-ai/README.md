@@ -12,27 +12,28 @@
 3. 의존성 설치
    pip install -r app/requirements.txt
 
-5. .env 파일 생성 (app/.env, git에는 포함 안 됨 — 각자 발급받은 키 사용)
+4. .env 파일 생성 (app/.env, git에는 포함 안 됨 — 각자 발급받은 키 사용)
    OPENAI_API_KEY=발급받은_키_입력
 
 
-## 실행 방식 2가지
-1. 서버 실행 (ai-service/ 디렉터리에서)
-   uvicorn app.main:app --reload
-   → http://127.0.0.1:8000/docs 에서 Swagger UI로 /start, /resume 테스트 가능
-
-2. Docker Build & 실행
-   docker desktop 실행
-
+## 실행 - Docker Build & run
+1. 보존 AI만
+   docker desktop 실행   
    cd ai-services/conservation-guide-ai
    docker build -t ai-service .
    docker run -p 8000:8000 --env-file .env ai-service
 
-.dockerignore에 .env가 있어도 Dockerimage buld후 run 할 때 --env-file .env 로 키 받기 때문에 정상실행 가능.
+2. Spring, 보존 AI, PostGRE docker compose
+   docker compose up --build -d (첫 실행시 build도 같이)
+   docker compose up -d         (이미 빌드된 이미지 실행)
+   docker compose ps            (각 컨테이너 실행 확인)
 
-## API 테스트
+   docker compose restart conservation-guide-ai (FastAPI 컨테이너 재시작)
+   docker compose stop (컨테이너 멈춤)
+   docker compose down (컨테이너 삭제)
 
-테스트 데이터 - Postman
+
+## API Body 예시
 
 1. /tasks/{task_id}/start
 -> 처음 한 번만 실행
@@ -77,23 +78,21 @@
 ```
 
 
-
-
-
-
-
-
-docker-compose up --build
-
-
 ---
 # 7/21 Cloud 배포화
 EC2 인스턴스 1대에 Docker Compose (Spring + FastAPI + Postgres 컨테이너 3개 한 인스턴스에서 실행)
-1. ㅇ) Spring용 Dockerfile 추가 & docker-compose.yml 작성
+1. Spring용 Dockerfile 추가 & docker-compose.yml 작성
    Dockerfile, .dockerignore, docker-compose.yml
 2. LangGraph 체크포인터 SqliteSaver -> PostgresSaver
-
 3. application.yaml base-url 값을 컨테이너 네트워크 기준 값으로 분리. (application.yaml의 AI 서비스 base-url 환경변수)
+
+AWS Cloud 시작
+1. EC2 인스턴스 만들기
+2. 작업하던 프로젝트 git에 push 후 EC2 인스턴스에 접속해서 clone.
+-> .env 생성 & GitHub 인증 Access Token (Classic)
+3. EC2 인스턴스에서 docker compose up --build -d
+4. API 테스트 - POST http://<EC2퍼블릭IP>:8080/tasks/{taskId}/start
+
 
 
 # 7/20
@@ -111,44 +110,32 @@ ai-service 모듈이 .venv python 가상환경을 사용해 안에 python 파일
 __init__.py : 폴더를 패키지로 인식하도록 도와주는 파일. LangGraph 기능을 쪼개서 여러 python 파일로 옮겼는데, 서로를 상대경로로 인식하기 위해서는 /app과 /app/nodes를 패키지로 인식해야함.
 
 
-0단계 — 선행 조치 (완료)
-- 유출된 OpenAI API 키 폐기 및 재발급 (35번째 줄에 하드코딩된 키). 이건 구조 잡기 전에 먼저 처리해야 합니다.
-- 새 키는 .env 또는 환경변수로만 관리하고 코드/레포에는 절대 넣지 않기.
+1단계: Python 코드를 "노트북 스크립트"에서 "모듈"로 정리 (완료)
+- ai-services/conservation-guide-ai/app에 notebook 파일로 만든 LangGraph 코드를 State, disassembly, graph 등 역할별로 분리.
+- requirements.txt 작성
 
-1단계 — Python 코드를 "노트북 스크립트"에서 "모듈"로 정리 (완료)
 
-지금 파일은 # %% 셀 구분, !pip install, 맨 아래 input()으로 사용자 입력받는 데모 실행 코드가 섞여 있어 그대로 임포트해서 쓸 수 없습니다.
-- !pip install 줄 제거 → requirements.txt로 분리
-- 맨 아래 "temp_state로 실행" ~ 데모 실행 블록(graph.invoke, input() 등) 전부 제거 — 이건 노트북 테스트용이고 서비스 코드가 아님
-- State, StageResult, stage_guard, 각 노드 함수, builder/graph 조립 로직을 역할별 파일로 분리 (예: state.py, nodes/disassembly.py, graph.py)
-
-2단계 — FastAPI 래퍼 작성 (완료)
-
+2단계: FastAPI 래퍼 작성 
+main.py 작성
 - POST /tasks/{task_id}/start: graph.invoke(initial_state, config={"configurable":{"thread_id": task_id}}) 실행 → __interrupt__ 있으면 그 payload를 JSON으로 반환, 없으면 완료 결과 반환
 - POST /tasks/{task_id}/resume: body로 받은 값을 graph.invoke(Command(resume=body), config=...)에 전달 → 다음 interrupt 또는 완료 결과 반환
 - 이 두 엔드포인트는 범용(generic) 이어야 함 — 나중에 노드를 추가/삭제하거나 RAG를 넣어도 이 계약(request/response 모양)은 안 바뀌게 설계하는 게 핵심.
 
-3단계 — checkpointer를 프로덕션용으로 교체 (완료)
+3단계: checkpointer를 프로덕션용으로 교체 (완료)
+- LangGraph 상태 저장 메모리 교체 (sqlite3.connect(":memory:") -> SQLite(checkpoints.db))
 
-- 지금 sqlite3.connect(":memory:")는 프로세스 재시작 시 전부 날아감 → 파일 기반 SQLite(checkpoints.db, 볼륨 마운트) 또는 Postgres로 교체.
-
--> 3.5단계 - git 업로드 (완료)
+3.5단계: git 업로드
 https://github.com/BigProject09/cultural-heritage-be
 
-
-4단계 — Python 서비스 Dockerize (완료)
-
+4단계: Python 서비스 Dockerize
 - ai-service/ 디렉터리에 requirements.txt, Dockerfile 작성 (uvicorn으로 FastAPI 구동)
 - checkpoint DB 파일용 볼륨 경로 설정
 
-
--> 4.5단계 - node별 출력 고도화 (완료)
+4.5단계: node별 출력 고도화
 node별 interrupt()값, return 값 구체화. 
 최종 정리 node 추가.
 
-
-5단계 — Spring 쪽 클라이언트 작성
-
+5단계: Spring 쪽 클라이언트 작성
 - application.yaml에 ai-service.base-url 같은 프로퍼티 추가
 - RestClient(또는 WebClient) Bean 설정
 - FastAPI 응답을 받을 DTO (예: AiTaskResponse — interrupt 여부, payload, 완료 상태 등을 담는 제네릭 구조)
@@ -186,11 +173,10 @@ conservation-guide-ai:
 -> 파일 이름 알아볼 수 있게 바꾸기 (**DTO, **Client)
 
 
-6단계 — docker-compose로 통합
-
+6단계: docker-compose로 통합
 - docker-compose.yml에 spring-backend, ai-service 두 서비스 정의, 내부 네트워크로 연결 (Spring이 http://ai-service:8000 호출)
 
-7단계 — 통합 테스트
+7단계: 통합 테스트
 
 - Spring → /start → interrupt payload 수신 → 프론트 확인 시나리오 흉내 → /resume 호출까지 엔드투엔드로 확인
 
