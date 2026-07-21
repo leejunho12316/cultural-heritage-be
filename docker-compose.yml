@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: conservation
+      POSTGRES_USER: conservation
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conservation"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  conservation-guide-ai:
+    build: ./ai-services/conservation-guide-ai
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DATABASE_URL: postgresql://conservation:${POSTGRES_PASSWORD}@postgres:5432/conservation
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  conservation-backend:
+    build: .
+    environment:
+      CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
+    depends_on:
+      - conservation-guide-ai
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

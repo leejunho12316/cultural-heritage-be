@@ -36,6 +36,9 @@ out/
 ### VS Code ###
 .vscode/
 
+### cloud-deploy ###
+/.env
+
 ### conservation-guide-ai ###
 ai-services/conservation-guide-ai/.env
 ai-services/conservation-guide-ai/.venv/

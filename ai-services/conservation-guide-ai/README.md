@@ -83,11 +83,19 @@
 
 
 
-
-
+docker-compose up --build
 
 
 ---
+# 7/21 Cloud 배포화
+EC2 인스턴스 1대에 Docker Compose (Spring + FastAPI + Postgres 컨테이너 3개 한 인스턴스에서 실행)
+1. ㅇ) Spring용 Dockerfile 추가 & docker-compose.yml 작성
+   Dockerfile, .dockerignore, docker-compose.yml
+2. LangGraph 체크포인터 SqliteSaver -> PostgresSaver
+
+3. application.yaml base-url 값을 컨테이너 네트워크 기준 값으로 분리. (application.yaml의 AI 서비스 base-url 환경변수)
+
+
 # 7/20
 MVC 패턴에 맞게 폴더 정리
 통신 방식별로 DTO 더 나누기.
