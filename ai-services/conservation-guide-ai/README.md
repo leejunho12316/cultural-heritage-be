@@ -79,19 +79,57 @@
 
 
 ---
+#개발 노트
+
+# 7/22
+완료) 0. 클라우드 deploy push
+   작동 잘 되는지 다시 한번 확인하고 PR, merge
+
+1. 한 그래프로 다 진행해야하는가, 따로 쪼개야하는가?
+2. 해체, 세척, 강화 처리, 접합, 복원 그래프 역할 문서로 정리
+3. Claude로 복사
+
+4. 전체 노드 작동 확인 후 API 명세서 전체 정리.
+
+
 # 7/21 Cloud 배포화
 EC2 인스턴스 1대에 Docker Compose (Spring + FastAPI + Postgres 컨테이너 3개 한 인스턴스에서 실행)
 1. Spring용 Dockerfile 추가 & docker-compose.yml 작성
    Dockerfile, .dockerignore, docker-compose.yml
 2. LangGraph 체크포인터 SqliteSaver -> PostgresSaver
-3. application.yaml base-url 값을 컨테이너 네트워크 기준 값으로 분리. (application.yaml의 AI 서비스 base-url 환경변수)
+3. application.yaml base-url 값을 환경변수에서 받아오도록. (application.yaml의 AI 서비스 base-url 환경변수)
 
 AWS Cloud 시작
 1. EC2 인스턴스 만들기
-2. 작업하던 프로젝트 git에 push 후 EC2 인스턴스에 접속해서 clone.
--> .env 생성 & GitHub 인증 Access Token (Classic)
-3. EC2 인스턴스에서 docker compose up --build -d
-4. API 테스트 - POST http://<EC2퍼블릭IP>:8080/tasks/{taskId}/start
+- AMI: Ubuntu 22.04 LTS
+- 인스턴스 타입: t2.micro는 컨테이너 3개 돌리기엔 부족해서 t3.small/medium 권장
+- 보안 그룹: 실제로 외부에서 접근해야 하는 8080(Spring)만 열고, 8000(FastAPI)/5432(Post
+
+2. EC2 인스턴스 docker, docker compose 설치
+userdata
+```
+#!/bin/bash                                                                                                                                                                                            
+exec > >(tee /var/log/user-data.log) 2>&1
+
+apt update                                                                                                                                                                                             
+apt upgrade -y
+
+curl -fsSL https://get.docker.com -o get-docker.sh                                                                                                                                                     
+sh get-docker.sh
+
+usermod -aG docker ubuntu
+```
+docker --version
+docker compose version
+
+3. 작업하던 프로젝트 git에 push 후 EC2 인스턴스에 SSH로 접속해서 clone.
+   -> .env 생성 & GitHub 인증 Access Token (Classic)
+   ```nano .env``
+   -> git checkout feature/cloud-deploy
+
+4. EC2 인스턴스에서 docker compose up --build -d
+
+5. API 테스트 - POST http://<EC2퍼블릭IP>:8080/tasks/{taskId}/start
 
 
 
