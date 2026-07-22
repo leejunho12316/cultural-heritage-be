@@ -1,5 +1,6 @@
 langgraph
-langgraph-checkpoint-sqlite
+langgraph-checkpoint-postgres
+psycopg[binary,pool]
 langchain-openai
 fastapi
 uvicorn

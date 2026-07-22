@@ -1,6 +1,8 @@
-import sqlite3
+import os
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
+from psycopg.rows import dict_row
 
 from .state import State
 from .nodes.disassembly import (
@@ -44,7 +46,13 @@ def build_graph():
         builder.add_edge(_prev, _nxt)
     builder.add_edge(DISASSEMBLY_NODE_CHAIN[-1], END)
 
-    conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
-    graph = builder.compile(checkpointer=SqliteSaver(conn))
+    pool = ConnectionPool(
+        conninfo=os.environ["DATABASE_URL"],
+        max_size=20,
+        kwargs={"autocommit": True, "row_factory": dict_row},
+    )
+    checkpointer = PostgresSaver(pool)
+    checkpointer.setup()
+    graph = builder.compile(checkpointer=checkpointer)
 
     return graph
