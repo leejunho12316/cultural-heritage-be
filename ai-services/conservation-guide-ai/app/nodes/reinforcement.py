@@ -176,6 +176,7 @@ def reinforcement_confirm_wetting_test_node(state: State):
   confirmed_wetting_test = interrupt({
     "stage": "강화처리 - 색 변화 분석 결과를 확인하고 진행 여부를 선택하세요!",
     "ai_color_analysis": ai_color_analysis,
+    "default_action": "proceed",
   })
 
   return {

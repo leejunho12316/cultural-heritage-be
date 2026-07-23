@@ -88,7 +88,7 @@
 
 
 
-4. 세척 단계 /tasks/{task_id}/resume 순서
+3. 세척 단계 /tasks/{task_id}/resume 순서
 ```
 {
  "resume": {
@@ -214,17 +214,57 @@
 # 7/22 ~ 7/23
 완료) 0. 클라우드 deploy push
    작동 잘 되는지 다시 한번 확인하고 PR, merge
-
 완료) 1. 한 그래프로 다 진행해야하는가, 따로 쪼개야하는가? -> 한 그래프
 완료) 2. 세척, 강화 처리, 접합, 복원 그래프 역할 문서로 디테일하게 정리
 완료) 3. Claude로 노드 복사
 완료) 노드 복사 + README에 API 예시 데이터 적어달라하기
+완료) 4. 테스트
 
-4. 테스트
+5. 기본값 
+기본값 : 체크를 수동으로 하지 않아도 다음 다음으로 바로 넘어갈 수 있도록 LLM 응답에 기본값 추가.
+FE에서는 이 기본값들을 미리 체크된 것으로 인식하고 사람이 굳이 체크하지 않아도 다음 클릭 가능하도록 설계
+
+- 기본값이 필요한 단계
+  해체: 도구 추천 (recommended: true 도구 기본 체크)
+  세척: 세척법 선택 (need_physical_cleaning, need_chemical_cleaning:true 기본 체크),
+  강화처리: 강화제/유기용매 선택 (드랍다운 중 recommended_agent, recommended_solvent 기본값)
+  습윤 테스트 후 다음단계 진행 여부 ("action":"proceed"로 진행이 기본값. retry는 되돌아가기임.)
+  접합: 접착제 선택 (드랍다운 중 recommended_adhesive 기본값)
+  복원: 복원 재료 선택 (드랍다운 중 recommended_material 기본값)
+
+6. 전체 완료 버튼
+
+- '전체 완료 버튼'이 필요한 단계
+  해체: 체크리스트, 단계별 작업
+  세척: 단계별 작업, 건조 단계별 작업
+  강화처리: 단계별 작업
+  접합: 단계별 작업
+  복원: 단계별 작업
+
+7. 드랍다운 정해진 값
+
+   강화제
+   Literal["Paraloid B72", "HPC", "폴리비닐부티랄", "수용성 Emulsion", "Paraloid NAD-10"]
+
+   용제 (5개 강화제의 전체 허용 용매를 합친 목록)
+   Literal["아세톤", "톨루엔", "자일렌", "에틸아세테이트", "이소프로판올", "에탄올", "MEK", "아밀아세테이트", "메탄올", "물", "나프타",  "화이트스피릿"]
+   
+   접착제                                                                      
+   Literal["Paraloid B-72", "Cemedine C", "Araldite rapid", "Cyanoacrylate", "poly urethane", "Loctite 401"]
+   
+   복원제
+   Literal["CDK-520", "Araldite SV427+HV427", "Epo-tec 301", "XTR-311", "Repairit Quik"]
+
+
+
+
+
+
 - 습윤 효과 테스트 VLM 사용시 이미지 경로 잘못됐을 때 재시도할 수 있도록 루프.
 
-5. 체크를 하지 않아도 다음 다음으로 바로 넘어갈 수 있도록 LLM 응답에 기본값 (recommended_ids)도 추가.
-FE에서는 recommended_ids를 미리 체크된 것으로 인식하고 다음 클릭 가능하도록.
+
+
+
 
 
 

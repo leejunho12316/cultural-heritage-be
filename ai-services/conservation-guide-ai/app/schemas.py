@@ -15,8 +15,9 @@ class DisassemblyChecklist(BaseModel):
 
 # 해체 - 도구 추천
 class RecommendedTool(BaseModel):
-    name: str = Field(description="추천 도구 이름")
-    description: str = Field(description="이 도구를 추천하는 이유/설명")
+    name: str = Field(description="도구 이름")
+    description: str = Field(description="이 도구가 필요한 이유/설명")
+    recommended: bool = Field(description="지금 상황에 반드시 필요한 필수 도구인지 여부(기본 체크 상태)")
 
 class ToolRecommendation(BaseModel):
     recommended_tools: list[RecommendedTool] = Field(description="추천 도구 목록")
@@ -67,8 +68,8 @@ class DryingGuide(BaseModel):
 
 # 강화처리 - 강화제/용매 추천
 class ReinforcementAgentRecommendation(BaseModel):
-    recommended_agent: str = Field(description="추천 강화제 이름")
-    recommended_solvent: str = Field(description="추천 유기용매 이름")
+    recommended_agent: Literal["Paraloid B72", "HPC", "폴리비닐부티랄", "수용성 Emulsion", "Paraloid NAD-10"] = Field(description="추천 강화제")
+    recommended_solvent: Literal["아세톤", "톨루엔", "자일렌", "에틸아세테이트", "이소프로판올", "에탄올", "MEK", "아밀아세테이트", "메탄올", "물", "나프타", "화이트스피릿"] = Field(description="추천 유기용매")
     reason: str = Field(description="이 조합을 추천하는 이유")
 
 # 강화처리 - 습윤 효과(색 변화) 분석 (VLM)
@@ -91,7 +92,7 @@ class ReinforcementMethod(BaseModel):
 
 # 접합 - 접착제 추천
 class BondingAdhesiveRecommendation(BaseModel):
-    recommended_adhesive: str = Field(description="추천 접착제 이름")
+    recommended_adhesive: Literal["Paraloid B-72", "Cemedine C", "Araldite rapid", "Cyanoacrylate", "poly urethane", "Loctite 401"] = Field(description="추천 접착제")
     reason: str = Field(description="이 접착제를 추천하는 이유")
     precautions: list[str] = Field(description="사용 시 주의사항")
 
@@ -109,7 +110,7 @@ class BondingMethodRecommendation(BaseModel):
 
 # 복원 - 복원 재료(합성수지) 추천
 class RestorationMaterialRecommendation(BaseModel):
-    recommended_material: str = Field(description="추천 복원 재료 이름")
+    recommended_material: Literal["CDK-520", "Araldite SV427+HV427", "Epo-tec 301", "XTR-311", "Repairit Quik"] = Field(description="추천 복원 재료")
     reason: str = Field(description="이 재료를 추천하는 이유")
 
 # 복원 - 복원 방법 안내

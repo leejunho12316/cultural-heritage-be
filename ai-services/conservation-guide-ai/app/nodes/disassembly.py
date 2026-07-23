@@ -44,9 +44,14 @@ def _get_recommended_tools(relic_info: dict, ai_checklist: dict, confirmed_check
 
     prompt = f"""당신은 문화재 보존처리 전문가입니다.
     아래는 해체 작업 전 담당자가 확인(체크)한 항목들입니다.
-    이 내용을 바탕으로 실제 해체 작업에 사용할 도구를 추천해주세요.
+    이 내용을 바탕으로 해체 작업에 관련된 도구를 나열해주세요.
     도구 출력시 도구의 이름을 먼저 말하고 설명을 해주세요.
-    
+
+    지금 상황(유물 재질/상태 등)에 반드시 필요한 필수 도구뿐 아니라,
+    상황에 따라 쓸 수도 있는 선택적/보조 도구까지 함께 나열하고,
+    그 중 지금 상황에 반드시 필요한 도구만 recommended: true로, 나머지는 recommended: false로 표시해주세요.
+    (FE에서 recommended: true인 도구만 기본으로 체크된 상태로 보여줍니다.)
+
     #정보
     유물 정보: {relic_info}
     확인된 체크리스트 항목: {checked_items}"""
@@ -113,7 +118,7 @@ def disassembly_checklist_node(state: State):
   }
 
 
-# (2-2) 체크리스트 확인 : interrupt() 만 담당. resume 마다 다시 실행돼도 LLM 호출이 없어 안전하다.
+# (2-1) 체크리스트 확인 : interrupt() 만 담당. resume 마다 다시 실행돼도 LLM 호출이 없어 안전하다.
 # interrupt : FE로 해체 전 확인해야 할 항목 띄우고 사용자 체크 받아오기.
 # + checkpointer가 멈춘 지점을 기억함.
 # + graph.invoke(Command(resume))로 돌아왔을 때 resume값이 confirmed가 됨.
@@ -137,7 +142,7 @@ def disassembly_confirm_checklist_node(state: State):
   }
 
 
-# (2-3) 도구 추천 생성 : LLM 호출 1회. 확정된 체크리스트를 바탕으로 도구를 추천한다.
+# (2-2) 도구 추천 생성 : LLM 호출 1회. 확정된 체크리스트를 바탕으로 도구를 추천한다.
 @stage_guard("disassembly")
 def disassembly_tools_node(state: State):
   # 유물 정보, 체크리스트, 선택한 체크리스트
@@ -156,7 +161,7 @@ def disassembly_tools_node(state: State):
   }
 
 
-# (2-4) 도구 확인 : interrupt() 만 담당. resume 마다 다시 실행돼도 LLM 호출이 없어 안전하다.
+# (2-2) 도구 확인 : interrupt() 만 담당. resume 마다 다시 실행돼도 LLM 호출이 없어 안전하다.
 @stage_guard("disassembly")
 def disassembly_confirm_tools_node(state: State):
   ai_tools = state["results"]["disassembly"]["ai_tools"]
@@ -175,7 +180,7 @@ def disassembly_confirm_tools_node(state: State):
   }
 
 
-# (2-5) 해체 방법 생성 : LLM 호출 1회. 확정된 체크리스트/도구를 바탕으로 단계별 절차를 생성한다.
+# (2-3) 해체 방법 생성 : LLM 호출 1회. 확정된 체크리스트/도구를 바탕으로 단계별 절차를 생성한다.
 @stage_guard("disassembly")
 def disassembly_method_node(state: State):
   relic = state.get("relic_info", {})
@@ -192,7 +197,7 @@ def disassembly_method_node(state: State):
   }
 
 
-# (2-6) 해체 방법 확인 : interrupt() 만 담당. resume 마다 다시 실행돼도 LLM 호출이 없어 안전하다.
+# (2-3) 해체 방법 확인 : interrupt() 만 담당. resume 마다 다시 실행돼도 LLM 호출이 없어 안전하다.
 @stage_guard("disassembly")
 def disassembly_confirm_method_node(state: State):
   ai_method = state["results"]["disassembly"]["ai_method"]
@@ -211,7 +216,7 @@ def disassembly_confirm_method_node(state: State):
   }
 
 
-# (2-7) 해체 단계 총정리 : interrupt 없음. LLM 호출도 없이 지금까지의 결과를 모아 disassembly 단계를 완료 처리한다.
+# (2-4) 해체 단계 총정리 : interrupt 없음. LLM 호출도 없이 지금까지의 결과를 모아 disassembly 단계를 완료 처리한다.
 @stage_guard("disassembly")
 def disassembly_end(state: State):
 
