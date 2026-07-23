@@ -35,15 +35,24 @@
 
 ## API Body 예시
 
-1. /tasks/{task_id}/start
--> 처음 한 번만 실행
+1. /tasks/{task_id}/start 
+전체 단계(해체→세척→강화처리→접합→복원) 
+   -> relicInfo에 무게/접합면적/재질/처리목적은 백엔드가 검증하지 않는 카테고리 라벨 문자열이라 자유롭게 입력하면 됨
 ```
 {
   "taskName": "청자상감운학문매병 보존처리",
   "taskManager": "이준호",
-  "relicInfo": {"name": "청자상감운학문매병", "material": "도자기", "period": "고려시대", "condition": "표면 균열 및 이물질 부착"},
+  "relicInfo": {
+    "name": "청자상감운학문매병",
+    "material": "연질토기",
+    "period": "고려시대",
+    "condition": "표면 균열 및 이물질 부착",
+    "weight": "중간",
+    "bondingArea": "충분함",
+    "treatmentPurpose": "전시용"
+  },
   "relicPhoto": [],
-  "flow": ["disassembly"]
+  "flow": ["disassembly", "cleaning", "reinforcement", "bonding", "restoration"]
 }
 ```
 
@@ -78,18 +87,251 @@
 ```
 
 
+
+4. 세척 단계 /tasks/{task_id}/resume 순서
+```
+{
+ "resume": {
+  "use_physical": true,
+  "use_chemical": true
+ }
+}
+
+{
+ "resume": {
+  "completed_step_ids": ["cleaning-guide-01", "cleaning-guide-02"]
+ }
+}
+
+{
+ "resume": {
+  "completed_step_ids": ["cleaning-drying-01", "cleaning-drying-02"]
+ }
+}
+
+{
+ "resume": {
+  "photo_urls": ["/desktop/cleaning_after.png"],
+  "memo": "세척 완료"
+ }
+}
+```
+
+5. 강화처리 단계 /tasks/{task_id}/resume 순서
+-> confirm_wetting_test에서 "retry"를 보내면 강화제/용매 재선택(2-1)으로 되돌아가고, "proceed"를 보내면 다음(2-3)으로 진행됨
+```
+{
+ "resume": {
+  "agent": "Paraloid B-72",
+  "solvent": "아세톤"
+ }
+}
+
+{
+ "resume": {
+  "before_photo_urls": ["test_photos/before.png"],
+  "after_photo_urls": ["test_photos/after.png"]
+ }
+}
+
+{
+ "resume": {
+  "action": "proceed"
+ }
+}
+
+{
+ "resume": {
+  "completed_step_ids": ["reinforcement-method-01", "reinforcement-method-02"]
+ }
+}
+```
+(2-4 건조 시작 단계는 interrupt가 없어 자동으로 통과되고, 바로 아래 2-5 결과 입력으로 이어짐)
+```
+{
+ "resume": {
+  "photo_urls": ["/desktop/reinforcement_after.png"],
+  "memo": "강화처리 완료"
+ }
+}
+```
+
+6. 접합 단계 /tasks/{task_id}/resume 순서
+```
+{
+ "resume": {
+  "adhesive": "Cemedine C"
+ }
+}
+
+{
+ "resume": {
+  "before_photo_urls": ["test_photos/before.png"],
+  "after_photo_urls": ["test_photos/after.png"]
+ }
+}
+
+{
+ "resume": {
+  "completed_step_ids": ["bonding-method-01", "bonding-method-02"]
+ }
+}
+
+{
+ "resume": {
+  "photo_urls": ["/desktop/bonding_after.png"],
+  "memo": "접합 완료"
+ }
+}
+```
+
+7. 복원 단계 /tasks/{task_id}/resume 순서
+```
+{
+ "resume": {
+  "material": "Araldite SV427+HV427"
+ }
+}
+
+{
+ "resume": {
+  "completed_step_ids": ["restoration-guide-01", "restoration-guide-02"]
+ }
+}
+
+{
+ "resume": {
+  "photo_urls": ["/desktop/restoration_after.png"],
+  "memo": "복원 완료"
+ }
+}
+```
+
+
 ---
 #개발 노트
 
-# 7/22
+# 7/22 ~ 7/23
 완료) 0. 클라우드 deploy push
    작동 잘 되는지 다시 한번 확인하고 PR, merge
 
-1. 한 그래프로 다 진행해야하는가, 따로 쪼개야하는가?
-2. 해체, 세척, 강화 처리, 접합, 복원 그래프 역할 문서로 정리
-3. Claude로 복사
+완료) 1. 한 그래프로 다 진행해야하는가, 따로 쪼개야하는가? -> 한 그래프
+완료) 2. 세척, 강화 처리, 접합, 복원 그래프 역할 문서로 디테일하게 정리
+완료) 3. Claude로 노드 복사
+완료) 노드 복사 + README에 API 예시 데이터 적어달라하기
+
+4. 테스트
+- 습윤 효과 테스트 VLM 사용시 이미지 경로 잘못됐을 때 재시도할 수 있도록 루프.
+
+5. 체크를 하지 않아도 다음 다음으로 바로 넘어갈 수 있도록 LLM 응답에 기본값 (recommended_ids)도 추가.
+FE에서는 recommended_ids를 미리 체크된 것으로 인식하고 다음 클릭 가능하도록.
+
+
+
+
 
 4. 전체 노드 작동 확인 후 API 명세서 전체 정리.
+
+```
+세척/강화처리/접합/복원 4단계 노드 추가                                                                                                                                                             
+                                                                                                                                                                                                       
+   Context                                                                                                                                                                                             
+                                                                                                                                                                                                       
+   현재 ai-services/conservation-guide-ai는 해체(disassembly) 한 단계만 구현되어 있고, 실제 보존처리 흐름은 해체 → 세척 → 강화처리 → 접합 → 복원 → (색맞춤, 추후)까지 있음. 이번 작업은                
+   세척/강화처리/접합/복원 4단계를 disassembly와 동일한 패턴(LangGraph 노드 + interrupt 기반 human-in-the-loop)으로 추가하는 것. EC2 배포에서 이미 disassembly의 interrupt/resume/PostgresSaver 조합이 
+   검증되었으므로, 그 검증된 패턴을 최대한 그대로 재사용하는 방향으로 설계함.                                                                                                                          
+                                                                                                                                                                                                       
+   확정된 결정사항                                                                                                                                                                                     
+                                                                                                                                                                                                       
+   1. 그래프 구조: 진짜 nested subgraph 대신 flat 그래프 + 공통 체인빌더 헬퍼로 감. 이유: interrupt/resume이 이미 flat 구조에서 검증됨. subgraph는 stage_guard를 스테이지 진입 조건부 엣지로           
+   재설계해야 하고 interrupt가 subgraph 경계를 넘는 조합을 새로 검증해야 하는 리스크가 있음.                                                                                                           
+   2. 습윤효과 테스트(강화처리 2-2): 실제 VLM 자동 분석으로 구현. relic_photo/각 스테이지 결과 사진이 이미 URL 문자열 리스트로 다뤄지고 있으므로(photo_urls 컨벤션), base64 인코딩 없이 image_url      
+   콘텐츠 타입으로 vision 모델에 바로 전달 가능. 새 패키지 설치 불필요 (langchain-openai의 ChatOpenAI가 멀티모달 메시지를 이미 지원).                                                                  
+   3. 무게/접합면적 등 범위값: 백엔드는 숫자 범위를 검증하지 않고, FE가 보내는 카테고리 라벨 문자열을 그대로 relic_info에 담아 LLM 프롬프트 컨텍스트로 전달만 함. 같은 원칙을                          
+   재질(연질토기/경질토기/도기/석기/유리화된 자기 등), 처리목적(전시용/수장연구용/기타 자유입력)에도 동일하게 적용 — 전부 relic_info: dict 안의 자유 문자열 키로 취급하고 backend는 enum 검증을 하지   
+   않음.                                                                                                                                                                                               
+                                                                                                                                                                                                       
+   아키텍처                                                                                                                                                                                            
+                                                                                                                                                                                                       
+   노드 패턴 (기존 nodes/disassembly.py 그대로 재사용)
+   
+    - _get_xxx() private 함수: llm.with_structured_output(SomeSchema)로 LLM 호출, assign_ids()로 결과에 {major}-{minor}-{순번} ID 부여                                                                  
+   - LLM 호출 노드와 interrupt() 노드를 분리 (resume 시 재실행돼도 LLM이 중복 호출되지 않도록) — 이 규칙을 새 4단계에도 동일 적용                                                                      
+   - 모든 노드에 @stage_guard("stage_name") 데코레이터 적용 (flow에 없으면 skip)                                                                                                                       
+                                                                                                                                                                                                       
+   graph.py 리팩터링                                                                                                                                                                                   
+                                                                                                                                                                                                       
+   현재 disassembly 체인을 그대로 나열하던 부분을 헬퍼로 추출:                                                                                                                                         
+   def add_linear_stage(builder, node_chain: list[str], node_funcs: dict):                                                                                                                             
+       for name in node_chain:                                                                                                                                                                         
+           builder.add_node(name, node_funcs[name])                                                                                                                                                    
+       for prev, nxt in zip(node_chain, node_chain[1:]):                                                                                                                                               
+           builder.add_edge(prev, nxt)                                                                                                                                                                 
+   disassembly, cleaning, bonding, restoration은 이 헬퍼로 순수 선형 체인을 등록. 스테이지 간 연결은 add_edge(마지막_노드, 다음스테이지_첫_노드)로 이어붙임 (disassembly_end → cleaning_checklist →    
+   ... → restoration_end → END).                                                                                                                                                                       
+                                                                                                                                                                                                       
+   예외: reinforcement는 순수 선형이 아님. 2-2 습윤효과테스트 결과가 "색변화 심함"이면 2-1(강화제/용매 재선택)로 되돌아가야 함. 이 부분만 헬퍼 적용 후 별도로                                          
+   builder.add_conditional_edges("reinforcement_confirm_wetting_test", route_fn, {"retry": "reinforcement_agent_solvent", "proceed": "reinforcement_method"}) 추가.
+   
+    llm.py
+
+    기존 텍스트 전용 llm 옆에 vision 지원 모델 인스턴스 추가:
+    vision_llm = ChatOpenAI(model="gpt-4o", temperature=0, api_key=os.environ["OPENAI_API_KEY"])
+    (정확한 모델명은 실제 vision 품질 테스트 후 조정 가능)
+   
+    state.py
+   
+    TypedDict 구조 변경 불필요 — relic_info: dict가 이미 범용이라 무게/접합면적/재질/처리목적 카테고리 라벨을 그 안에 자유 키로 담으면 됨. results: Annotated[dict, merge_results] reducer도 그대로 재사용되어 스테이지별 결과가 자동 병합됨.
+   
+    스테이지별 노드 구성 (representative, disassembly 7노드 패턴과 동일 스타일)
+   
+    세척 (nodes/cleaning.py)
+    - 1-1 cleaning_analysis (LLM: 유물상태/오염물 요약 + 물리적/화학적 세척 필요여부 분석) → cleaning_confirm_method (interrupt: 어떤 세척법 진행할지 FE 체크)
+    - 1-2 cleaning_guide (LLM: 체크된 세척법만 단계별 안내) → cleaning_confirm_guide (interrupt: 단계 완료 체크)
+    - 1-3 cleaning_drying_guide (LLM: 재질에 따른 건조법 안내) → cleaning_confirm_drying (interrupt: 완료 체크)
+    - 1-4 cleaning_end (interrupt: 사진/메
+   강화처리 (nodes/reinforcement.py)
+    - 2-1 reinforcement_agent_solvent (LLM: 강화제+용매 추천+이유) → reinforcement_confirm_agent (interrupt: FE 드롭다운 선택)
+    - 2-2 reinforcement_wetting_test (VLM: 이전/이후 테스트 사진 색변화 분석, vision_llm 사용) → reinforcement_confirm_wetting_test (interrupt: 진행/돌아가기 선택) → 조건부 엣지로 2-1 또는 2-3
+    - 2-3 reinforcement_method (LLM: 분무법/침지법 추천+단계안내) → reinforcement_confirm_method (interrupt: 완료 체크)
+    - 2-4 reinforcement_dry_start (LLM 없음, dry_start_time 기록만 하고 바로 다음으로 — interrupt 없음)
+    - 2-5 reinforcement_end (interrupt: 사진/메모)
+   
+    접합 (nodes/bonding.py)
+    - 3-1 bonding_adhesive (LLM: 무게/접합면적/재질/처리목적/강화제 종류 참고해 접착제 추천) → bonding_confirm_adhesive (interrupt: FE 6종 중 선택)
+    - 3-2 bonding_temp (interrupt만: 임시접합 전/후 사진, LLM 없음)
+    - 3-3 bonding_method (LLM: 복합/단일/결합/모세관접합 중 추천+단계안내) → bonding_confirm_method (interrupt: 완료 체크)
+    - 3-4 bonding_end (interrupt: 사진/메모)
+   
+    복원 (nodes/restoration.py)
+    - 4-1 restoration_material (LLM: 5종 합성수지 중 추천+이유) → restoration_confirm_material (interrupt: FE 선택)
+    - 4-2 restoration_guide (LLM: 단계별 안내) → restoration_confirm_guide (interrupt: 완료 체크)
+    - 4-3 restoration_end (interrupt: 사진/메모)
+    
+     schemas.py 추가 모델
+   
+    기존 DisassemblyChecklist/ToolRecommendation/DisassemblyMethod 3가지 형태(체크리스트형, 추천+이유형, 단계별안내형)를 각 스테이지에 재사용:
+    - 체크리스트/분석형: CleaningAnalysis
+    - 추천형: ReinforcementAgentRecommendation, BondingAdhesiveRecommendation, RestorationMaterialRecommendation
+    - 단계안내형: CleaningGuide, DryingGuide, ReinforcementMethod, BondingMethodRecommendation, RestorationGuide
+    - 신규 VLM 전용: ColorChangeAnalysis (예: severity: Literal["mild","moderate","severe"], recommendation: str)
+   
+    수정/추가 파일 목록
+   
+    - app/nodes/cleaning.py, app/nodes/reinforcement.py, app/nodes/bonding.py, app/nodes/restoration.py (신규)
+    - app/schemas.py (모델 추가)
+    - app/llm.py (vision_llm 추가)
+    - app/graph.py (add_linear_stage 헬퍼 추출 + disassembly 리팩터링 + 4단계 등록 + reinforcement 조건부 엣지)
+    - Spring 쪽(src/main/java/.../conservation_guide_ai/)은 flow가 이미 List<String>이라 코드 변경 불필요
+    
+    검증 방법
+   
+    1. docker-compose up --build로 로컬 재기동
+    2. Postman으로 flow: ["disassembly","cleaning","reinforcement","bonding","restoration"] 전체 포함해 /tasks/{id}/start 호출 → 각 interrupt 지점마다 /resume으로 순서대로 진행하며 세척→강화처리→접합→복원까지 전체 흐름 확인
+    3. 강화처리 2-2에서 색변화 "심함"으로 답하는 케이스를 만들어 2-1로 정상적으로 되돌아가는지(조건부 엣지) 별도 확인
+    4. flow에 일부 단계만 포함시켜 (예: ["disassembly","bonding"]) 나머지 단계가 stage_guard에 의해 정상 skip 되는지 확인
+```
+
 
 
 # 7/21 Cloud 배포화

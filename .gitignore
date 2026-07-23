@@ -45,5 +45,7 @@ ai-services/conservation-guide-ai/.venv/
 ai-services/conservation-guide-ai/checkpoints.db
 ai-services/conservation-guide-ai/checkpoints.db-shm
 ai-services/conservation-guide-ai/checkpoints.db-wal
+ai-services/conservation-guide-ai/test_photos/*
+!ai-services/conservation-guide-ai/test_photos/README.md
 __pycache__/
 *.pyc
