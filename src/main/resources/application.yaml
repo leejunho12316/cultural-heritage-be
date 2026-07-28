@@ -7,31 +7,24 @@ spring:
 
   servlet:
     multipart:
-      # X-ray 결합본은 5000px 이상으로 파일이 크다
-      max-file-size: 50MB
-      # 조각 30장을 한 번에 올리면 기본값 10MB를 쉽게 넘는다
-      max-request-size: 500MB
+      max-file-size: 100MB
+      max-request-size: 1GB
 
-# ------------------------------------------------------------
-# 보존처리 가이드 AI
-# ------------------------------------------------------------
 conservation-guide-ai:
   base-url: ${CONSERVATION_GUIDE_AI_BASE_URL:http://localhost:8000}
 
-# ------------------------------------------------------------
-# X-ray AI 서비스
-# ------------------------------------------------------------
 xray:
+  storage:
+    # Spring Boot 컨테이너가 입력 ZIP과 job.json을 저장하는 경로
+    local-root: ${XRAY_STORAGE_LOCAL_ROOT:./shared/jobs}
+    # FastAPI 컨테이너에 전달할 동일 공유 볼륨 경로
+    container-root: ${XRAY_STORAGE_CONTAINER_ROOT:/shared/jobs}
+
   ai:
-    # 로컬 개발      : http://localhost:8001
-    # docker-compose : http://xray-ai:8000
     base-url: ${XRAY_AI_BASE_URL:http://localhost:8001}
+    timeout-seconds: ${XRAY_AI_TIMEOUT_SECONDS:300}
+    config-name: ${XRAY_AI_CONFIG_NAME:config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json}
 
-    # 조각 30장 일괄 처리 1~2분
-    # OpenAI 문안 생성 30초~2분
-    timeout-seconds: 300
-
-# 프론트엔드 CORS 허용 주소
 app:
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000

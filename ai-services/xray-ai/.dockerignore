@@ -9,11 +9,12 @@ venv/
 .git/
 .gitignore
 
-# 개발용 — 컨테이너에 불필요
+# 개발 및 테스트 산출물
 samples/
-scripts/
 test_api.py
 test_result.json
+outputs/
+data/
 *.md
 !models/README.md
 

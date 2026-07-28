@@ -231,4 +231,42 @@ STITCH_MAPPING_DIR = Path(
     )
 )
 
-# 이하 담당자 추가
+# Spring Boot와 FastAPI가 함께 사용하는 작업 루트
+STITCH_JOBS_ROOT = Path(
+    os.getenv(
+        "XRAY_STITCH_JOBS_ROOT",
+        "/shared/jobs",
+    )
+).resolve()
+
+# 결합 엔진이 포함된 xray-ai 프로젝트 루트
+STITCH_ENGINE_DIR = Path(
+    os.getenv(
+        "XRAY_STITCH_ENGINE_DIR",
+        "/code",
+    )
+).resolve()
+
+# 일괄 결합 실행 스크립트
+STITCH_BATCH_SCRIPT = Path(
+    os.getenv(
+        "XRAY_STITCH_BATCH_SCRIPT",
+        str(STITCH_ENGINE_DIR / "scripts" / "batch_assemble.py"),
+    )
+).resolve()
+
+# ZIP 해제 캐시. 작업 결과와 분리하여 재사용한다.
+STITCH_CACHE_DIR = Path(
+    os.getenv(
+        "XRAY_STITCH_CACHE_DIR",
+        "/shared/cache",
+    )
+).resolve()
+
+# 기본 매핑 파일
+STITCH_MAPPING_PATH = Path(
+    os.getenv(
+        "XRAY_STITCH_MAPPING_PATH",
+        str(STITCH_MAPPING_DIR / "mapping.color_front.json"),
+    )
+).resolve()

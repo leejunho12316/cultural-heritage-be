@@ -84,15 +84,16 @@ app.add_middleware(
 # 두 파트의 경로가 겹치면 나중에 등록된 쪽이
 # 앞의 것을 덮어쓰므로 주의한다.
 #
-# 예: prefix="/anomaly" → /anomaly/detect
-#     prefix="/stitch"  → /stitch/run
+# 이상영역 탐지는 기존 Spring 연동 경로를 유지한다.
+# 결합 Job API만 /api 접두사를 사용한다.
 #
-# 현재는 Spring 연동이 동작 중이므로 접두사를 붙이지 않는다.
-# 두 파트를 합칠 때 아래 두 줄만 수정하면 된다.
+# 결과 경로:
+#   POST /api/stitch/jobs
+#   GET  /api/jobs/{jobId}
 # ------------------------------------------------------------
 
 app.include_router(anomaly.router)
-app.include_router(stitch.router, prefix="/stitch")
+app.include_router(stitch.router, prefix="/api")
 
 
 # ------------------------------------------------------------
@@ -108,6 +109,12 @@ def health():
         "modelLoaded": detector._model is not None,
         "device": config.DEVICE,
         "llmEnabled": bool(config.OPENAI_API_KEY),
+        "stitchReady": (
+            config.STITCH_BATCH_SCRIPT.is_file()
+            and config.STITCH_MAPPING_PATH.is_file()
+            and config.STITCH_CONFIG_DIR.is_dir()
+        ),
+        "stitchJobsRoot": str(config.STITCH_JOBS_ROOT),
     }
 
 

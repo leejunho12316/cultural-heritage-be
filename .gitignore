@@ -61,3 +61,6 @@ ai-services/xray-ai/samples/
 ### frontend ###
 node_modules/
 dist/
+### shared xray jobs ###
+shared/*
+!shared/.gitkeep
