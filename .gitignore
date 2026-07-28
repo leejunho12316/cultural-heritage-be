@@ -47,5 +47,7 @@ ai-services/conservation-guide-ai/checkpoints.db-shm
 ai-services/conservation-guide-ai/checkpoints.db-wal
 ai-services/conservation-guide-ai/test_photos/*
 !ai-services/conservation-guide-ai/test_photos/README.md
+ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs/*
+ai-services/conservation-guide-ai/app/reinforcement_rag/vector_store/*
 __pycache__/
 *.pyc

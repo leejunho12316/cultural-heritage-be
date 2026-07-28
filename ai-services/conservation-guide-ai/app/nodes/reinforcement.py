@@ -7,6 +7,7 @@ from langgraph.types import interrupt
 from ..state import State, _now, stage_guard, _build_result, assign_ids
 from ..schemas import ReinforcementAgentRecommendation, ColorChangeAnalysis, ReinforcementMethod
 from ..llm import llm, vision_llm
+from ..reinforcement_rag.rag import retrieve_reference_context
 
 # 강화처리 노드!!
 
@@ -28,6 +29,14 @@ def _get_agent_solvent_recommendation(relic_info: dict) -> dict:
 
     structured_llm = llm.with_structured_output(ReinforcementAgentRecommendation)
 
+    reference_chunks = retrieve_reference_context(
+        f"유물 정보 {relic_info}에 적합한 강화처리용 강화제와 유기용매 추천"
+    )
+    reference_text = "\n\n".join(
+        f"[출처: {chunk['source']} p.{chunk['page']}]\n{chunk['content']}"
+        for chunk in reference_chunks
+    )
+
     prompt = f"""당신은 문화재 보존처리 전문가입니다.
     아래 유물 정보를 참고해서 강화처리에 사용할 강화제와, 그 강화제를 희석할 유기용매를 추천하고 이유를 제시해주세요.
 
@@ -39,8 +48,16 @@ def _get_agent_solvent_recommendation(relic_info: dict) -> dict:
     - 수용성 에멀전: 대표 용매 물. 비권장 아세톤/톨루엔.
     - Paraloid NAD-10: 대표 용매 나프타. 사용가능 화이트스피릿. 비권장 물/극성용매.
 
+    아래는 보존처리 참고 문헌에서 검색된 관련 내용입니다. 위 규칙과 상충하지 않는 범위에서 참고하세요.
+    
+    #참고 문헌
+    {reference_text}
+
     #정보
     유물 정보: {relic_info}"""
+
+    print("====================prompt====================")
+    print(prompt)
 
     result: ReinforcementAgentRecommendation = structured_llm.invoke(prompt)
 
