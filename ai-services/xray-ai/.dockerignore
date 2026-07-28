@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Git
+.git/
+.gitignore
+
+# 개발용 — 컨테이너에 불필요
+samples/
+scripts/
+test_api.py
+test_result.json
+*.md
+!models/README.md
+
+# 로컬 환경변수
+.env
