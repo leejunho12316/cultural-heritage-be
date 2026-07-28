@@ -49,3 +49,15 @@ ai-services/conservation-guide-ai/test_photos/*
 !ai-services/conservation-guide-ai/test_photos/README.md
 __pycache__/
 *.pyc
+
+### xray-ai ###
+ai-services/xray-ai/.env
+ai-services/xray-ai/.venv/
+ai-services/xray-ai/models/*.pt
+ai-services/xray-ai/models/*.pth
+ai-services/xray-ai/samples/
+!ai-services/xray-ai/models/README.md
+
+### frontend ###
+node_modules/
+dist/

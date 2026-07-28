@@ -26,12 +26,40 @@ services:
     volumes:
       - ./ai-services/conservation-guide-ai/test_photos:/code/test_photos
 
+  # ------------------------------------------------------------
+  # 추가 1 — X-ray 이상영역 탐지
+  #
+  # 호스트 포트는 8001을 쓴다.
+  # 8000은 conservation-guide-ai가 사용 중이다.
+  # 컨테이너 내부는 8000이므로 Spring에서는
+  # http://xray-ai:8000 으로 접근한다.
+  # ------------------------------------------------------------
+  xray-ai:
+    build: ./ai-services/xray-ai
+    environment:
+      XRAY_DEVICE: cpu
+      XRAY_DEFAULT_CONF: "0.08"
+      XRAY_NMS_IOU: "0.5"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
   conservation-backend:
     build: .
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
+      # 추가 2 — Spring이 xray-ai를 찾는 주소
+      XRAY_AI_BASE_URL: http://xray-ai:8000
     depends_on:
       - conservation-guide-ai
+      # 추가 3
+      - xray-ai
     ports:
       - "8080:8080"
 

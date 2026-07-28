@@ -5,5 +5,37 @@ spring:
   application:
     name: conservation_backend
 
+  servlet:
+    multipart:
+      # X-ray 결합본은 5000px 이상으로 파일이 크다
+      max-file-size: 50MB
+      # 조각 30장을 한 번에 올리면 기본값 10MB를 쉽게 넘는다
+      max-request-size: 500MB
+
+# ------------------------------------------------------------
+# 보존처리 가이드 AI
+# ------------------------------------------------------------
 conservation-guide-ai:
   base-url: ${CONSERVATION_GUIDE_AI_BASE_URL:http://localhost:8000}
+
+# ------------------------------------------------------------
+# X-ray AI 서비스
+# ------------------------------------------------------------
+xray:
+  ai:
+    # 로컬 개발      : http://localhost:8001
+    # docker-compose : http://xray-ai:8000
+    base-url: ${XRAY_AI_BASE_URL:http://localhost:8001}
+
+    # 조각 30장 일괄 처리 1~2분
+    # OpenAI 문안 생성 30초~2분
+    timeout-seconds: 300
+
+# 프론트엔드 CORS 허용 주소
+app:
+  cors:
+    allowed-origins: http://localhost:5173,http://localhost:3000
+
+logging:
+  level:
+    com.aivle.conservation_backend.xray: DEBUG
