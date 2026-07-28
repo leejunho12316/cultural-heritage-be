@@ -56,6 +56,24 @@
 }
 ```
 
+```
+{
+  "taskName": "청자상감운학문매병 보존처리",
+  "taskManager": "이준호",
+  "relicInfo": {
+    "name": "청자상감운학문매병",
+    "material": "연질토기",
+    "period": "고려시대",
+    "condition": "표면 균열 및 이물질 부착",
+    "weight": "중간",
+    "bondingArea": "충분함",
+    "treatmentPurpose": "전시용"
+  },
+  "relicPhoto": [],
+  "flow": ["reinforcement"]
+}
+```
+
 2. /tasks/{task_id}/resume
 -> 같은 task_id로 resume 반복호출.
 
@@ -236,22 +254,21 @@
 FE에서는 이 기본값들을 미리 체크된 것으로 인식하고 사람이 굳이 체크하지 않아도 다음 클릭 가능하도록 설계
 
 - 기본값이 필요한 단계
-  해체: 도구 추천 (recommended: true 도구 기본 체크)
-  세척: 세척법 선택 (need_physical_cleaning, need_chemical_cleaning:true 기본 체크),
-  강화처리: 강화제/유기용매 선택 (드랍다운 중 recommended_agent, recommended_solvent 기본값)
-  습윤 테스트 후 다음단계 진행 여부 ("action":"proceed"로 진행이 기본값. retry는 되돌아가기임.)
-  접합: 접착제 선택 (드랍다운 중 recommended_adhesive 기본값)
-  복원: 복원 재료 선택 (드랍다운 중 recommended_material 기본값)
+  해체 - 체크리스트 선택 : 도구 추천 recommended: true 되어 있는 도구 기본 체크
+  해체 - 작업 후 처리 : 세척법 선택 (need_physical_cleaning, need_chemical_cleaning 값을 기본 체크),
+  세척 - 작업 후 처리 : recommended_agent, recommended_solvent를 드랍다운 기본값으로
+  강화처리 - 작업 후 처리 : recommended_adhesive을 드랍다운 기본값으로
+  접합 - 작업 후 처리 : recommended_material 드랍다운 기본값으로
 
 완료) 6. 전체 완료 버튼
 기본값을 설정할 수 없는 단계의 경우 FE에 전체 완료 버튼을 만들어 빠른 스킵이 가능하도록 설계.
 
 - '전체 완료 버튼'이 필요한 단계
-  해체: 체크리스트, 단계별 작업
-  세척: 단계별 작업, 건조 단계별 작업
-  강화처리: 단계별 작업
-  접합: 단계별 작업
-  복원: 단계별 작업
+  해체: 체크리스트 선택, 단계별 작업 안내
+  세척: 단계별 작업 안내, 건조 단계별 작업 안내
+  강화처리: 단계별 작업 안내
+  접합: 단계별 작업 안내
+  복원: 단계별 작업 안내
 
 완료) 7. 드랍다운 값 명확히
 

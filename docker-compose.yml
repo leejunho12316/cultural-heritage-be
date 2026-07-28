@@ -25,6 +25,7 @@ services:
       - "8000:8000"
     volumes:
       - ./ai-services/conservation-guide-ai/test_photos:/code/test_photos
+      - ./ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs:/code/app/reinforcement_rag/reinforcement_docs
 
   conservation-backend:
     build: .
