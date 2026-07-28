@@ -1,0 +1,36 @@
+# 도자기 모듈 - 의존성 정리
+#
+# 가벼운 스크립트 (GPU 불필요, 데스크톱에서 바로 실행 가능):
+#   emuseum_client.py, auto_label_from_name.py, sort_by_auto_label.py,
+#   download_by_era.py
+requests
+opencv-python
+numpy
+scipy
+
+# --------------------------------------------------------------------
+# 아래는 glaze_detector.py / completeness_classifier.py / evaluate_completeness.py
+# 를 실제로 돌릴 때만 필요합니다 (SAM2로 유물 마스크를 뽑아야 해서 GPU 필요 -
+# 데스크톱에 GPU 없으면 이 부분은 계속 Colab에서 실행하세요).
+#
+# heritage_corrison 레포의 requirements.txt와 동일합니다:
+#   gradio
+#   Pillow
+#   scikit-learn
+#   torch
+#   torchvision
+#   transformers
+#   ultralytics
+#   openai
+#   python-dotenv
+#   pydantic
+#
+# SAM2는 pip 패키지가 아니라 별도 git clone + pip install -e 로 설치해야 합니다:
+#   git clone https://github.com/facebookresearch/sam2.git sam2_repo
+#   pip install -e sam2_repo
+
+# --------------------------------------------------------------------
+# BE 연동용 API 서버(app/pottery_api.py)를 띄울 때만 필요:
+fastapi
+uvicorn
+python-multipart

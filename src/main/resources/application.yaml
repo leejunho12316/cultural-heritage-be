@@ -7,3 +7,5 @@ spring:
 
 conservation-guide-ai:
   base-url: ${CONSERVATION_GUIDE_AI_BASE_URL:http://localhost:8000}
+pottery-inspection-ai:
+  base-url: ${POTTERY_INSPECTION_AI_BASE_URL:http://localhost:8001}

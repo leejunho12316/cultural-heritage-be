@@ -17,5 +17,11 @@ public class RestClientConfig {
                 .baseUrl(baseUrl)
                 .build();
     }
+    @Bean
+    public RestClient potteryInspectionAiRestClient(@Value("${pottery-inspection-ai.base-url}") String baseUrl){
+        return RestClient.builder()
+                .baseUrl(baseUrl)
+                .build();
+    }
 
 }
