@@ -145,10 +145,20 @@
  }
 }
 
+-> POST) localhost:8080/photos/upload
+BODY - form-data에 - Key는 file File 형식으로, Value는 실제 이미지 입력
+{
+    "url": "https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/bf5afe12-8d03-4cd7-8488-6e2aebe77f90-after.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260729T041852Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260729%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=84697a6bce27b0eb0bbe891be422ee9118bc7bbbbcfc1285bde56e4d53ee7ef6"
+}
+
+
+
+
+-> 반환받은 URL 입력
 {
  "resume": {
-  "before_photo_urls": ["test_photos/before.png"],
-  "after_photo_urls": ["test_photos/after.png"]
+  "before_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/c9272846-d905-4da4-9c25-d908a9a8bb47-before.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260729T050406Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260729%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=fd76e37813bf873a8ed6f0be583352dc18c5a179b72ad9296c09732bf8207233"],
+  "after_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/b9395c1c-9d56-4877-a07e-cf8c7f8ab537-after.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260729T050427Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260729%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=dd3ae51dcee9b488b109638dae1590374ba744e31513b2b1bb584574fafadb49"]
  }
 }
 
@@ -398,7 +408,7 @@ FE에서는 이 기본값들을 미리 체크된 것으로 인식하고 사람�
     - 체크리스트/분석형: CleaningAnalysis
     - 추천형: ReinforcementAgentRecommendation, BondingAdhesiveRecommendation, RestorationMaterialRecommendation
     - 단계안내형: CleaningGuide, DryingGuide, ReinforcementMethod, BondingMethodRecommendation, RestorationGuide
-    - 신규 VLM 전용: ColorChangeAnalysis (예: severity: Literal["mild","moderate","severe"], recommendation: str)
+    - 신규 VLM 전용: ColorChangeAnalysis (ABSA 스타일 9개 항목: hue_shift/brightness_change/saturation_change/gloss_change/blanching/uneven_penetration/edge_visibility/crack_response/texture_change — 각 AspectResult(severity: none/mild/moderate/severe, description) 고정 필드 + overall_severity/recommendation 종합판정)
    
     수정/추가 파일 목록
    
