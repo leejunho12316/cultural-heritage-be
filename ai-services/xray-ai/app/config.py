@@ -231,4 +231,77 @@ STITCH_MAPPING_DIR = Path(
     )
 )
 
-# 이하 담당자 추가
+# 결합 엔진(batch_assemble.py) 위치
+#
+# 엔진은 원래 별도 배치 도구다. Dockerfile에서
+# engine/ 을 이미지 안으로 복사해 여기에 둔다.
+STITCH_ENGINE_DIR = Path(
+    os.getenv(
+        "XRAY_STITCH_ENGINE_DIR",
+        "/code/engine",
+    )
+)
+
+# 엔진 진입점
+#
+# 엔진에는 진입점이 둘 있다.
+#
+#   assemble_xray.py   컬러 기준 이미지 1장 + 조각 폴더
+#                      업로드 기반 서비스는 이쪽을 쓴다
+#
+#   batch_assemble.py  사전 등록된 데이터셋 일괄 처리
+#                      dataset_manifest.json 과 매핑 파일이
+#                      있어야 하고 유물 ID가 등록되어 있어야 한다
+#
+# 사용자가 올린 임의의 조각을 처리해야 하므로
+# assemble_xray.py 를 기본값으로 둔다.
+STITCH_ENGINE_SCRIPT = os.getenv(
+    "XRAY_STITCH_ENGINE_SCRIPT",
+    "assemble_xray.py",
+)
+
+# 매핑 파일명
+#
+# batch_assemble.py 를 쓸 때만 필요하다. 지금은
+# assemble_xray.py 를 쓰므로 사용하지 않는다.
+# 일괄 처리 모드를 도입하면 다시 쓰인다.
+STITCH_MAPPING_NAME = os.getenv(
+    "XRAY_STITCH_MAPPING_NAME",
+    "mapping.color_front.json",
+)
+
+# 기본 결합 설정 이름
+#
+# 엔진의 --config 로 전달된다. 요청에서 config_name을
+# 지정하면 그 값이 우선한다.
+#
+# 실제 파일명은
+# config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json
+# 처럼 길다. 짧은 별칭으로 적어도 이름을 포함하는 파일을
+# 찾도록 되어 있다.
+STITCH_DEFAULT_CONFIG_NAME = os.getenv(
+    "XRAY_STITCH_CONFIG_NAME",
+    "v13_conservative",
+)
+
+# 결합 제한 시간 (초)
+#
+# 엔진이 매칭에 실패하면 무한정 도는 경우가 있어
+# 반드시 상한을 둔다. 조각 30장 기준 수 분이 걸리므로
+# 결함 탐지(300초)보다 넉넉하게 잡는다.
+#
+# Spring의 xray.ai.stitch-timeout-seconds 는 이 값보다
+# 커야 한다. 반대면 엔진이 도는 중에 Spring이 먼저
+# 끊어져 원인 파악이 어려워진다.
+STITCH_TIMEOUT_SECONDS = int(
+    os.getenv("XRAY_STITCH_TIMEOUT", "1800")
+)
+
+# 반환 이미지 긴 변 상한 (0이면 원본 그대로)
+#
+# 결합본은 5000px 이상이라 base64가 수십 MB가 된다.
+# 전송이 부담되면 이 값을 지정해 축소해 반환한다.
+# 좌표는 항상 원본 기준이며 previewScale로 환산한다.
+STITCH_RETURN_MAX_SIDE = int(
+    os.getenv("XRAY_STITCH_RETURN_MAX_SIDE", "0")
+)

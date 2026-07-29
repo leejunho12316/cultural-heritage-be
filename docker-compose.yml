@@ -41,6 +41,16 @@ services:
       XRAY_DEFAULT_CONF: "0.08"
       XRAY_NMS_IOU: "0.5"
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # 추가 — 조각 결합
+      #
+      # 엔진·설정·매핑은 이미지 안에 복사되므로
+      # 공유 볼륨이 필요 없다. AI 서비스는 상태를
+      # 갖지 않고 요청 단위로 임시 폴더만 쓴다.
+      XRAY_STITCH_ENGINE_DIR: /code/engine
+      XRAY_STITCH_CONFIG_DIR: /code/configs
+      XRAY_STITCH_MAPPING_DIR: /code/mappings
+      XRAY_STITCH_CONFIG_NAME: v13_conservative
+      XRAY_STITCH_TIMEOUT: "1800"
     ports:
       - "8001:8000"
     healthcheck:
