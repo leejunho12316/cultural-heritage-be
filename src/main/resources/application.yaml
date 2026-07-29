@@ -27,8 +27,6 @@ xray:
     timeout-seconds: ${XRAY_AI_TIMEOUT_SECONDS:300}
     config-name: ${XRAY_AI_CONFIG_NAME:config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json}
 
-
-
     # 조각 결합 전용 타임아웃
     #
     # 결합은 탐지보다 훨씬 오래 걸린다(수 분~수십 분).

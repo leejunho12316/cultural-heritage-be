@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -201,6 +202,57 @@ public class XrayStitchService {
         }
 
         return new FileSystemResource(resultPath);
+    }
+
+    /**
+     * 조각별 배치 정보를 반환한다.
+     *
+     * 결합 엔진이 만든 layout.json 을 그대로 내려준다. 조각마다
+     * 어떤 위치와 각도로 놓였는지가 담겨 있어, 화면에서 수동
+     * 보정을 하거나 원본 조각의 탐지 좌표를 결합본 좌표로
+     * 옮길 때 쓴다.
+     *
+     * 파일을 그대로 전달하는 이유는, 엔진이 항목을 추가해도
+     * 중간 계층을 고치지 않아도 되기 때문이다.
+     */
+    public String getLayout(String jobId) {
+        XrayJobStatusResponse status = getLocalJobStatus(jobId);
+
+        if (!"COMPLETED".equalsIgnoreCase(status.status())) {
+            throw new IllegalStateException(
+                    "X-ray stitching result is not ready: " + status.status()
+            );
+        }
+
+        Path jobDirectory = resolveJobDirectory(jobId);
+        Path layoutPath = jobDirectory
+                .resolve("outputs")
+                .resolve("assembly")
+                .resolve("artifacts")
+                .resolve(status.artifactId())
+                .resolve("layout.json")
+                .normalize();
+
+        // 경로 조작으로 작업 폴더 밖 파일을 읽는 것을 막는다
+        if (!layoutPath.startsWith(jobDirectory)) {
+            throw new IllegalStateException(
+                    "Invalid X-ray layout path: " + layoutPath
+            );
+        }
+
+        if (!Files.isReadable(layoutPath)) {
+            throw new IllegalStateException(
+                    "X-ray layout file is not available: " + layoutPath
+            );
+        }
+
+        try {
+            return Files.readString(layoutPath, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to read X-ray layout: " + layoutPath, e
+            );
+        }
     }
 
     private Path resolveJobDirectory(String jobId) {

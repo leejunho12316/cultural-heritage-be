@@ -89,4 +89,19 @@ public class XrayStitchController {
             );
         }
     }
+    /**
+     * 조각별 배치 정보를 조회한다.
+     *
+     * 수동 보정 화면이 이 값으로 조각을 개별 배치한다.
+     * 결합 결과 이미지만으로는 조각을 따로 움직일 수 없다.
+     */
+    @GetMapping(
+            value = "/{jobId}/layout",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<String> getJobLayout(
+            @PathVariable String jobId
+    ) {
+        return ResponseEntity.ok(xrayStitchService.getLayout(jobId));
+    }
 }
