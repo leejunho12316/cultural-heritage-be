@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-07-29T04:25:33.485997+00:00",
+  "chunk_count": 232,
+  "material_chunk_counts": {
+    "ceramic": 109,
+    "metal": 27,
+    "paper": 32,
+    "stone": 18,
+    "textile": 23,
+    "wood": 23
+  },
+  "documents": [
+    {
+      "filename": "도자기 보존 관리 안내서.pdf",
+      "source": "도자기 보존 관리 안내서",
+      "pages": 62,
+      "encrypted": false,
+      "sha256": "9086e077332c89dd2000a6a201dcb0be8830080e58066c52e29ee9fb7fd6505d",
+      "indexed_chunks": 18,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "보존과복원의세계.pdf",
+      "source": "보존과 복원의 세계 - 토기·자기",
+      "pages": 178,
+      "encrypted": false,
+      "sha256": "67788c3b7acfe655695522155918dfbe243552ac69d5c1069d4098e1cb0639dc",
+      "indexed_chunks": 55,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "보존처리 지침서.pdf",
+      "source": "보존처리 지침서",
+      "pages": 161,
+      "encrypted": false,
+      "sha256": "48550b163f1003f4f807a7950162cd3c9f5488fcd8da99e6e4bfb6fdbfdee7c3",
+      "indexed_chunks": 64,
+      "skipped_pages": 47,
+      "extraction_errors": []
+    },
+    {
+      "filename": "[KSC] 2021_보존과학입문.pdf",
+      "source": "보존과학 입문",
+      "pages": 316,
+      "encrypted": true,
+      "sha256": "3b09b206d30315dcdf35bed16fe9e6bcb50f7f2de139d088ed16be5a3d0b8cfc",
+      "indexed_chunks": 95,
+      "skipped_pages": 166,
+      "extraction_errors": []
+    }
+  ]
+}
