@@ -4,10 +4,12 @@ import com.aivle.conservation_backend.xray_api.client.XrayStitchClient;
 import com.aivle.conservation_backend.xray_api.dto.XrayAiJobRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayJobResponse;
 import com.aivle.conservation_backend.xray_api.dto.XrayJobStatusResponse;
-import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,14 +25,18 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.regex.Pattern;
 
 @Service
 public class XrayStitchService {
 
+    private static final Pattern SAFE_ARTIFACT_ID =
+            Pattern.compile("^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$");
+
     private final XrayStitchClient xrayStitchClient;
     private final ObjectMapper objectMapper;
 
-    private final Path windowsRoot;
+    private final Path storageRoot;
     private final String containerRoot;
     private final String configName;
 
@@ -50,7 +56,7 @@ public class XrayStitchService {
     ) {
         this.xrayStitchClient = xrayStitchClient;
         this.objectMapper = objectMapper;
-        this.windowsRoot = Path.of(localRoot).toAbsolutePath().normalize();
+        this.storageRoot = Path.of(localRoot).toAbsolutePath().normalize();
         this.containerRoot = removeTrailingSlash(containerRoot);
         this.configName = configName;
     }
@@ -64,7 +70,7 @@ public class XrayStitchService {
 
         String jobId = UUID.randomUUID().toString();
 
-        Path jobDirectory = windowsRoot.resolve(jobId);
+        Path jobDirectory = storageRoot.resolve(jobId);
         Path colorDirectory = jobDirectory.resolve("inputs").resolve("color");
         Path xrayDirectory = jobDirectory.resolve("inputs").resolve("xray");
         Path outputDirectory = jobDirectory.resolve("outputs");
@@ -144,7 +150,72 @@ public class XrayStitchService {
     }
 
     public XrayJobStatusResponse getLocalJobStatus(String jobId) {
-        return xrayStitchClient.getJobStatus(jobId);
+        XrayJobStatusResponse status = xrayStitchClient.getJobStatus(jobId);
+        if (status == null) {
+            throw new IllegalStateException(
+                    "FastAPI returned an empty job status: " + jobId
+            );
+        }
+
+        String resultUrl = status.resultUrl();
+        if ("COMPLETED".equalsIgnoreCase(status.status())) {
+            resultUrl = "/api/xray/stitch/jobs/" + jobId + "/result";
+        }
+
+        return new XrayJobStatusResponse(
+                status.jobId(),
+                status.artifactId(),
+                status.status(),
+                status.message(),
+                resultUrl,
+                status.errorMessage()
+        );
+    }
+
+    public Resource getResult(String jobId) {
+        XrayJobStatusResponse status = getLocalJobStatus(jobId);
+        if (!"COMPLETED".equalsIgnoreCase(status.status())) {
+            throw new IllegalStateException(
+                    "X-ray stitching result is not ready: " + status.status()
+            );
+        }
+
+        Path jobDirectory = resolveJobDirectory(jobId);
+        Path resultPath = jobDirectory
+                .resolve("outputs")
+                .resolve("assembly")
+                .resolve("artifacts")
+                .resolve(status.artifactId())
+                .resolve("assembled_xray.png")
+                .normalize();
+
+        if (!resultPath.startsWith(jobDirectory)) {
+            throw new IllegalStateException(
+                    "Invalid X-ray result path: " + resultPath
+            );
+        }
+        if (!Files.isRegularFile(resultPath)) {
+            throw new IllegalStateException(
+                    "X-ray result file was not found: " + resultPath
+            );
+        }
+
+        return new FileSystemResource(resultPath);
+    }
+
+    private Path resolveJobDirectory(String jobId) {
+        final String canonicalJobId;
+        try {
+            canonicalJobId = UUID.fromString(jobId).toString();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid jobId: " + jobId, e);
+        }
+
+        Path jobDirectory = storageRoot.resolve(canonicalJobId).normalize();
+        if (!jobDirectory.getParent().equals(storageRoot)) {
+            throw new IllegalArgumentException("Invalid jobId: " + jobId);
+        }
+        return jobDirectory;
     }
 
     private void saveFiles(
@@ -168,9 +239,6 @@ public class XrayStitchService {
                 );
             }
 
-            /*
-             * ../../ 등의 경로 문자열을 제거하고 파일명만 사용한다.
-             */
             String safeFileName = Path.of(originalFileName)
                     .getFileName()
                     .toString();
@@ -213,12 +281,10 @@ public class XrayStitchService {
         jobData.put("status", status.status());
         jobData.put("message", status.message());
         jobData.put("errorMessage", status.errorMessage());
-
         jobData.put(
                 "windowsJobDirectory",
                 jobDirectory.toAbsolutePath().toString()
         );
-
         jobData.put("colorDirectory", aiRequest.colorDirectory());
         jobData.put("xrayDirectory", aiRequest.xrayDirectory());
         jobData.put("outputDirectory", aiRequest.outputDirectory());
@@ -238,21 +304,21 @@ public class XrayStitchService {
             List<MultipartFile> colorFiles,
             List<MultipartFile> xrayFiles
     ) {
-        if (artifactId == null || artifactId.isBlank()) {
+        if (artifactId == null || !SAFE_ARTIFACT_ID.matcher(artifactId).matches()) {
             throw new IllegalArgumentException(
-                    "artifactId is required."
+                    "artifactId must contain only letters, numbers, '_' or '-'."
             );
         }
 
-        if (colorFiles == null || colorFiles.isEmpty()) {
+        if (colorFiles == null || colorFiles.size() != 1) {
             throw new IllegalArgumentException(
-                    "At least one color image is required."
+                    "Exactly one color reference image is required."
             );
         }
 
-        if (xrayFiles == null || xrayFiles.isEmpty()) {
+        if (xrayFiles == null || xrayFiles.size() < 2) {
             throw new IllegalArgumentException(
-                    "At least one X-ray image is required."
+                    "At least two X-ray fragment images are required."
             );
         }
     }

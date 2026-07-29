@@ -25,6 +25,7 @@ ENV XRAY_MODEL_PATH=/code/models/final_xray_defect_best.pt
 ENV XRAY_DEVICE=cpu
 ENV XRAY_STITCH_JOBS_ROOT=/shared/jobs
 ENV XRAY_STITCH_ENGINE_DIR=/code
+ENV XRAY_STITCH_SINGLE_SCRIPT=/code/scripts/assemble_xray.py
 ENV XRAY_STITCH_BATCH_SCRIPT=/code/scripts/batch_assemble.py
 ENV XRAY_STITCH_CONFIG_DIR=/code/configs
 ENV XRAY_STITCH_MAPPING_DIR=/code/mappings

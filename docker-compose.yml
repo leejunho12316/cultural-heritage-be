@@ -35,6 +35,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       XRAY_STITCH_JOBS_ROOT: /shared/jobs
       XRAY_STITCH_ENGINE_DIR: /code
+      XRAY_STITCH_SINGLE_SCRIPT: /code/scripts/assemble_xray.py
       XRAY_STITCH_BATCH_SCRIPT: /code/scripts/batch_assemble.py
       XRAY_STITCH_CONFIG_DIR: /code/configs
       XRAY_STITCH_MAPPING_DIR: /code/mappings

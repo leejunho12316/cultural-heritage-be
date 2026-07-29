@@ -88,7 +88,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # 허용 이미지 확장자
 ALLOWED_EXTENSIONS = {
     ".jpg", ".jpeg", ".png",
-    ".bmp", ".tif", ".tiff",
+    ".bmp", ".tif", ".tiff", ".webp",
 }
 
 # 업로드 파일 크기 상한 (바이트)
@@ -247,7 +247,15 @@ STITCH_ENGINE_DIR = Path(
     )
 ).resolve()
 
-# 일괄 결합 실행 스크립트
+# 운영 API에서 단일 유물을 결합하는 실행 스크립트
+STITCH_SINGLE_SCRIPT = Path(
+    os.getenv(
+        "XRAY_STITCH_SINGLE_SCRIPT",
+        str(STITCH_ENGINE_DIR / "scripts" / "assemble_xray.py"),
+    )
+).resolve()
+
+# 기존 데이터셋 일괄 시험용 스크립트
 STITCH_BATCH_SCRIPT = Path(
     os.getenv(
         "XRAY_STITCH_BATCH_SCRIPT",

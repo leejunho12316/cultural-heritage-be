@@ -140,7 +140,7 @@ class JobService:
             {
                 "status": "COMPLETED",
                 "message": "X-ray stitching completed.",
-                "resultUrl": f"/api/jobs/{job_dir.name}/result",
+                "resultUrl": f"/api/xray/stitch/jobs/{job_dir.name}/result",
                 "errorMessage": None,
                 "returnCode": result.return_code,
                 "outputDirectory": result.output_dir,

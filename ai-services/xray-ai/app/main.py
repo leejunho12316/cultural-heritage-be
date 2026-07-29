@@ -110,8 +110,7 @@ def health():
         "device": config.DEVICE,
         "llmEnabled": bool(config.OPENAI_API_KEY),
         "stitchReady": (
-            config.STITCH_BATCH_SCRIPT.is_file()
-            and config.STITCH_MAPPING_PATH.is_file()
+            config.STITCH_SINGLE_SCRIPT.is_file()
             and config.STITCH_CONFIG_DIR.is_dir()
         ),
         "stitchJobsRoot": str(config.STITCH_JOBS_ROOT),

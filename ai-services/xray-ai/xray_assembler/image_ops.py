@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 
-SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
+SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 
 
 def list_images(folder: str | Path) -> list[Path]:
