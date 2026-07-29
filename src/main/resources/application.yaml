@@ -22,12 +22,12 @@ xray:
 
   ai:
     base-url: ${XRAY_AI_BASE_URL:http://localhost:8001}
+    # 조각 30장 일괄 처리 1~2분
+    # OpenAI 문안 생성 30초~2분
     timeout-seconds: ${XRAY_AI_TIMEOUT_SECONDS:300}
     config-name: ${XRAY_AI_CONFIG_NAME:config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json}
 
-    # 조각 30장 일괄 처리 1~2분
-    # OpenAI 문안 생성 30초~2분
-    timeout-seconds: 300
+
 
     # 조각 결합 전용 타임아웃
     #
