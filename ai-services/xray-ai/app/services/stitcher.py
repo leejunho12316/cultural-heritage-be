@@ -1,744 +1,303 @@
-"""
-X-ray 조각 결합(스티칭) 서비스
+from __future__ import annotations
 
-담당: 조각 결합 파트
-
-
-[이 파일의 역할 - 어댑터]
-
-결합 엔진은 원래 CLI 도구다. 폴더를 입력받아 subprocess로
-돌고 산출물을 디스크에 쓴다.
-
-반면 이 서비스의 규약은 무상태 멀티파트다.
-업로드를 임시 저장하고, 처리하고, 반드시 지운다.
-
-두 방식을 잇는 것이 이 파일이다.
-
-    업로드 임시파일  →  원본 이름으로 작업 폴더에 배치
-                     →  엔진 subprocess 실행
-                     →  결합본 / 배치정보 회수
-                     →  camelCase dict 반환
-                     →  작업 폴더 통째로 삭제
-
-엔진 자체는 수정하지 않는다.
-
-
-[왜 assemble_xray.py 인가]
-
-엔진에는 진입점이 둘 있다.
-
-  batch_assemble.py  사전 등록된 데이터셋을 일괄 처리한다.
-                     dataset_manifest.json 과 매핑 파일이 있어야 하고,
-                     유물 ID가 양쪽에 등록되어 있어야 한다.
-                     사용자가 임의로 올린 조각은 처리할 수 없다.
-
-  assemble_xray.py   컬러 기준 이미지 1장과 조각 폴더만 받는다.
-                     프론트에서 올라오는 것과 정확히 일치한다.
-
-따라서 이 서비스는 assemble_xray.py 를 쓴다.
-그 결과 artifactId 는 엔진에 전달되지 않고 응답 라벨로만 쓰인다.
-매핑에 등록되지 않은 유물도 결합할 수 있다.
-
-
-[상태를 갖지 않는 이유]
-
-job 관리, 이력, 검수는 Spring 이 DB 로 처리한다.
-컨테이너 임시파일에 남긴 상태는 재시작 시 사라져
-공식 기록의 근거가 될 수 없다.
-"""
-
-import base64
 import json
 import shutil
 import subprocess
 import sys
-import tempfile
-import uuid
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from app import config
+from app.schemas.stitch_request import StitchJobRequest
 
 
-# ------------------------------------------------------------
-# 결합본 파일명 후보
-#
-# 엔진이 내보내는 파일명이 확정되면 맨 앞에 고정한다.
-# 후보에 없으면 산출 폴더에서 가장 큰 이미지를 결합본으로 본다.
-# ------------------------------------------------------------
-
-ASSEMBLED_NAME_CANDIDATES = (
-    "assembled.png",
-    "assembled_xray.png",
-    "composite.png",
-    "composite.jpg",
-    "result.png",
-    "assembly.png",
-)
-
-IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+class StitchExecutionError(RuntimeError):
+    """X-ray 결합 엔진 실행 또는 결과 검증 실패."""
 
 
-class StitchError(RuntimeError):
-    """결합 엔진 실행 실패. 라우터에서 502로 변환한다."""
+@dataclass(frozen=True)
+class StitchExecutionResult:
+    return_code: int
+    output_dir: str
+    report_path: str
+    layout_path: str
+    assembled_image_path: str
+    stdout_log: str
+    stderr_log: str
 
 
-# ------------------------------------------------------------
-# 엔진 준비 상태 진단
-# ------------------------------------------------------------
+class Stitcher:
+    """공유 작업 폴더의 컬러 기준 이미지와 X-ray 조각을 결합한다."""
 
-def check_engine() -> dict:
-    """
-    결합에 필요한 파일이 모두 갖춰졌는지 확인한다.
+    IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 
-    결합은 수 분에서 수십 분이 걸린다. 설정 파일 하나가 없어서
-    한참 뒤에 실패하면 시간 낭비가 크므로, 실행 전에 상태를
-    확인할 수 있는 수단을 둔다.
-    """
-    try:
-        script = _resolve_script()
-        script_path = str(script)
-        script_exists = True
-    except StitchError:
-        script_path = None
-        script_exists = False
+    def __init__(
+        self,
+        engine_dir: Path | None = None,
+        single_script: Path | None = None,
+    ) -> None:
+        self.engine_dir = (engine_dir or config.STITCH_ENGINE_DIR).resolve()
+        self.single_script = (
+            single_script or config.STITCH_SINGLE_SCRIPT
+        ).resolve()
 
-    try:
-        package = _resolve_assembler_package()
-        package_path = str(package)
-        package_exists = True
-    except StitchError:
-        package_path = None
-        package_exists = False
+    def run(self, request: StitchJobRequest) -> StitchExecutionResult:
+        color_directory = Path(request.colorDirectory).resolve()
+        xray_directory = Path(request.xrayDirectory).resolve()
+        output_root = Path(request.outputDirectory).resolve()
 
-    try:
-        config_path = str(
-            _resolve_config(config.STITCH_DEFAULT_CONFIG_NAME)
-        )
-        config_exists = True
-    except StitchError:
-        config_path = None
-        config_exists = False
+        self._require_directory(color_directory, "colorDirectory")
+        self._require_directory(xray_directory, "xrayDirectory")
+        self._require_file(self.single_script, "assemble_xray.py")
 
-    return {
-        "stitchReady": script_exists
-        and package_exists
-        and config_exists,
-        "engineDir": str(config.STITCH_ENGINE_DIR),
-        "engineExists": config.STITCH_ENGINE_DIR.is_dir(),
-        "scriptExists": script_exists,
-        "scriptPath": script_path,
-        "assemblerPackageExists": package_exists,
-        "assemblerPackagePath": package_path,
-        "configExists": config_exists,
-        "configPath": config_path,
-        "defaultConfigName": config.STITCH_DEFAULT_CONFIG_NAME,
-        "timeoutSeconds": config.STITCH_TIMEOUT_SECONDS,
-    }
+        reference_image = self._find_reference_image(color_directory)
+        fragment_images = self._list_images(xray_directory)
+        if len(fragment_images) < 2:
+            raise StitchExecutionError(
+                "X-ray 조각 이미지는 2장 이상이어야 합니다: "
+                f"actual={len(fragment_images)}"
+            )
 
+        config_path = self._resolve_config(request.configName)
 
-# ------------------------------------------------------------
-# 진입점
-# ------------------------------------------------------------
+        job_directory = output_root.parent
+        run_output = output_root / "assembly"
+        artifact_output = run_output / "artifacts" / request.artifactId
+        log_directory = job_directory / "logs"
 
-def run(
-    xray_paths: list[Path],
-    color_paths: list[Path],
-    artifact_id: str,
-    config_name: str | None = None,
-    xray_names: list[str] | None = None,
-    color_names: list[str] | None = None,
-) -> dict:
-    """
-    조각들을 결합하고 결과를 반환한다.
+        if run_output.exists():
+            shutil.rmtree(run_output)
 
-    Parameters
-    ----------
-    xray_paths
-        업로드된 X-ray 조각 임시 경로 목록. 최소 1장.
-    color_paths
-        컬러 기준 이미지. 엔진은 이 완성본의 외곽 형태를 기준으로
-        조각을 회전 이동하여 배치하므로 반드시 1장 필요하다.
-        여러 장이 오면 첫 장을 쓴다.
-    artifact_id
-        응답 라벨로만 쓰인다. 엔진에는 전달되지 않는다.
-    config_name
-        결합 설정 이름. None이면 config 기본값.
-    xray_names, color_names
-        업로드 원본 파일명. save_upload는 충돌을 피하려고
-        파일을 {uuid}.jpg 로 저장하므로, 그대로 넘기면
-        배치 정보의 fileName이 uuid가 되어 조각과
-        변환행렬을 이을 수 없다.
+        artifact_output.mkdir(parents=True, exist_ok=True)
+        log_directory.mkdir(parents=True, exist_ok=True)
 
-    Raises
-    ------
-    StitchError
-        입력 부족, 엔진 실행 실패, 산출물 누락.
-    """
-    if not xray_paths:
-        raise StitchError("X-ray 조각이 최소 1장 필요합니다.")
-
-    if not color_paths:
-        raise StitchError(
-            "컬러 기준 이미지가 필요합니다. 결합 엔진은 컬러 "
-            "완성본의 외곽 형태를 기준으로 조각을 배치하므로 "
-            "기준 이미지 없이는 동작하지 않습니다."
-        )
-
-    script = _resolve_script()
-    _resolve_assembler_package()
-
-    config_path = _resolve_config(
-        config_name or config.STITCH_DEFAULT_CONFIG_NAME
-    )
-
-    # 작업 폴더는 요청 단위로 만들고 finally에서 통째로 지운다.
-    work_dir = Path(
-        tempfile.mkdtemp(
-            prefix=f"stitch_{uuid.uuid4().hex[:8]}_",
-            dir=str(config.UPLOAD_DIR),
-        )
-    )
-
-    try:
-        fragments_dir = _stage_fragments(
-            xray_paths, xray_names, work_dir / "fragments"
-        )
-
-        reference_path = _stage_reference(
-            color_paths[0],
-            color_names[0] if color_names else None,
-            work_dir,
-        )
-
-        output_dir = work_dir / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        stdout_path = log_directory / "stitch.stdout.log"
+        stderr_path = log_directory / "stitch.stderr.log"
 
         command = [
             sys.executable,
-            str(script),
-            "--reference", str(reference_path),
-            "--fragments", str(fragments_dir),
-            "--output", str(output_dir),
-            "--config", str(config_path),
+            str(self.single_script),
+            "--reference",
+            str(reference_image),
+            "--fragments",
+            str(xray_directory),
+            "--output",
+            str(artifact_output),
+            "--config",
+            str(config_path),
         ]
 
-        report = _execute(command, script.parent, work_dir)
-
-        return _collect_result(
-            output_dir=output_dir,
-            artifact_id=artifact_id,
-            report=report,
-            fragment_count=len(xray_paths),
-        )
-
-    finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
-
-
-# ------------------------------------------------------------
-# 입력 배치
-# ------------------------------------------------------------
-
-def _stage_fragments(
-    paths: list[Path],
-    names: list[str] | None,
-    target_dir: Path,
-) -> Path:
-    """
-    조각들을 원본 이름으로 한 폴더에 모은다.
-
-    엔진은 --fragments 로 폴더를 받아 그 안의 이미지를 모두
-    조각으로 읽는다. 따라서 이 폴더에는 조각만 있어야 하며
-    컬러 기준 이미지가 섞이면 안 된다.
-
-    파일명은 원본을 유지한다. 배치 정보의 fileName이
-    조각과 변환행렬을 잇는 키이기 때문이다.
-    """
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    used: set[str] = set()
-
-    for index, path in enumerate(paths):
-        original = (
-            names[index]
-            if names and index < len(names) and names[index]
-            else path.name
-        )
-
-        safe = Path(original).name
-
-        if safe in used:
-            safe = (
-                f"{Path(safe).stem}_{index}{Path(safe).suffix}"
-            )
-
-        used.add(safe)
-
-        shutil.copy2(path, target_dir / safe)
-
-    return target_dir
-
-
-def _stage_reference(
-    path: Path,
-    name: str | None,
-    work_dir: Path,
-) -> Path:
-    """
-    컬러 기준 이미지를 조각 폴더 바깥에 둔다.
-
-    조각 폴더 안에 두면 엔진이 이것까지 조각으로 인식한다.
-    """
-    safe = Path(name or path.name).name
-    target = work_dir / f"reference_{safe}"
-
-    shutil.copy2(path, target)
-
-    return target
-
-
-# ------------------------------------------------------------
-# 엔진 실행
-# ------------------------------------------------------------
-
-def _execute(
-    command: list[str],
-    cwd: Path,
-    work_dir: Path,
-) -> dict | None:
-    """
-    엔진을 실행하고 표준출력의 보고서를 파싱한다.
-
-    엔진은 성공 시 보고서 JSON을 표준출력에 찍고,
-    실패 시 [ERROR] 로 시작하는 줄을 표준오류에 남긴다.
-
-    타임아웃을 두는 이유는, 엔진이 매칭에 실패해 무한정
-    도는 경우 워커 스레드가 영구 점유되기 때문이다.
-    """
-    log_dir = work_dir / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    stdout_path = log_dir / "stitch.stdout.log"
-    stderr_path = log_dir / "stitch.stderr.log"
-
-    print(f"[STITCH] 실행: {' '.join(command)}")
-
-    try:
-        with (
-            stdout_path.open("w", encoding="utf-8") as out,
-            stderr_path.open("w", encoding="utf-8") as err,
-        ):
-            completed = subprocess.run(
-                command,
-                cwd=str(cwd),
-                stdout=out,
-                stderr=err,
-                text=True,
-                timeout=config.STITCH_TIMEOUT_SECONDS,
-                check=False,
-            )
-
-    except subprocess.TimeoutExpired:
-        raise StitchError(
-            f"결합이 제한 시간({config.STITCH_TIMEOUT_SECONDS}초)을 "
-            "초과했습니다. 조각 수를 줄이거나 "
-            "XRAY_STITCH_TIMEOUT을 늘리십시오."
-        )
-
-    except OSError as error:
-        raise StitchError(
-            f"결합 엔진을 실행하지 못했습니다: {error}"
-        )
-
-    if completed.returncode != 0:
-        raise StitchError(
-            f"결합 엔진이 실패했습니다 "
-            f"(returnCode={completed.returncode}). "
-            f"{_read_tail(stderr_path)}"
-        )
-
-    print("[STITCH] 엔진 실행 완료")
-
-    return _parse_stdout_report(stdout_path)
-
-
-def _parse_stdout_report(stdout_path: Path) -> dict | None:
-    """
-    표준출력에 찍힌 보고서 JSON을 읽는다.
-
-    엔진이 진행 로그를 함께 찍을 수 있으므로, 마지막 JSON
-    객체만 골라낸다. 파싱에 실패해도 결합 자체는 성공으로 둔다.
-    """
-    if not stdout_path.is_file():
-        return None
-
-    text = stdout_path.read_text(
-        encoding="utf-8", errors="replace"
-    ).strip()
-
-    if not text:
-        return None
-
-    start = text.find("{")
-
-    if start < 0:
-        return None
-
-    try:
-        return json.loads(text[start:])
-    except json.JSONDecodeError:
-        return None
-
-
-# ------------------------------------------------------------
-# 산출물 회수
-# ------------------------------------------------------------
-
-def _collect_result(
-    output_dir: Path,
-    artifact_id: str,
-    report: dict | None,
-    fragment_count: int,
-) -> dict:
-    """
-    엔진 산출물을 응답 규약에 맞춰 정리한다.
-
-    변환행렬 키는 transform이다(엔진은 affineMatrix 등으로 저장).
-    """
-    fragments = _collect_fragments(output_dir, report)
-
-    assembled_path = _find_assembled(output_dir)
-
-    if assembled_path is None:
-        raise StitchError(
-            "결합본 이미지를 찾지 못했습니다. "
-            f"산출 폴더: {output_dir}"
-        )
-
-    encoded, width, height, scale = _encode_image(assembled_path)
-
-    matched_count = sum(
-        1 for f in fragments if f.get("matched")
-    )
-
-    return {
-        "compositeImage": encoded,
-        "compositeFormat": "png",
-        "fragments": fragments,
-        "summary": {
-            "artifactId": artifact_id,
-            "totalFragments": fragment_count,
-            "matchedCount": matched_count,
-            "canvasWidth": width,
-            "canvasHeight": height,
-            # 축소 반환 시 좌표 환산 계수.
-            # 1.0이면 원본 해상도 그대로다.
-            "previewScale": scale,
-        },
-    }
-
-
-def _collect_fragments(
-    output_dir: Path,
-    report: dict | None,
-) -> list[dict]:
-    """
-    조각별 배치 정보를 모은다.
-
-    엔진 보고서(표준출력)와 산출 폴더의 JSON 파일 양쪽을 본다.
-    스키마가 확정 전이므로 흔한 키 변형을 모두 흡수한다.
-    """
-    raw_items = _extract_list(report)
-
-    if not raw_items:
-        for name in ("layout.json", "report.json", "result.json"):
-            candidate = output_dir / name
-
-            if not candidate.is_file():
-                continue
-
-            try:
-                data = json.loads(
-                    candidate.read_text(encoding="utf-8")
+        try:
+            with (
+                stdout_path.open("w", encoding="utf-8") as stdout_file,
+                stderr_path.open("w", encoding="utf-8") as stderr_file,
+            ):
+                completed = subprocess.run(
+                    command,
+                    cwd=self.engine_dir,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    text=True,
+                    check=False,
                 )
-            except (OSError, json.JSONDecodeError):
-                continue
+        except OSError as exc:
+            raise StitchExecutionError(
+                f"X-ray 결합 엔진을 실행하지 못했습니다: {exc}"
+            ) from exc
 
-            raw_items = _extract_list(data)
+        if completed.returncode != 0:
+            raise StitchExecutionError(
+                "X-ray 결합 엔진이 실패했습니다. "
+                f"return_code={completed.returncode}, "
+                f"stderr_tail={self._read_tail(stderr_path)}"
+            )
 
-            if raw_items:
-                break
+        report_path = artifact_output / "report.json"
+        layout_path = artifact_output / "layout.json"
+        assembled_image_path = artifact_output / "assembled_xray.png"
 
-    fragments = []
-
-    for item in raw_items:
-        if not isinstance(item, dict):
-            continue
-
-        transform = _pick(
-            item,
-            "affineMatrix", "affine_matrix",
-            "transform", "matrix", "M",
+        self._attach_artifact_metadata(
+            artifact_id=request.artifactId,
+            report_path=report_path,
+            layout_path=layout_path,
+        )
+        self._validate_assembly_outputs(
+            artifact_id=request.artifactId,
+            report_path=report_path,
+            layout_path=layout_path,
+            assembled_image_path=assembled_image_path,
         )
 
-        fragment = {
-            "fileName": _pick(
-                item,
-                "fileName", "file_name", "name",
-                "image", "fragment",
-            ),
-            "transform": transform,
-            "matched": transform is not None,
-            "cropBBoxXYWH": _pick(
-                item,
-                "originalCropBBoxXYWH",
-                "original_crop_bbox_xywh",
-                "cropBBoxXYWH", "bbox",
-            ),
-            "subfragmentIndex": _pick(
-                item,
-                "subfragmentIndex", "subfragment_index",
-                "index",
-            ),
-        }
-
-        for key in ("rotationDeg", "rotation_deg", "angle"):
-            if key in item and item[key] is not None:
-                fragment["rotationDeg"] = item[key]
-                break
-
-        fragments.append(fragment)
-
-    print(f"[STITCH] 배치 정보 {len(fragments)}건 수집")
-
-    return fragments
-
-
-def _find_assembled(output_dir: Path) -> Path | None:
-    """결합본 이미지를 찾는다."""
-    for name in ASSEMBLED_NAME_CANDIDATES:
-        candidate = output_dir / name
-
-        if candidate.is_file():
-            return candidate
-
-    images = [
-        path
-        for path in output_dir.rglob("*")
-        if path.is_file()
-        and path.suffix.lower() in IMAGE_SUFFIXES
-    ]
-
-    if not images:
-        return None
-
-    # 결합본은 조각보다 항상 크므로 최대 크기를 고른다.
-    return max(images, key=lambda p: p.stat().st_size)
-
-
-def _encode_image(
-    path: Path,
-) -> tuple[str, int, int, float]:
-    """
-    결합본을 base64로 인코딩한다.
-
-    이 서비스는 파일을 보관하지 않으므로 경로를 돌려줘도
-    Spring이 읽을 수 없다. 따라서 본문에 실어 보낸다.
-
-    결합본은 5000px 이상이라 base64가 수십 MB가 될 수 있다.
-    XRAY_STITCH_RETURN_MAX_SIDE를 지정하면 긴 변을 그 값으로
-    줄여 반환하고, previewScale로 환산 계수를 함께 준다.
-    좌표는 항상 원본(canvasWidth/Height) 기준이다.
-    """
-    import cv2
-    import numpy as np
-
-    image = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
-
-    if image is None:
-        raise StitchError(
-            f"결합본을 읽을 수 없습니다: {path}"
+        return StitchExecutionResult(
+            return_code=completed.returncode,
+            output_dir=str(run_output),
+            report_path=str(report_path),
+            layout_path=str(layout_path),
+            assembled_image_path=str(assembled_image_path),
+            stdout_log=str(stdout_path),
+            stderr_log=str(stderr_path),
         )
 
-    height, width = image.shape[:2]
-    max_side = config.STITCH_RETURN_MAX_SIDE
-    scale = 1.0
-
-    if max_side > 0 and max(height, width) > max_side:
-        scale = max_side / float(max(height, width))
-
-        image = cv2.resize(
-            image,
-            (int(width * scale), int(height * scale)),
-            interpolation=cv2.INTER_AREA,
+    def _resolve_config(self, config_name: str) -> Path:
+        clean_name = Path(config_name).name
+        config_dir = config.STITCH_CONFIG_DIR.resolve()
+        candidates = [
+            config_dir / clean_name,
+            config_dir / f"{clean_name}.json",
+            config_dir / f"config.{clean_name}.json",
+            self.engine_dir / "configs" / clean_name,
+            self.engine_dir / "configs" / f"{clean_name}.json",
+            self.engine_dir / "configs" / f"config.{clean_name}.json",
+            self.engine_dir / clean_name,
+            self.engine_dir / f"{clean_name}.json",
+            self.engine_dir / f"config.{clean_name}.json",
+        ]
+        return self._first_existing_file(
+            candidates,
+            f"설정 파일({config_name})",
         )
 
-    ok, buffer = cv2.imencode(".png", image)
+    @classmethod
+    def _find_reference_image(cls, directory: Path) -> Path:
+        images = cls._list_images(directory)
+        if len(images) != 1:
+            raise StitchExecutionError(
+                "컬러 기준 이미지는 정확히 1장이어야 합니다: "
+                f"actual={len(images)}, files={[path.name for path in images]}"
+            )
+        return images[0]
 
-    if not ok:
-        raise StitchError("결합본 인코딩에 실패했습니다.")
-
-    encoded = base64.b64encode(
-        np.asarray(buffer).tobytes()
-    ).decode("ascii")
-
-    print(
-        f"[STITCH] 결합본 {width}x{height} | "
-        f"scale={scale:.3f} | base64 {len(encoded) // 1024}KB"
-    )
-
-    return encoded, width, height, scale
-
-
-# ------------------------------------------------------------
-# 엔진 리소스 해석
-# ------------------------------------------------------------
-
-def _resolve_script() -> Path:
-    """
-    엔진 실행 스크립트를 찾는다.
-
-    엔진 저장소가 scripts/ 하위에 두는 구조일 수 있어
-    두 배치를 모두 확인한다.
-    """
-    name = config.STITCH_ENGINE_SCRIPT
-
-    candidates = [
-        config.STITCH_ENGINE_DIR / name,
-        config.STITCH_ENGINE_DIR / "scripts" / name,
-        config.STITCH_ENGINE_DIR / "bin" / name,
-    ]
-
-    return _first_file(candidates, f"엔진 스크립트({name})")
-
-
-def _resolve_assembler_package() -> Path:
-    """
-    xray_assembler 패키지를 찾는다.
-
-    엔진은 스크립트 단독으로 돌지 않는다. 이 패키지가 없으면
-    subprocess가 ImportError로 죽는데, 그 오류는 로그 파일에만
-    남아 원인 파악이 오래 걸리므로 실행 전에 미리 잡는다.
-
-    스크립트가 scripts/ 하위에 있으면 패키지는 그 상위에 있다.
-    """
-    candidates = [
-        config.STITCH_ENGINE_DIR / "xray_assembler",
-        config.STITCH_ENGINE_DIR / "scripts" / "xray_assembler",
-    ]
-
-    for candidate in candidates:
-        if candidate.is_dir():
-            return candidate.resolve()
-
-    checked = ", ".join(str(p) for p in candidates)
-
-    raise StitchError(
-        f"엔진 패키지(xray_assembler)를 찾을 수 없습니다. "
-        f"확인 경로: {checked}"
-    )
-
-
-def _resolve_config(config_name: str) -> Path:
-    """
-    결합 설정 JSON을 찾는다.
-
-    실제 설정 파일명은
-    config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json
-    처럼 길다. 짧은 별칭(v13_conservative)으로도 찾을 수 있도록
-    정확한 이름을 먼저 보고, 없으면 이름을 포함하는 파일을 찾는다.
-    """
-    name = Path(config_name).name
-
-    search_dirs = [
-        config.STITCH_CONFIG_DIR,
-        config.STITCH_ENGINE_DIR / "configs",
-        config.STITCH_ENGINE_DIR,
-    ]
-
-    # 1) 정확한 이름
-    exact = []
-
-    for base in search_dirs:
-        exact.extend([
-            base / name,
-            base / f"{name}.json",
-            base / f"config.{name}.json",
-        ])
-
-    for candidate in exact:
-        if candidate.is_file():
-            return candidate.resolve()
-
-    # 2) 이름을 포함하는 파일
-    stem = name.removesuffix(".json")
-
-    for base in search_dirs:
-        if not base.is_dir():
-            continue
-
-        matches = sorted(
-            path
-            for path in base.glob("*.json")
-            if stem in path.name
+    @classmethod
+    def _list_images(cls, directory: Path) -> list[Path]:
+        return sorted(
+            path.resolve()
+            for path in directory.iterdir()
+            if path.is_file() and path.suffix.lower() in cls.IMAGE_EXTENSIONS
         )
 
-        if matches:
-            return matches[0].resolve()
+    @staticmethod
+    def _attach_artifact_metadata(
+        artifact_id: str,
+        report_path: Path,
+        layout_path: Path,
+    ) -> None:
+        report = Stitcher._read_json_object(report_path, "report.json")
+        layout = Stitcher._read_json_object(layout_path, "layout.json")
 
-    checked = ", ".join(str(p) for p in search_dirs)
+        report["artifact"] = {"id": artifact_id}
+        layout["artifact"] = {"id": artifact_id}
 
-    raise StitchError(
-        f"결합 설정({config_name})을 찾을 수 없습니다. "
-        f"확인 폴더: {checked}"
-    )
+        report_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        layout_path.write_text(
+            json.dumps(layout, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
+    @staticmethod
+    def _validate_assembly_outputs(
+        artifact_id: str,
+        report_path: Path,
+        layout_path: Path,
+        assembled_image_path: Path,
+    ) -> None:
+        required_files = [report_path, layout_path, assembled_image_path]
+        missing = [str(path) for path in required_files if not path.is_file()]
+        if missing:
+            raise StitchExecutionError(
+                "결합 엔진은 정상 종료했지만 필수 결과 파일이 없습니다: "
+                + ", ".join(missing)
+            )
 
-def _first_file(candidates: list[Path], label: str) -> Path:
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate.resolve()
+        if assembled_image_path.stat().st_size <= 0:
+            raise StitchExecutionError(
+                f"결합 이미지가 비어 있습니다: {assembled_image_path}"
+            )
 
-    checked = ", ".join(str(p) for p in candidates)
+        report = Stitcher._read_json_object(report_path, "report.json")
+        layout = Stitcher._read_json_object(layout_path, "layout.json")
 
-    raise StitchError(
-        f"{label}을 찾을 수 없습니다. 확인 경로: {checked}"
-    )
+        report_status = str(report.get("status", "")).lower()
+        if report_status != "completed":
+            raise StitchExecutionError(
+                f"report.status가 completed가 아닙니다: {report_status!r}"
+            )
 
+        fragments = layout.get("fragments")
+        if not isinstance(fragments, list):
+            raise StitchExecutionError("layout.fragments가 배열이 아닙니다.")
 
-# ------------------------------------------------------------
-# 소소한 유틸
-# ------------------------------------------------------------
+        fragment_count = report.get("fragmentCount")
+        if fragment_count != len(fragments):
+            raise StitchExecutionError(
+                "report.fragmentCount와 layout.fragments 개수가 다릅니다: "
+                f"{fragment_count!r} != {len(fragments)}"
+            )
 
-def _extract_list(raw) -> list:
-    if isinstance(raw, list):
-        return raw
+        quality_flags = report.get("qualityFlags")
+        invariant = (
+            quality_flags.get("runtimeInvariantValidation")
+            if isinstance(quality_flags, dict)
+            else None
+        )
+        invariant_passed = (
+            invariant.get("passed") if isinstance(invariant, dict) else None
+        )
+        if invariant_passed is not True:
+            raise StitchExecutionError(
+                "runtimeInvariantValidation.passed가 true가 아닙니다."
+            )
 
-    if isinstance(raw, dict):
-        for key in (
-            "fragments", "placements", "items",
-            "pieces", "layout", "results",
-        ):
-            value = raw.get(key)
+        artifact = layout.get("artifact")
+        layout_artifact_id = (
+            artifact.get("id") if isinstance(artifact, dict) else None
+        )
+        if layout_artifact_id != artifact_id:
+            raise StitchExecutionError(
+                "layout.artifact.id가 요청 artifactId와 다릅니다: "
+                f"{layout_artifact_id!r} != {artifact_id!r}"
+            )
 
-            if isinstance(value, list):
-                return value
+    @staticmethod
+    def _read_json_object(path: Path, label: str) -> dict[str, Any]:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise StitchExecutionError(
+                f"{label}을 읽을 수 없습니다: {path}: {exc}"
+            ) from exc
 
-    return []
+        if not isinstance(data, dict):
+            raise StitchExecutionError(
+                f"{label} 최상위 값이 객체가 아닙니다: {path}"
+            )
+        return data
 
+    @staticmethod
+    def _first_existing_file(candidates: list[Path], label: str) -> Path:
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate.resolve()
+        raise StitchExecutionError(
+            f"{label}을 찾을 수 없습니다. 확인한 경로: "
+            + ", ".join(str(path) for path in candidates)
+        )
 
-def _pick(item: dict, *keys):
-    for key in keys:
-        if key in item and item[key] is not None:
-            return item[key]
+    @staticmethod
+    def _require_directory(path: Path, label: str) -> None:
+        if not path.is_dir():
+            raise StitchExecutionError(f"{label} 디렉터리가 없습니다: {path}")
 
-    return None
+    @staticmethod
+    def _require_file(path: Path, label: str) -> None:
+        if not path.is_file():
+            raise StitchExecutionError(f"{label} 파일이 없습니다: {path}")
 
-
-def _read_tail(path: Path, limit: int = 2000) -> str:
-    if not path.exists():
-        return ""
-
-    return path.read_text(
-        encoding="utf-8", errors="replace"
-    )[-limit:]
+    @staticmethod
+    def _read_tail(path: Path, limit: int = 4000) -> str:
+        if not path.exists():
+            return ""
+        return path.read_text(encoding="utf-8", errors="replace")[-limit:]
