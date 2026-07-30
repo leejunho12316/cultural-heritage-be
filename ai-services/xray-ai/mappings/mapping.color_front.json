@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "1.0",
+  "description": "dataset_manifest.json의 21개 sample과 컬러 전면 사진 매핑. 동일 실제 유물의 촬영조건별 sample은 동일 컬러 사진을 재사용한다.",
+  "mappings": [
+    {
+      "artifactId": "artifact_001",
+      "colorFile": "11호 토광묘 11 청동합 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": true,
+      "note": "완성체 외에 뚜껑/별도 부재가 함께 보일 수 있어 reference mask 검토 권장"
+    },
+    {
+      "artifactId": "artifact_002",
+      "colorFile": "11호 토광묘 11 청동합 파편 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": true,
+      "note": "완성 silhouette가 아니라 파편 배열 사진이므로 알고리즘 적용 가능성 별도 확인"
+    },
+    {
+      "artifactId": "artifact_003",
+      "colorFile": "11호 토광묘 12 청동 숟가락 전면.jpg",
+      "enabled": true,
+      "defaultTest": true,
+      "reviewRecommended": false,
+      "note": "6개 파편, 길고 얇은 유형"
+    },
+    {
+      "artifactId": "artifact_004",
+      "colorFile": "11호 토광묘 12 청동 숟가락 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": false,
+      "note": "artifact_003과 동일 실제 유물, 다른 X-ray 촬영조건"
+    },
+    {
+      "artifactId": "artifact_005",
+      "colorFile": "11호 토광묘 13 소형동경 전면.jpg",
+      "enabled": true,
+      "defaultTest": true,
+      "reviewRecommended": false,
+      "note": "2개 파편, 단순 원형 유형"
+    },
+    {
+      "artifactId": "artifact_006",
+      "colorFile": "11호 토광묘 13 소형동경 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": false,
+      "note": "artifact_005와 동일 실제 유물, 다른 X-ray 촬영조건"
+    },
+    {
+      "artifactId": "artifact_007",
+      "colorFile": "16호 토광묘 2 청동대접 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": true,
+      "note": "복원체와 별도 파편이 함께 있어 reference mask 검토 필요"
+    },
+    {
+      "artifactId": "artifact_008",
+      "colorFile": "16호 토광묘 3 동경 전면.jpg",
+      "enabled": true,
+      "defaultTest": true,
+      "reviewRecommended": false,
+      "note": "11개 파편, 원형/대칭 유형"
+    },
+    {
+      "artifactId": "artifact_009",
+      "colorFile": "16호 토광묘 3 동경 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": false,
+      "note": "artifact_008과 동일 실제 유물, 다른 X-ray 촬영조건"
+    },
+    {
+      "artifactId": "artifact_010",
+      "colorFile": "21호 토광묘 4 동경 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": false,
+      "note": "8개 파편, 원형/대칭 유형"
+    },
+    {
+      "artifactId": "artifact_011",
+      "colorFile": "21호 토광묘 4 동경 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": false,
+      "note": "artifact_010과 동일 실제 유물, 다른 X-ray 촬영조건"
+    },
+    {
+      "artifactId": "artifact_012",
+      "colorFile": "25호 토광묘 5 철제가위 전면.jpg",
+      "enabled": true,
+      "defaultTest": true,
+      "reviewRecommended": false,
+      "note": "6개 파편, 비정형 가위"
+    },
+    {
+      "artifactId": "artifact_013",
+      "colorFile": "25호 토광묘 5 철제가위 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": false,
+      "note": "artifact_012와 동일 실제 유물, 다른 X-ray 촬영조건"
+    },
+    {
+      "artifactId": "artifact_014",
+      "colorFile": "3호 석곽묘(1구역) 8 가위 전면.jpg",
+      "enabled": true,
+      "defaultTest": true,
+      "reviewRecommended": false,
+      "note": "4개 파편, 비정형 가위"
+    },
+    {
+      "artifactId": "artifact_015",
+      "colorFile": "3호 토광묘 6 청동 숟가락 전면.jpg",
+      "enabled": true,
+      "defaultTest": true,
+      "reviewRecommended": false,
+      "note": "7개 파편, 길고 얇은 유형"
+    },
+    {
+      "artifactId": "artifact_016",
+      "colorFile": "4호 석곽묘 10 청동대접 전면.jpg",
+      "enabled": true,
+      "defaultTest": true,
+      "reviewRecommended": true,
+      "note": "복원체와 별도 파편이 함께 있어 reference mask 검토 권장"
+    },
+    {
+      "artifactId": "artifact_017",
+      "colorFile": "4호 토광묘 7 청동발(2) 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": true,
+      "note": "파편 배열 사진, 29개 파편"
+    },
+    {
+      "artifactId": "artifact_018",
+      "colorFile": "4호 토광묘 7 청동발 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": true,
+      "note": "파편 배열 사진, 85개 파편으로 계산량 매우 큼"
+    },
+    {
+      "artifactId": "artifact_019",
+      "colorFile": "9호 토광묘(4구역) 9 청동 숟가락 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": true,
+      "note": "manifest 명칭과 컬러 파일 명칭이 다르므로 수동 매핑"
+    },
+    {
+      "artifactId": "artifact_020",
+      "colorFile": "1구역 5호 석곽묘2 14 청동완 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": true,
+      "note": "manifest의 5호 석곽묘 1 청동완과 동일 실제 유물인지 최종 확인 필요"
+    },
+    {
+      "artifactId": "artifact_021",
+      "colorFile": "금산리 고묘군 1 9호 토광묘 1 청동합 전면.jpg",
+      "enabled": true,
+      "defaultTest": false,
+      "reviewRecommended": true,
+      "note": "파편과 복원부가 함께 있어 reference mask 검토 권장"
+    }
+  ]
+}
