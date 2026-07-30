@@ -26,6 +26,8 @@ services:
     volumes:
       - ./ai-services/conservation-guide-ai/test_photos:/code/test_photos
       - ./ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs:/code/app/reinforcement_rag/reinforcement_docs
+      - ./ai-services/conservation-guide-ai/app/cleaning_rag/documents:/code/app/cleaning_rag/documents:ro
+      - ./ai-services/conservation-guide-ai/app/cleaning_rag/index:/code/app/cleaning_rag/index
 
   xray-ai:
     build: ./ai-services/xray-ai
