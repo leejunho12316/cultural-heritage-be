@@ -49,5 +49,6 @@ ai-services/conservation-guide-ai/test_photos/*
 !ai-services/conservation-guide-ai/test_photos/README.md
 ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs/*
 ai-services/conservation-guide-ai/app/reinforcement_rag/vector_store/*
+ai-services/conservation-guide-ai/app/reinforcement_wetting_data/generated/*
 __pycache__/
 *.pyc
