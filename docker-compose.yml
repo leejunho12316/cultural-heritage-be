@@ -28,14 +28,49 @@ services:
       - ./ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs:/code/app/reinforcement_rag/reinforcement_docs
       - ./ai-services/conservation-guide-ai/app/cleaning_rag/documents:/code/app/cleaning_rag/documents:ro
       - ./ai-services/conservation-guide-ai/app/cleaning_rag/index:/code/app/cleaning_rag/index
+
+  xray-ai:
+    build: ./ai-services/xray-ai
+    environment:
+      XRAY_DEVICE: cpu
+      XRAY_DEFAULT_CONF: "0.08"
+      XRAY_NMS_IOU: "0.5"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      XRAY_STITCH_JOBS_ROOT: /shared/jobs
+      XRAY_STITCH_ENGINE_DIR: /code
+      XRAY_STITCH_SINGLE_SCRIPT: /code/scripts/assemble_xray.py
+      XRAY_STITCH_BATCH_SCRIPT: /code/scripts/batch_assemble.py
+      XRAY_STITCH_CONFIG_DIR: /code/configs
+      XRAY_STITCH_MAPPING_DIR: /code/mappings
+      XRAY_STITCH_MAPPING_PATH: /code/mappings/mapping.color_front.json
+      XRAY_STITCH_CACHE_DIR: /shared/cache
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./shared:/shared
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
   conservation-backend:
     build: .
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
+      XRAY_AI_BASE_URL: http://xray-ai:8000
+      XRAY_AI_TIMEOUT_SECONDS: "300"
+      XRAY_AI_CONFIG_NAME: config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json
+      XRAY_STORAGE_LOCAL_ROOT: /shared/jobs
+      XRAY_STORAGE_CONTAINER_ROOT: /shared/jobs
     depends_on:
       - conservation-guide-ai
+      - xray-ai
     ports:
       - "8080:8080"
+    volumes:
+      - ./shared:/shared
 
 volumes:
   pgdata:
