@@ -28,6 +28,8 @@ services:
       - ./ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs:/code/app/reinforcement_rag/reinforcement_docs
       - ./ai-services/conservation-guide-ai/app/cleaning_rag/documents:/code/app/cleaning_rag/documents:ro
       - ./ai-services/conservation-guide-ai/app/cleaning_rag/index:/code/app/cleaning_rag/index
+      - ./ai-services/conservation-guide-ai/app/bonding_rag/documents:/code/app/bonding_rag/documents:ro
+      - ./ai-services/conservation-guide-ai/app/bonding_rag/index:/code/app/bonding_rag/index
 
   xray-ai:
     build: ./ai-services/xray-ai
@@ -64,9 +66,16 @@ services:
       XRAY_AI_CONFIG_NAME: config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json
       XRAY_STORAGE_LOCAL_ROOT: /shared/jobs
       XRAY_STORAGE_CONTAINER_ROOT: /shared/jobs
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/conservation
+      SPRING_DATASOURCE_USERNAME: conservation
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
-      - conservation-guide-ai
-      - xray-ai
+      postgres:
+        condition: service_healthy
+      conservation-guide-ai:
+        condition: service_started
+      xray-ai:
+        condition: service_started
     ports:
       - "8080:8080"
     volumes:

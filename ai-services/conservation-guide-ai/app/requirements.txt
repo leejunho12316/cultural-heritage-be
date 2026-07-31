@@ -14,3 +14,5 @@ chromadb==1.5.9
 pypdf==6.14.2
 numpy>=1.26,<3
 scikit-learn>=1.4,<2
+pillow>=10,<12
+pymupdf>=1.24,<2

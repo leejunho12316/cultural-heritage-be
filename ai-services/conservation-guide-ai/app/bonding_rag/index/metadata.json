@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-07-31T00:10:49.056313+00:00",
+  "chunk_count": 529,
+  "material_chunk_counts": {
+    "ceramic": 285,
+    "general": 197,
+    "metal": 14,
+    "paper": 11,
+    "stone": 9,
+    "textile": 6,
+    "wood": 7
+  },
+  "documents": [
+    {
+      "filename": "7_도자기 보존을 위한 복원제의 특성 연구-이해순.pdf",
+      "source": "도자기 보존을 위한 복원제의 특성 연구",
+      "pages": 12,
+      "encrypted": false,
+      "sha256": "fbe9da1eaf59210b218d2dd30c5dac5f59c476152c88a75824b1dd3d98fa388a",
+      "indexed_chunks": 11,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "해양출수 도자기 보존처리.pdf",
+      "source": "해양출수 도자기 보존처리",
+      "pages": 94,
+      "encrypted": false,
+      "sha256": "abf286aced4cad0a7469d1be19c9803d4bc571dc9e28d049488787668d0edac3",
+      "indexed_chunks": 23,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "보물 제597호 토기 융기문 발의 과학적 조사 및 보존처리.pdf",
+      "source": "보물 제597호 토기 융기문 발의 과학적 조사 및 보존처리",
+      "pages": 32,
+      "encrypted": false,
+      "sha256": "d56c157f2334c7260045de4db66c1fa9ccd1a3bfc4119d3736c41a23cc187645",
+      "indexed_chunks": 26,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "보존과복원의세계.pdf",
+      "source": "보존과 복원의 세계 - 토기·자기",
+      "pages": 178,
+      "encrypted": false,
+      "sha256": "67788c3b7acfe655695522155918dfbe243552ac69d5c1069d4098e1cb0639dc",
+      "indexed_chunks": 147,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "[KSC] 2011_보존과학용어집.pdf",
+      "source": "보존과학용어집",
+      "pages": 220,
+      "encrypted": true,
+      "sha256": "5984ba9c56e3d844ab612bc89cabd11894ac24e299fc3e5dad5dca467a82cc12",
+      "indexed_chunks": 197,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "보존처리 지침서.pdf",
+      "source": "보존처리 지침서",
+      "pages": 161,
+      "encrypted": false,
+      "sha256": "48550b163f1003f4f807a7950162cd3c9f5488fcd8da99e6e4bfb6fdbfdee7c3",
+      "indexed_chunks": 74,
+      "skipped_pages": 47,
+      "extraction_errors": []
+    },
+    {
+      "filename": "문화재 과학적 분석 - 재질별 연구 사례.pdf",
+      "source": "문화재 과학적 분석 - 재질별 연구 사례",
+      "pages": 193,
+      "encrypted": false,
+      "sha256": "72524e95217e930c58fa554332e02006d651fe312754ea87af14b00a60a06d60",
+      "indexed_chunks": 2,
+      "skipped_pages": 165,
+      "extraction_errors": []
+    },
+    {
+      "filename": "2024년_동산문화유산_보존처리_표준시방서.pdf",
+      "source": "동산문화유산 보존처리 표준시방서 2024",
+      "pages": 123,
+      "encrypted": false,
+      "sha256": "43aa9a79b6733e452b39ecf0ececfeca88d2f228a07e76cc8974c5cadc36679d",
+      "indexed_chunks": 9,
+      "skipped_pages": 113,
+      "extraction_errors": []
+    },
+    {
+      "filename": "도토기_보존처리_사례(역사)_연구.pdf",
+      "source": "도토기 보존처리 사례(역사) 연구",
+      "pages": 11,
+      "encrypted": false,
+      "sha256": "ecd05613eff4544a3c76083c437e91b979339e20acbfc45e311bd42b759914ef",
+      "indexed_chunks": 4,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "광주_조선백자_요지_출토_폐자기의_보존처리.pdf",
+      "source": "광주 조선백자 요지 출토 폐자기의 보존처리",
+      "pages": 17,
+      "encrypted": false,
+      "sha256": "02a6d4ad3efe76e900e7c90c0858d0fcbcb27282a61917f62e6990c8eca1911f",
+      "indexed_chunks": 13,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "화성_향남_요리_출토_심발형_토기_수습과_보존처리.pdf",
+      "source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리",
+      "pages": 11,
+      "encrypted": false,
+      "sha256": "024e1df4d34d231032f3aa11c39d92c4fff23f952ef443ede780bbd3e6ebfe1e",
+      "indexed_chunks": 2,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "출토유물_보존처리_2013_국립문화재연구소.pdf",
+      "source": "도자기 수리복원 방법의 변천과정에 관한 고찰 (출토유물 보존처리, 2013 국립문화재연구소)",
+      "pages": 11,
+      "encrypted": false,
+      "sha256": "3ede5427a1237802dda64616f91ae0d0ac8745cfb6a21ee583484c23e45cee47",
+      "indexed_chunks": 19,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    },
+    {
+      "filename": "출토유물_보존처리_2013_요약본.pdf",
+      "source": "출토유물 보존처리 2013 요약본 (국립문화재연구소)",
+      "pages": 7,
+      "encrypted": false,
+      "sha256": "2657fe1e004bb177e5e76fb1c643d529cfcdb6662522b2255cdd07e41f53ee31",
+      "indexed_chunks": 2,
+      "skipped_pages": 0,
+      "extraction_errors": []
+    }
+  ]
+}

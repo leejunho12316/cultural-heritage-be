@@ -4,6 +4,18 @@ server:
 spring:
   application:
     name: conservation_backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/conservation}
+    username: ${SPRING_DATASOURCE_USERNAME:conservation}
+    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:}}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
 
   servlet:
     multipart:
