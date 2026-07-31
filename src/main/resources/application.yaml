@@ -1,9 +1,25 @@
 server:
   port: 8080
 
+  tomcat:
+    max-part-count: 300
+    max-swallow-size: -1
+
 spring:
   application:
     name: conservation_backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/conservation}
+    username: ${SPRING_DATASOURCE_USERNAME:conservation}
+    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:}}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
 
   servlet:
     multipart:
@@ -13,9 +29,16 @@ spring:
 conservation-guide-ai:
   base-url: ${CONSERVATION_GUIDE_AI_BASE_URL:http://localhost:8000}
 
+
 pottery-inspection-ai:
   base-url: ${POTTERY_INSPECTION_AI_BASE_URL:http://localhost:8001}
 
+aws:
+  region: ${AWS_REGION}
+  access-key-id: ${AWS_ACCESS_KEY_ID}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+  s3:
+    bucket: ${AWS_S3_BUCKET}
 xray:
   storage:
     # Spring Boot 컨테이너가 입력 ZIP과 job.json을 저장하는 경로

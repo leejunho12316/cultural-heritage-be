@@ -39,6 +39,9 @@ from .nodes.bonding import (
   bonding_adhesive_node,
   bonding_confirm_adhesive_node,
   bonding_temp_node,
+  bonding_temp_analysis_node,
+  bonding_confirm_temp_analysis_node,
+  route_after_temp_analysis,
   bonding_method_node,
   bonding_confirm_method_node,
   bonding_end,
@@ -122,11 +125,17 @@ _reinforcement_node_funcs = {
     "reinforcement_end": reinforcement_end,
 }
 
-# 접합 단계를 구성하는 물리 노드 이름 (실행 순서대로)
-BONDING_NODE_CHAIN = [
+# 접합 단계 : 임시접합 검증(VLM) 결과에 따라 임시접합 사진 재입력으로 되돌아갈 수 있어
+# 순수 선형이 아니다. 그래서 조건부 분기 지점(임시접합 검증) 전/후로 체인을 둘로 나눠서 관리한다.
+BONDING_CHAIN_1 = [
     "bonding_adhesive",
     "bonding_confirm_adhesive",
     "bonding_temp",
+    "bonding_temp_analysis",
+    "bonding_confirm_temp_analysis",
+]
+
+BONDING_CHAIN_2 = [
     "bonding_method",
     "bonding_confirm_method",
     "bonding_end",
@@ -136,6 +145,8 @@ _bonding_node_funcs = {
     "bonding_adhesive": bonding_adhesive_node,
     "bonding_confirm_adhesive": bonding_confirm_adhesive_node,
     "bonding_temp": bonding_temp_node,
+    "bonding_temp_analysis": bonding_temp_analysis_node,
+    "bonding_confirm_temp_analysis": bonding_confirm_temp_analysis_node,
     "bonding_method": bonding_method_node,
     "bonding_confirm_method": bonding_confirm_method_node,
     "bonding_end": bonding_end,
@@ -175,7 +186,8 @@ def build_graph():
     add_linear_stage(builder, CLEANING_NODE_CHAIN, _cleaning_node_funcs)
     add_linear_stage(builder, REINFORCEMENT_CHAIN_1, _reinforcement_node_funcs)
     add_linear_stage(builder, REINFORCEMENT_CHAIN_2, _reinforcement_node_funcs)
-    add_linear_stage(builder, BONDING_NODE_CHAIN, _bonding_node_funcs)
+    add_linear_stage(builder, BONDING_CHAIN_1, _bonding_node_funcs)
+    add_linear_stage(builder, BONDING_CHAIN_2, _bonding_node_funcs)
     add_linear_stage(builder, RESTORATION_NODE_CHAIN, _restoration_node_funcs)
 
     # 전체 흐름 연결 : 해체 -> 세척 -> 강화처리 -> 접합 -> 복원
@@ -193,8 +205,19 @@ def build_graph():
         },
     )
 
-    builder.add_edge(REINFORCEMENT_CHAIN_2[-1], BONDING_NODE_CHAIN[0])
-    builder.add_edge(BONDING_NODE_CHAIN[-1], RESTORATION_NODE_CHAIN[0])
+    builder.add_edge(REINFORCEMENT_CHAIN_2[-1], BONDING_CHAIN_1[0])
+
+    # 접합 임시접합 검증 결과에 따른 분기 : "retry" -> 임시접합 사진 재입력, "proceed" -> 접합 방법
+    builder.add_conditional_edges(
+        BONDING_CHAIN_1[-1],
+        route_after_temp_analysis,
+        {
+            "retry": "bonding_temp",
+            "proceed": BONDING_CHAIN_2[0],
+        },
+    )
+
+    builder.add_edge(BONDING_CHAIN_2[-1], RESTORATION_NODE_CHAIN[0])
     builder.add_edge(RESTORATION_NODE_CHAIN[-1], END)
 
     pool = ConnectionPool(

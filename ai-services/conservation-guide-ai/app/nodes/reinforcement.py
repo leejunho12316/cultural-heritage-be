@@ -48,6 +48,11 @@ def _get_agent_solvent_recommendation(relic_info: dict) -> dict:
     - 수용성 에멀전: 대표 용매 물. 비권장 아세톤/톨루엔.
     - Paraloid NAD-10: 대표 용매 나프타. 사용가능 화이트스피릿. 비권장 물/극성용매.
 
+    reason은 자연스러운 한국어 문장으로 풀어서 작성하고,
+    ·, /, (), {{}} 같은 기호는 최대한 쓰지 마세요.
+    예를 들어 "아세톤/에탄올" 대신 "아세톤이나 에탄올", "(농도 20%)" 대신 "농도는 20퍼센트로" 처럼 표현하세요.
+    참고 문헌에 이런 기호가 있어도 그대로 옮기지 말고 문장으로 바꿔서 작성하세요.
+
     아래는 보존처리 참고 문헌에서 검색된 관련 내용입니다. 위 규칙과 상충하지 않는 범위에서 참고하세요.
     
     #참고 문헌
@@ -72,9 +77,21 @@ def _get_color_change_analysis(before_photo_urls: list, after_photo_urls: list) 
     content = [{
         "type": "text",
         "text": """당신은 문화재 보존처리 전문가입니다.
-        강화처리 테스트 전/후 사진을 비교해서 토기 표면의 색상 변화 정도를 분석해주세요.
-        토기의 색 자체가 중요한 정보를 담고 있기 때문에 색이 심하게 변하면 안 됩니다.
-        변화가 심한 경우 강화제 수지 변경, 강화제 농도 낮추기, 희석제(용제) 변경 중 적절한 개선 방향을 제안해주세요."""
+        강화처리 습윤 효과 테스트의 전/후 사진을 비교해서, 토기 표면에 나타난 변화를 아래 9개 항목별로 각각 분석해주세요.
+        각 항목은 반드시 severity(none/mild/moderate/severe)와 description을 채워야 하며, 변화가 없으면 severity를 "none"으로 표시하세요.
+
+        1. hue_shift (색상 변화): 색상(색조) 자체가 다른 색으로 옮겨갔는지. 토기 색 자체가 중요한 정보이므로 심하게 변하면 안 됩니다.
+        2. brightness_change (명도 변화): 전체적으로 어두워지거나 밝아졌는지.
+        3. saturation_change (채도 변화): 색이 더 선명해지거나 탁해졌는지.
+        4. gloss_change (광택 변화): 무광이던 표면이 강화제 수지막 때문에 유광/광택이 도는 것으로 바뀌었는지.
+        5. blanching (백화현상): 용제가 증발하면서 표면이 하얗게 뜨는 현상이 나타났는지.
+        6. uneven_penetration (얼룩/불균일 침투): 강화제가 고르게 스며들지 않아 얼룩이나 경계 자국(tide-line)이 생겼는지.
+        7. edge_visibility (처리 경계 뚜렷함): 처리한 부위와 처리하지 않은 부위의 경계선이 도드라져 보이는지. 경계는 자연스럽게 섞여야 이상적입니다.
+        8. crack_response (균열부 반응): 균열이나 틈에 강화제가 고이거나, 그 부분만 유독 진해지거나 하얘지는지.
+        9. texture_change (질감 변화): 표면의 거칠기/매끄러움 등 촉감상 변화가 있는지.
+
+        위 9개 항목을 종합해서 overall_severity(mild/moderate/severe)를 판정하고,
+        moderate 이상인 경우 강화제 수지 변경, 강화제 농도 낮추기, 희석제(용제) 변경 중 적절한 개선 방향을 recommendation에 제안해주세요."""
     }]
     for url in before_photo_urls:
         content.append({"type": "text", "text": "[테스트 전 사진]"})
@@ -93,9 +110,30 @@ def _get_reinforcement_method(relic_info: dict, confirmed_agent: dict) -> dict:
 
     structured_llm = llm.with_structured_output(ReinforcementMethod)
 
+    reference_chunks = retrieve_reference_context(
+        f"유물 정보 {relic_info}, 확정된 강화제/용매 {confirmed_agent}에 대한 "
+        f"강화처리 분무법/침지법 작업 순서(플로우)와 각 단계별 주의사항"
+    )
+    reference_text = "\n\n".join(
+        f"[출처: {chunk['source']} p.{chunk['page']}]\n{chunk['content']}"
+        for chunk in reference_chunks
+    )
+
     prompt = f"""당신은 문화재 보존처리 전문가입니다.
     아래 유물 정보와 확정된 강화제/용매를 참고해서 분무법 또는 침지법 중 적절한 방법을 추천하고,
-    강화 처리 작업을 처음부터 끝까지 순서대로 단계별로 안내해주세요.
+    강화 처리 작업을 처음부터 끝까지 5~6단계로 요약해서 순서대로 안내해주세요.
+    세부 동작을 잘게 나누지 말고, 유사하거나 연속된 작업은 하나의 단계로 묶어주세요.
+
+    label, caution, overall_caution은 자연스러운 한국어 문장으로 풀어서 작성하고,
+    ·, /, (), {{}} 같은 기호는 최대한 쓰지 마세요.
+    예를 들어 "아세톤/에탄올" 대신 "아세톤이나 에탄올", "(농도 20%)" 대신 "농도는 20퍼센트로" 처럼 표현하세요.
+    참고 문헌에 이런 기호가 있어도 그대로 옮기지 말고 문장으로 바꿔서 작성하세요.
+
+    아래는 보존처리 참고 문헌에서 검색된 분무법/침지법 관련 내용입니다.
+    실제 현장 절차와 주의사항을 반영하되, 문헌에 없는 내용을 있는 것처럼 단정하지 마세요.
+
+    #참고 문헌
+    {reference_text}
 
     #정보
     유물 정보: {relic_info}
