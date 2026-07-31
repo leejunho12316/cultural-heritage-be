@@ -1,6 +1,10 @@
 server:
   port: 8080
 
+  tomcat:
+    max-part-count: 300
+    max-swallow-size: -1
+
 spring:
   application:
     name: conservation_backend
