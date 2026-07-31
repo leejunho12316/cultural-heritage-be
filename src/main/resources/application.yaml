@@ -1,13 +1,30 @@
 server:
   port: 8080
 
+  tomcat:
+    max-part-count: 300
+    max-swallow-size: -1
+
 spring:
   application:
     name: conservation_backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/conservation}
+    username: ${SPRING_DATASOURCE_USERNAME:conservation}
+    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:}}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
   servlet:
     multipart:
-      max-file-size: 20MB
-      max-request-size: 20MB
+      max-file-size: 100MB
+      max-request-size: 1GB
 
 conservation-guide-ai:
   base-url: ${CONSERVATION_GUIDE_AI_BASE_URL:http://localhost:8000}
@@ -18,3 +35,33 @@ aws:
   secret-access-key: ${AWS_SECRET_ACCESS_KEY}
   s3:
     bucket: ${AWS_S3_BUCKET}
+xray:
+  storage:
+    # Spring Boot 컨테이너가 입력 ZIP과 job.json을 저장하는 경로
+    local-root: ${XRAY_STORAGE_LOCAL_ROOT:./shared/jobs}
+    # FastAPI 컨테이너에 전달할 동일 공유 볼륨 경로
+    container-root: ${XRAY_STORAGE_CONTAINER_ROOT:/shared/jobs}
+
+  ai:
+    base-url: ${XRAY_AI_BASE_URL:http://localhost:8001}
+    # 조각 30장 일괄 처리 1~2분
+    # OpenAI 문안 생성 30초~2분
+    timeout-seconds: ${XRAY_AI_TIMEOUT_SECONDS:300}
+    config-name: ${XRAY_AI_CONFIG_NAME:config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json}
+
+    # 조각 결합 전용 타임아웃
+    #
+    # 결합은 탐지보다 훨씬 오래 걸린다(수 분~수십 분).
+    # AI 서비스 쪽 상한(XRAY_STITCH_TIMEOUT, 기본 1800초)보다
+    # 커야 한다. 반대면 엔진이 도는 중에 Spring이 먼저
+    # 끊어져 원인 파악이 어려워진다.
+    stitch-timeout-seconds: 2100
+
+# 프론트엔드 CORS 허용 주소
+app:
+  cors:
+    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000
+
+logging:
+  level:
+    com.aivle.conservation_backend.xray: DEBUG

@@ -1,0 +1,129 @@
+### Conservation Guide AI - Spring -> FastAPI 통합 테스트
+###
+### 사용 전 확인
+### 1. Docker Desktop의 Engine이 실행 중이어야 합니다.
+### 2. C:\bigpro에서 docker compose up --build -d 를 실행합니다.
+### 3. docker compose ps에서 postgres, conservation-guide-ai,
+###    conservation-backend가 모두 Up인지 확인합니다.
+### 4. 테스트를 처음부터 다시 할 때마다 taskId를 새로운 값으로 바꾸세요.
+
+@springBaseUrl = http://localhost:8080
+@fastApiBaseUrl = http://localhost:8000
+@taskId = bonding-test-001
+
+### 0-A. FastAPI가 외부 포트 8000에서 열렸는지 확인
+GET {{fastApiBaseUrl}}/openapi.json
+Accept: application/json
+
+### 0-B. Spring 서버 응답 확인
+### 404가 반환되어도 Spring 서버가 응답한 것이므로 서버 실행 확인에는 성공입니다.
+GET {{springBaseUrl}}/
+Accept: application/json
+
+### 1. 접합 단계 시작
+### 반드시 Spring 주소(8080)로 요청합니다.
+POST {{springBaseUrl}}/tasks/{{taskId}}/start
+Content-Type: application/json
+Accept: application/json
+
+{
+  "taskName": "접합 단계 통합 테스트",
+  "taskManager": "한별",
+  "relicInfo": {
+    "name": "접합 테스트 토기",
+    "material": "연질토기",
+    "period": "미상",
+    "condition": "파편 분리 및 접합 필요",
+    "weight": "가벼움",
+    "bondingArea": "충분함",
+    "treatmentPurpose": "전시용"
+  },
+  "relicPhoto": [],
+  "flow": [
+    "bonding"
+  ]
+}
+
+### 2. 접착제 선택
+### 1번 응답이 waiting_for_input인지 확인한 다음 실행합니다.
+POST {{springBaseUrl}}/tasks/{{taskId}}/resume
+Content-Type: application/json
+Accept: application/json
+
+{
+  "resume": {
+    "adhesive": "Cemedine C"
+  }
+}
+
+### 3. 임시접합 전·후 사진 정보 입력
+### 현재 Docker Compose는 C:\bigpro\ai-services\conservation-guide-ai\test_photos를
+### FastAPI 컨테이너의 /code/test_photos에 연결합니다.
+POST {{springBaseUrl}}/tasks/{{taskId}}/resume
+Content-Type: application/json
+Accept: application/json
+
+{
+  "resume": {
+    "before_photo_urls": [
+      "test_photos/before.png"
+    ],
+    "after_photo_urls": [
+      "test_photos/after.png"
+    ]
+  }
+}
+
+### 4. AI가 생성한 접합 작업 단계 완료 처리
+### 아래 ID는 현재 API 예시 기준입니다.
+### 3번 응답에 표시된 실제 step id가 다르면 그 값으로 교체하세요.
+POST {{springBaseUrl}}/tasks/{{taskId}}/resume
+Content-Type: application/json
+Accept: application/json
+
+{
+  "resume": {
+    "completed_step_ids": [
+      "bonding-method-01",
+      "bonding-method-02"
+    ]
+  }
+}
+
+### 5. 접합 결과 입력 및 종료
+POST {{springBaseUrl}}/tasks/{{taskId}}/resume
+Content-Type: application/json
+Accept: application/json
+
+{
+  "resume": {
+    "photo_urls": [
+      "test_photos/bonding_after.png"
+    ],
+    "memo": "Spring에서 FastAPI까지 접합 단계 통합 테스트 완료"
+  }
+}
+
+### 선택 진단: Spring을 거치지 않고 FastAPI에 직접 start 요청
+### 통합 테스트가 실패했을 때만 사용하세요.
+### taskId는 위 통합 테스트와 겹치지 않도록 별도 값을 사용합니다.
+POST {{fastApiBaseUrl}}/tasks/direct-fastapi-test-001/start
+Content-Type: application/json
+Accept: application/json
+
+{
+  "task_name": "FastAPI 직접 진단",
+  "task_manager": "한별",
+  "relic_info": {
+    "name": "직접 진단용 토기",
+    "material": "연질토기",
+    "condition": "파편 분리 및 접합 필요",
+    "weight": "가벼움",
+    "bondingArea": "충분함",
+    "treatmentPurpose": "전시용"
+  },
+  "relic_photo": [],
+  "flow": [
+    "bonding"
+  ]
+}
