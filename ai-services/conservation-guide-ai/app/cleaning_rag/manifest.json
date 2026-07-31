@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "documents": [
+    {
+      "filename": "도자기 보존 관리 안내서.pdf",
+      "source": "도자기 보존 관리 안내서",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "보존과복원의세계.pdf",
+      "source": "보존과 복원의 세계 - 토기·자기",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "보존처리 지침서.pdf",
+      "source": "보존처리 지침서",
+      "material_page_ranges": [
+        {"start": 17, "end": 33, "material": "metal"},
+        {"start": 34, "end": 66, "material": "ceramic"},
+        {"start": 67, "end": 82, "material": "stone"},
+        {"start": 83, "end": 99, "material": "paper"},
+        {"start": 100, "end": 116, "material": "textile"},
+        {"start": 117, "end": 130, "material": "wood"}
+      ]
+    },
+    {
+      "filename": "[KSC] 2021_보존과학입문.pdf",
+      "source": "보존과학 입문",
+      "material_page_ranges": [
+        {"start": 96, "end": 115, "material": "metal"},
+        {"start": 116, "end": 143, "material": "ceramic"},
+        {"start": 144, "end": 159, "material": "wood"},
+        {"start": 160, "end": 179, "material": "stone"},
+        {"start": 180, "end": 223, "material": "paper"},
+        {"start": 224, "end": 245, "material": "textile"}
+      ]
+    }
+  ]
+}

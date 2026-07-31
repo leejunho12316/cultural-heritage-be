@@ -51,3 +51,26 @@ ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs/*
 ai-services/conservation-guide-ai/app/reinforcement_rag/vector_store/*
 __pycache__/
 *.pyc
+
+### xray-ai ###
+ai-services/xray-ai/.env
+ai-services/xray-ai/.venv/
+ai-services/xray-ai/models/*.pt
+ai-services/xray-ai/models/*.pth
+ai-services/xray-ai/samples/
+ai-services/xray-ai/test_output/
+!ai-services/xray-ai/models/README.md
+
+# 결합 엔진이 만드는 캐시
+ai-services/xray-ai/.xray_input_cache/
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+
+### frontend ###
+node_modules/
+dist/
+### shared xray jobs ###
+shared/*
+!shared/.gitkeep
