@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "documents": [
+    {
+      "filename": "7_도자기 보존을 위한 복원제의 특성 연구-이해순.pdf",
+      "source": "도자기 보존을 위한 복원제의 특성 연구",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "해양출수 도자기 보존처리.pdf",
+      "source": "해양출수 도자기 보존처리",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "보물 제597호 토기 융기문 발의 과학적 조사 및 보존처리.pdf",
+      "source": "보물 제597호 토기 융기문 발의 과학적 조사 및 보존처리",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "보존과복원의세계.pdf",
+      "source": "보존과 복원의 세계 - 토기·자기",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "[KSC] 2011_보존과학용어집.pdf",
+      "source": "보존과학용어집",
+      "default_material": "general"
+    },
+    {
+      "filename": "보존처리 지침서.pdf",
+      "source": "보존처리 지침서",
+      "material_page_ranges": [
+        {"start": 17, "end": 33, "material": "metal"},
+        {"start": 34, "end": 66, "material": "ceramic"},
+        {"start": 67, "end": 82, "material": "stone"},
+        {"start": 83, "end": 99, "material": "paper"},
+        {"start": 100, "end": 116, "material": "textile"},
+        {"start": 117, "end": 130, "material": "wood"}
+      ]
+    },
+    {
+      "filename": "문화재 과학적 분석 - 재질별 연구 사례.pdf",
+      "source": "문화재 과학적 분석 - 재질별 연구 사례",
+      "material_page_ranges": [
+        {"start": 15, "end": 42, "material": "ceramic"}
+      ]
+    },
+    {
+      "filename": "2024년_동산문화유산_보존처리_표준시방서.pdf",
+      "source": "동산문화유산 보존처리 표준시방서 2024",
+      "material_page_ranges": [
+        {"start": 26, "end": 35, "material": "ceramic"}
+      ]
+    },
+    {
+      "filename": "도토기_보존처리_사례(역사)_연구.pdf",
+      "source": "도토기 보존처리 사례(역사) 연구",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "광주_조선백자_요지_출토_폐자기의_보존처리.pdf",
+      "source": "광주 조선백자 요지 출토 폐자기의 보존처리",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "화성_향남_요리_출토_심발형_토기_수습과_보존처리.pdf",
+      "source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "출토유물_보존처리_2013_국립문화재연구소.pdf",
+      "source": "도자기 수리복원 방법의 변천과정에 관한 고찰 (출토유물 보존처리, 2013 국립문화재연구소)",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "출토유물_보존처리_2013_요약본.pdf",
+      "source": "출토유물 보존처리 2013 요약본 (국립문화재연구소)",
+      "default_material": "ceramic"
+    }
+  ]
+}

@@ -36,11 +36,15 @@ out/
 ### VS Code ###
 .vscode/
 
+### Claude Code ###
+.claude/
+
 ### cloud-deploy ###
 /.env
 
 ### conservation-guide-ai ###
 ai-services/conservation-guide-ai/.env
+ai-services/conservation-guide-ai/app/.env
 ai-services/conservation-guide-ai/.venv/
 ai-services/conservation-guide-ai/checkpoints.db
 ai-services/conservation-guide-ai/checkpoints.db-shm
@@ -49,6 +53,7 @@ ai-services/conservation-guide-ai/test_photos/*
 !ai-services/conservation-guide-ai/test_photos/README.md
 ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs/*
 ai-services/conservation-guide-ai/app/reinforcement_rag/vector_store/*
+ai-services/conservation-guide-ai/app/bonding_rag/documents/*
 __pycache__/
 *.pyc
 

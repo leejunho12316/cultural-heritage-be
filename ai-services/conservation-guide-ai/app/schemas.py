@@ -96,6 +96,29 @@ class BondingAdhesiveRecommendation(BaseModel):
     reason: str = Field(description="이 접착제를 추천하는 이유")
     precautions: list[str] = Field(description="사용 시 주의사항")
 
+# 접합 - 임시접합(가조립) 사진 검증 (VLM)
+# 평가축은 3D 파편 정합 연구(PotSAC의 축 정렬 추정, Structure-from-Sherds의 파단면
+# 오정합 방지)에서 쓰는 판단 기준을 2D 사진으로 정성 평가하는 형태로 옮긴 것.
+class BondingTempAnalysis(BaseModel):
+    is_analyzable: bool = Field(
+        description="사진이 도자기 파편/접합부를 판단하기에 충분한지. 접합과 무관한 사진, 파단면이 안 보일 정도로 흐리거나 "
+                    "너무 멀리서 찍힌 사진, 유물이 아예 안 보이는 사진 등은 False로 표시."
+    )
+    axis_alignment: Literal["good", "minor_issue", "major_issue", "unclear"] = Field(
+        description="파편들이 원래 기물의 회전축을 기준으로 비틀림/기울어짐 없이 정렬되었는지. is_analyzable=False면 'unclear'."
+    )
+    fracture_match_quality: Literal["good", "minor_issue", "major_issue", "unclear"] = Field(
+        description="파단면끼리 간극·단차 없이 맞물렸는지, 억지로 끼워 맞춘 흔적(오정합)은 없는지. is_analyzable=False면 'unclear'."
+    )
+    description: str = Field(description="관찰된 정렬/파단면 상태에 대한 설명. is_analyzable=False면 판단 불가 사유를 설명.")
+    overall_severity: Literal["mild", "moderate", "severe"] = Field(
+        description="종합 문제 심각도. is_analyzable=False인 경우에도 재촬영 전까지 진행 보류가 필요하므로 'severe'로 표시."
+    )
+    recommendation: str = Field(
+        description="그대로 진행 가능한지, 재작업이 필요하면 어느 부분을 다시 맞춰야 하는지. "
+                    "is_analyzable=False면 어떤 사진(각도/거리/초점)을 다시 촬영해서 보내야 하는지 구체적으로 요청."
+    )
+
 # 접합 - 접합 방식/단계 안내
 class BondingStep(BaseModel):
     order: int = Field(description="수행 순서 (1부터 시작)")
