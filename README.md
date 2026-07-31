@@ -107,6 +107,11 @@ curl http://localhost:8080/api/xray/health
 ```env
 OPENAI_API_KEY=...
 POSTGRES_PASSWORD=...
+
+AWS_REGION=ap-northeast-2
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_S3_BUCKET=AWS-버킷-이름...
 ```
 
 `OPENAI_API_KEY` 가 없으면 상태조사 문안 생성만 조용히 실패한다.
@@ -114,6 +119,28 @@ POSTGRES_PASSWORD=...
 
 `POSTGRES_PASSWORD` 가 없으면 DB 가 뜨지 않아 Spring 도 기동하지
 못한다.
+
+#### AWS 콘솔에서 발급받는 방법
+1. IAM 관련
+   AWS Console - IAM - IAM 사용자에 들어가 사용자 생성을 눌러주세요.
+   사용자 이름을 입력하고 다음을 누르세요.
+   직접 정책 연결 - AmazonS3FullAccess를 부여하세요.
+   사용자 생성을 완료하세요.
+   
+   생성된 IAM 사용자를 클릭하세요.
+   액세스 키 만들기 - 로컬 코드를 선택해 액세스 코드를 생성하세요.
+   3단계에 나오는 액세스 키와 비밀 액세스 키를 .env에 입력하면 됩니다.
+   -> AWS_ACCESS_KEY_ID : 액세스 키
+   -> AWS_SECRET_ACCESS_KEY : 비밀 액세스 키
+
+2. S3 관련
+   AWS Console - S3에 들어가 버킷을 하나 만드세요
+   ACL 비활성화, 모든 퍼블릭 액세스 차단, 버킷 버전 관리 비활성화 등으로 전부**기본 설정**을 그냥 사용하세요.  
+
+   -> AWS_S3_BUCKET : S3 버킷을 만들고 버킷 이름을 적어주시면 됩니다.
+   -> AWS_REGION : AWS 인프라가 구축되어 있는 리전을 입력해주시면 됩니다. (ap-northeast-2, us-east-1,,,)
+
+
 
 ### `shared/` (레포 루트)
 
