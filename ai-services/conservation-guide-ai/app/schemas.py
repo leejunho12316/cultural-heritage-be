@@ -72,11 +72,24 @@ class ReinforcementAgentRecommendation(BaseModel):
     recommended_solvent: Literal["아세톤", "톨루엔", "자일렌", "에틸아세테이트", "이소프로판올", "에탄올", "MEK", "아밀아세테이트", "메탄올", "물", "나프타", "화이트스피릿"] = Field(description="추천 유기용매")
     reason: str = Field(description="이 조합을 추천하는 이유")
 
-# 강화처리 - 습윤 효과(색 변화) 분석 (VLM)
+# 강화처리 - 습윤 효과 테스트 개별 항목 결과 (ABSA 스타일 분석의 각 aspect)
+class AspectResult(BaseModel):
+    severity: Literal["none", "mild", "moderate", "severe"] = Field(description="이 항목의 변화 심각도 (none: 변화 없음)")
+    description: str = Field(description="이 항목에서 전/후 사진을 비교해 관찰한 내용 설명")
+
+# 강화처리 - 습윤 효과(색상/광택/표면) 종합 분석 (VLM, ABSA 스타일 9개 항목 + 종합판정)
 class ColorChangeAnalysis(BaseModel):
-    severity: Literal["mild", "moderate", "severe"] = Field(description="색 변화 심각도")
-    description: str = Field(description="관찰된 색 변화에 대한 설명")
-    recommendation: str = Field(description="심각한 경우 개선 방향 (수지 변경/농도 낮추기/희석제 변경 등)")
+    hue_shift: AspectResult = Field(description="색상(색조) 변화 - 색 자체가 다른 색으로 옮겨갔는지")
+    brightness_change: AspectResult = Field(description="명도 변화 - 전체적으로 어두워지거나 밝아졌는지")
+    saturation_change: AspectResult = Field(description="채도 변화 - 색이 더 선명해지거나 탁해졌는지")
+    gloss_change: AspectResult = Field(description="광택 변화 - 무광이던 표면이 강화제 수지막으로 인해 유광으로 바뀌는 등의 변화")
+    blanching: AspectResult = Field(description="백화현상 - 용제가 증발하면서 표면이 하얗게 뜨는 현상")
+    uneven_penetration: AspectResult = Field(description="얼룩/불균일 침투 - 강화제가 고르게 스며들지 않아 생기는 얼룩이나 경계 자국(tide-line)")
+    edge_visibility: AspectResult = Field(description="처리 경계 뚜렷함 - 처리 부위와 미처리 부위의 경계선이 도드라져 보이는지 (자연스럽게 섞여야 함)")
+    crack_response: AspectResult = Field(description="균열부 반응 - 균열/틈에 강화제가 고이거나 그 부분만 진해지거나 하얘지는지")
+    texture_change: AspectResult = Field(description="질감 변화 - 표면의 거칠기/매끄러움 등 촉감상 변화")
+    overall_severity: Literal["mild", "moderate", "severe"] = Field(description="위 9개 항목을 종합한 전체 심각도")
+    recommendation: str = Field(description="심각한 경우 개선 방향 (강화제 수지 변경/농도 낮추기/희석제 변경 등)")
 
 # 강화처리 - 처리 방법 안내
 class ReinforcementStep(BaseModel):

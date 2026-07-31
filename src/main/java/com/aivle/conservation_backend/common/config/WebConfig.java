@@ -5,24 +5,20 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * CORS 설정.
- *
- * React 개발 서버(Vite)가 다른 포트에서 실행되므로
- * 브라우저가 요청을 차단하지 않도록 허용해야 한다.
- *
- * 운영 배포 시에는 실제 프론트 도메인으로 제한한다.
- */
+import java.util.Arrays;
+
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
     private final String[] allowedOrigins;
 
     public WebConfig(
-            @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
+            @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:5174,http://localhost:3000}")
             String origins
     ) {
-        this.allowedOrigins = origins.split(",");
+        this.allowedOrigins = Arrays.stream(origins.split(","))
+                .map(String::trim)
+                .toArray(String[]::new);
     }
 
     @Override
@@ -30,9 +26,15 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOrigins(allowedOrigins)
                 .allowedMethods(
-                        "GET", "POST", "PUT", "DELETE", "OPTIONS"
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "OPTIONS"
                 )
                 .allowedHeaders("*")
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 }
