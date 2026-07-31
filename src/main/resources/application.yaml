@@ -1,6 +1,10 @@
 server:
   port: 8080
 
+  tomcat:
+    max-part-count: 300
+    max-swallow-size: -1
+
 spring:
   application:
     name: conservation_backend
@@ -38,7 +42,7 @@ xray:
 # 프론트엔드 CORS 허용 주소
 app:
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:3000
+    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000
 
 logging:
   level:
