@@ -10,7 +10,7 @@ class ChecklistItem(BaseModel):
     recommended: bool = Field(description="AI가 권장하는 기본 체크 상태")
 
 class DisassemblyChecklist(BaseModel):
-    checklist: list[ChecklistItem]
+    checklist: list[ChecklistItem] = Field(min_length=10, max_length=10, description="해체 전 확인할 체크리스트 항목 10개")
     caution: str = Field(description="가장 중요한 주의사항 한 줄")
 
 # 해체 - 도구 추천
@@ -20,7 +20,7 @@ class RecommendedTool(BaseModel):
     recommended: bool = Field(description="지금 상황에 반드시 필요한 필수 도구인지 여부(기본 체크 상태)")
 
 class ToolRecommendation(BaseModel):
-    recommended_tools: list[RecommendedTool] = Field(description="추천 도구 목록")
+    recommended_tools: list[RecommendedTool] = Field(min_length=3, max_length=3, description="추천 도구 목록 3개 (이 중 반드시 1개만 recommended: true)")
     reason: str = Field(description="이 도구들을 추천하는 이유 한 줄")
     precautions: list[str] = Field(description="도구 사용 시 주의사항")
 
@@ -32,7 +32,7 @@ class DisassemblyStep(BaseModel):
     caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
 
 class DisassemblyMethod(BaseModel):
-    steps: list[DisassemblyStep]
+    steps: list[DisassemblyStep] = Field(min_length=5, max_length=6, description="해체 작업을 5~6단계로 요약한 순서")
     overall_caution: str = Field(description="전체 해체 작업에서 가장 중요한 주의사항 한 줄")
 
 
@@ -99,7 +99,7 @@ class ReinforcementStep(BaseModel):
 
 class ReinforcementMethod(BaseModel):
     method_type: str = Field(description="'분무법' 또는 '침지법'")
-    steps: list[ReinforcementStep]
+    steps: list[ReinforcementStep] = Field(min_length=5, max_length=6, description="강화 처리 작업을 5~6단계로 요약한 순서")
     overall_caution: str = Field(description="전체 강화처리 작업에서 가장 중요한 주의사항 한 줄")
 
 
