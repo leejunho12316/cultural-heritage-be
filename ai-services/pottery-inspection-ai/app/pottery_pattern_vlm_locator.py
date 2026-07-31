@@ -125,6 +125,7 @@ KNOWN_PATTERN_HINTS = [
     "학문(두루미)",
     "용문",
     "봉황문",
+    "어문",  
     "인동문",
     "여의두문",
     "뇌문",
@@ -149,6 +150,7 @@ FORBIDDEN_NAME_EXAMPLES = [
 # 자체가 상징인 문양을 위한 대분류다.
 PATTERN_FAMILY_MAP: dict[str, str] = {
     "용문": "동물문",
+    "어문": "동물문",
     "봉황문": "동물문",
     "학문(두루미)": "동물문",
     "모란문": "식물문",
@@ -393,6 +395,20 @@ decision을 낮출 것.
 형태라는 점에서 구분)
 판정 보류: 몸통만 보이고 꼬리·볏이 잘려서 안 보임 / 학과 봉황을 가를 화려함
 정도 판단 불가
+""".strip(),
+"어문": """
+[어문] (동물문, 魚紋. 어해문·쌍어문 등도 이 계열)
+정의: 물고기를 소재로 한 장식무늬. 다산·풍요·자유로움 등을 상징하며 청화백자 등에
+자주 활용됨.
+필수에 가까운 특징: 유선형 몸통에 비늘 표현(격자 또는 반원이 반복되는 무늬) / 몸통
+양옆·꼬리 쪽에 부채꼴 또는 갈래로 뻗은 지느러미 / 다리·뿔 등 파충류·포유류적
+요소 없이 매끈한 어형 실루엣
+보조 특징: 물풀·수초·물결과 함께 구성(어조문/어해문) / 두 마리가 마주보거나
+나란히 구성(쌍어문) / 몸체 중앙의 넓은 화면을 차지하는 주문양으로 등장
+혼동 대상: 용문(물고기와 달리 뿔·수염·발톱 등 상상 속 파충류 특징이 있음 - 다리나
+뿔이 없고 몸통이 매끈하면 어문) / 봉황문·학문(날개·깃털이 있는 새 형태와 지느러미가
+있는 물고기 형태는 실루엣으로 명확히 구분됨)
+판정 보류: 몸통 일부만 보여 지느러미·비늘 여부를 확인할 수 없음
 """.strip(),
     "뇌문": """
 [뇌문] (기하문, 回紋·뇌전문이라고도 함)
@@ -1402,7 +1418,99 @@ def encode_pil_image(image: Image.Image) -> str:
     image.convert("RGB").save(buffer, format="JPEG", quality=92)
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
+class EraEvidence(BaseModel):
+    supporting_evidence: list[str] = Field(
+        default_factory=list,
+        max_length=3,
+        description=(
+            "이미지 분류 모델이 예측한 시대와 실제로 사진에서 관찰되는, 그 시대 "
+            "양식과 부합하는 구체적 근거. 완결된 문장이 아니라 짧은 구(句) 형태로 "
+            "적을 것(예: '두껍게 시유된 백자 유약과 낮은 굽'). 항목당 20자 내외. "
+            "근거 없이 시대명만 반복하지 말 것. 최대 3개."
+        ),
+    )
+    conflicting_evidence: list[str] = Field(
+        default_factory=list,
+        max_length=2,
+        description=(
+            "반대로 이 시대라고 보기엔 어색하거나 다른 시대 특징에 더 가까워 "
+            "보이는 부분. 마찬가지로 짧은 구(句) 형태로 적을 것(예: '중국계 "
+            "도안에 가까운 화려한 띠무늬'). 항목당 20자 내외. 없으면 빈 리스트."
+        ),
+    )
+    reasoning_confidence: Literal["높음", "중간", "낮음"] = Field(
+        description=(
+            "위에서 든 근거들이 전반적으로 이 시대 판단을 얼마나 뒷받침하는지에 "
+            "대한 자체 평가. 분류 모델의 확신도가 아니라, 지금 제시한 근거 자체의 "
+            "설득력을 평가할 것."
+        )
+    )
 
+
+ERA_EVIDENCE_PROMPT_TEMPLATE = """이 도자기 사진은 별도의 이미지 분류 모델이 형태·양식을 기준으로
+'{era}' 시대로 예측했습니다. 당신의 역할은 이 시대를 처음부터 다시 추정하는 게
+아니라, 이미 나온 예측이 실제로 사진에서 보이는 근거와 맞는지 검토하는 것입니다.
+
+'{era}' 시대 도자기의 전형적 특징(기형, 문양 양식, 유약, 굽 처리 방식 등)을
+떠올리고, 그런 특징이 이 사진에서 실제로 관찰되는지 확인하세요.
+
+- supporting_evidence: 이 사진에서 실제로 보이는, '{era}' 시대와 부합하는
+  구체적인 특징을 적으세요. **완결된 문장이 아니라 짧은 구(句)로** 적으세요
+  (예: "두껍게 시유된 백자 유약과 낮은 굽" - 이런 식으로 20자 내외). 풀어서
+  긴 문장으로 설명하지 마세요. 최대 3개.
+- conflicting_evidence: 반대로 '{era}'라고 보기엔 어색하거나, 다른 시대 특징에
+  더 가까워 보이는 부분이 있다면 마찬가지로 짧은 구로 적으세요. 없으면 빈
+  리스트로 두세요.
+- reasoning_confidence: 위 근거들이 전반적으로 이 시대 판단을 얼마나 뒷받침하는지
+  스스로 평가하세요.
+
+모르는 걸 지어내지 마세요 - 뚜렷한 근거가 없으면 supporting_evidence를 비워두고
+reasoning_confidence를 '낮음'으로 주세요."""
+
+
+def explain_era_prediction(image_path: str, era: str) -> EraEvidence:
+    """CNN이 내놓은 시대 예측에 대해, 실제로 사진에서 보이는 근거를 VLM에게
+    검토시킨다.
+
+    CNN을 대체하는 게 아니다 - CNN이 문양(55~64%)/색상(33%)보다 정확도가 훨씬
+    높은 88%였기 때문에 시대 판정 자체는 그대로 CNN에 맡긴다. 이 함수는 그
+    판단에 "왜 이 시대로 보이는지" 사람이 검증 가능한 근거를 붙이는 역할만
+    한다 - 전문가가 보고서를 읽었을 때 "아 맞네" 하고 넘어가거나 "이 근거는
+    이상한데?" 하고 되짚어볼 수 있게 하기 위함이다.
+    """
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+
+    client = OpenAI()
+    image = Image.open(image_path)
+    prompt = ERA_EVIDENCE_PROMPT_TEMPLATE.format(era=era)
+    response = client.beta.chat.completions.parse(
+        model=MODEL_NAME,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{encode_pil_image(image)}"
+                        },
+                    },
+                ],
+            }
+        ],
+        response_format=EraEvidence,
+    )
+
+    message = response.choices[0].message
+    parsed = message.parsed
+    if parsed is None:
+        refusal = getattr(message, "refusal", None)
+        raise RuntimeError(
+            "시대 판단 근거 파싱 실패" + (f": {refusal}" if refusal else "")
+        )
+    return parsed
 def assess_pattern_condition(
     cropped_image: Image.Image,
     pattern_name: str,

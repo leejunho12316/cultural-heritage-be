@@ -5,18 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * CORS 설정.
- *
- * React 개발 서버(Vite)가 다른 포트에서 실행되므로
- * 브라우저가 요청을 차단하지 않도록 허용해야 한다.
- *
- * 운영 배포 시에는 실제 프론트 도메인으로 제한한다.
- *
- * 매핑 범위는 /api/**가 아니라 /**로 넓게 유지한다 - /tasks/**(보존가이드),
- * /pottery-inspection(육안조사)처럼 /api 접두어를 쓰지 않는 엔드포인트가
- * 이미 있어서, /api/**로 좁히면 그쪽 CORS가 조용히 막힐 수 있다.
- */
+
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 

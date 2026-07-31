@@ -51,6 +51,16 @@ pottery_analyzer.py
   상황에서는 "이 항목이 정확히 어떤 문양이다"보다 "구연부 쪽 띠 하나,
   굽 쪽 띠 하나가 있다"는 위치 구분이 조사자에게 더 실용적이라는 피드백을
   반영했다. 실제 문양 분류(display_name)는 JSON과 범례에는 그대로 노출된다.
+
+개선 사항 (3차, 다중 객체 사진 대응)
+- 발굴 현장에서 흔한 "여러 조각을 늘어놓고 찍은 사진"이 들어오면, 예전엔
+  Grounding DINO + SAM2가 그중 하나(주로 화면에서 가장 도드라지는 영역)를
+  임의로 골라 마치 그게 사진 전체를 대표하는 유물인 것처럼 완전/파편·유약·
+  시대를 분석해버렸다. 이제 max_regions을 1보다 크게 잡아 여러 영역이
+  감지되면, 그중 하나를 골라 분석하는 대신 분석을 중단하고 재촬영을
+  안내한다. 참고용으로 색상 유사도 기반 그룹핑도 같이 제공하지만, 이건
+  깨진 단면을 맞춰보는 진짜 재조립이 아니라 색·유약 톤만 비교한 거친
+  힌트이므로 확정 근거로 쓰면 안 된다.
 """
 
 from __future__ import annotations
@@ -85,6 +95,7 @@ from pottery_pattern_vlm_locator import (
     PatternLocation,
     analyze_pottery_patterns_ensemble,
     assess_pattern_conditions_in_parallel,
+    explain_era_prediction,
 )
 from precise_pattern_masking import (
     BADGE_COLORS,
@@ -146,7 +157,14 @@ DEFAULT_GLAZE_MODEL = PROJECT_DIR / "glaze_rf_v2.joblib"
 # 경고만 찍고 시대(CNN) 판정만 비활성화됨(다른 기능엔 영향 없음).
 ERA_MODEL_DIR = PROJECT_DIR.parent / "ai_hub" / "pottery_multitask_model_v2"
 
-detector = GroundedSAMDetector(text_prompt=POTTERY_TEXT_PROMPT, max_regions=1)
+# max_regions을 1보다 크게 잡아서, 사진 한 장에 여러 개의 별도 객체가
+# 있는지(예: 발굴 현장에서 파편들을 늘어놓고 찍은 사진) 감지할 수 있게 한다.
+# 실제 분석은 여전히 "사진 한 장 = 유물 한 점"을 전제로 하므로, 여러 개가
+# 잡히면 분석을 진행하지 않고 재촬영을 안내한다 (analyze_pottery() 참고).
+MAX_DETECTABLE_REGIONS = 5
+detector = GroundedSAMDetector(
+    text_prompt=POTTERY_TEXT_PROMPT, max_regions=MAX_DETECTABLE_REGIONS
+)
 
 try:
     completeness_clf = joblib.load(DEFAULT_COMPLETENESS_MODEL)
@@ -182,6 +200,118 @@ def extract_completeness_features(mask: np.ndarray) -> dict[str, float] | None:
         "circularity": _circularity(contour, area),
         "max_defect_depth_ratio": _max_defect_depth_ratio(contour, binary_mask),
     }
+
+
+_REGION_MERGE_OVERLAP_THRESHOLD = 0.5  # 이 비율 이상 겹치면 "같은 물체의 다른 탐지"로 보고 하나만 남긴다
+
+
+def _deduplicate_overlapping_regions(regions: list[dict]) -> list[dict]:
+    """SAM2 마스크 기준으로, 서로 크게 겹치는 영역은 같은 물체로 보고 하나만 남긴다.
+
+    Grounding DINO는 "ceramic vessel"/"pottery" 프롬프트에 대해 유물 전체와
+    그 일부(목/몸통 등)를 각각 별도 박스로 잡을 때가 있다. 이 박스들은
+    grounded_sam_detector.py 내부의 박스 IoU 기준 중복 제거(0.6)를 통과할
+    만큼 서로 다르게 생겼을 수 있지만(하나가 다른 하나에 완전히 포함되면
+    IoU 자체가 낮게 나온다), 실제로는 같은 유물 하나다. 여기서는 실제 SAM2
+    마스크(픽셀 단위)로 다시 겹침을 확인해서, 진짜 "여러 조각을 늘어놓은
+    사진"과 "유물 하나가 부분적으로 두 번 잡힌 것"을 구분한다.
+    """
+    kept: list[dict] = []
+
+    # 마스크 면적이 큰 순서로 처리 - 더 완전하게(전체를) 잡은 탐지를 우선 남긴다.
+    sorted_regions = sorted(
+        regions, key=lambda r: np.asarray(r["mask"]).sum(), reverse=True
+    )
+
+    for region in sorted_regions:
+        mask = np.asarray(region["mask"], dtype=bool)
+        mask_area = mask.sum()
+        if mask_area == 0:
+            continue
+
+        is_duplicate = False
+        for kept_region in kept:
+            kept_mask = np.asarray(kept_region["mask"], dtype=bool)
+            overlap = np.logical_and(mask, kept_mask).sum()
+            smaller_area = min(mask_area, kept_mask.sum())
+            if (
+                smaller_area > 0
+                and overlap / smaller_area >= _REGION_MERGE_OVERLAP_THRESHOLD
+            ):
+                is_duplicate = True
+                break
+
+        if not is_duplicate:
+            kept.append(region)
+
+    return kept
+
+
+_COLOR_SIMILARITY_THRESHOLD = 0.55  # cv2.compareHist(HISTCMP_CORREL) 기준, 1에 가까울수록 유사
+
+
+def _region_color_histogram(image_bgr: np.ndarray, mask: np.ndarray) -> np.ndarray | None:
+    """영역 내부 픽셀만으로 HSV 색상 히스토그램을 계산한다.
+    배경/그림자까지 섞이면 비교가 부정확해지므로 반드시 mask로 걸러낸다."""
+    binary_mask = np.asarray(mask, dtype=np.uint8) * 255
+    if binary_mask.sum() == 0:
+        return None
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    hist = cv2.calcHist([hsv], [0, 1], binary_mask, [30, 32], [0, 180, 0, 256])
+    cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+    return hist
+
+
+def _group_regions_by_color_similarity(
+    image_bgr: np.ndarray, regions: list[dict]
+) -> list[dict[str, Any]]:
+    """색상 분포가 비슷한 영역끼리 그룹으로 묶는다.
+
+    주의: 이건 "같은 유물의 파편일 가능성"에 대한 아주 거친 힌트일 뿐이다.
+    깨진 단면의 형태를 맞춰보는 진짜 재조립이 아니라 색·유약 톤만 비교한다 -
+    우연히 색이 비슷한 서로 다른 유물도 묶일 수 있고, 반대로 같은 유물이어도
+    조명 차이로 다르게 나올 수 있다. 참고용으로만 쓰고, 최종 판단은 조사자가
+    사진을 직접 보고 내려야 한다.
+    """
+    histograms: list[np.ndarray | None] = [
+        _region_color_histogram(image_bgr, region["mask"]) for region in regions
+    ]
+
+    parent = list(range(len(regions)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        root_i, root_j = find(i), find(j)
+        if root_i != root_j:
+            parent[root_j] = root_i
+
+    for i in range(len(regions)):
+        if histograms[i] is None:
+            continue
+        for j in range(i + 1, len(regions)):
+            if histograms[j] is None:
+                continue
+            similarity = cv2.compareHist(histograms[i], histograms[j], cv2.HISTCMP_CORREL)
+            if similarity >= _COLOR_SIMILARITY_THRESHOLD:
+                union(i, j)
+
+    groups: dict[int, list[int]] = defaultdict(list)
+    for index in range(len(regions)):
+        groups[find(index)].append(index)
+
+    return [
+        {
+            "region_indices": [regions[i]["region_index"] for i in members],
+            "member_count": len(members),
+            "note": "색상 유사도 기반 추정 - 실제 접합 여부를 보장하지 않음",
+        }
+        for members in groups.values()
+    ]
 
 
 def predict_era(image_path: Path) -> dict[str, Any]:
@@ -717,6 +847,48 @@ def analyze_pottery(
             None,
         )
 
+    # 박스 기준 중복 제거를 통과했더라도, 같은 유물의 부분(목/몸통 등)이
+    # 별도 영역으로 잡혔을 수 있으므로 실제 마스크 겹침으로 한 번 더 정리한다.
+    regions = _deduplicate_overlapping_regions(regions)
+
+    if len(regions) > 1:
+        # 발굴 현장에서 흔한 "여러 조각을 늘어놓고 찍은 사진" 케이스.
+        # 이 파이프라인은 사진 한 장 = 유물 한 점을 전제로 완전/파편·유약·
+        # 시대·문양을 계산하므로, 여러 영역이 잡히면 그중 하나를 임의로
+        # 골라 분석하는 대신 재촬영을 안내하고 분석을 중단한다. 조용히
+        # 하나만 골라 분석하면, 그 결과가 사진 전체를 대표하는 것처럼
+        # 오인될 위험이 크다.
+        image_bgr_multi = imread_unicode_safe(path)
+        region_groups = (
+            _group_regions_by_color_similarity(image_bgr_multi, regions)
+            if image_bgr_multi is not None
+            else None
+        )
+
+        group_note = ""
+        if region_groups and len(region_groups) < len(regions):
+            group_note = (
+                f" 색상 유사도로 보면 {len(region_groups)}개 그룹으로 나뉘어 보이는데, "
+                "이건 접합면을 본 게 아니라 색상만 비교한 거친 추정이라 확정 근거로 쓰면 안 됩니다."
+            )
+
+        return (
+            {
+                "status": "다중 객체 감지",
+                "reason": (
+                    f"이 사진에서 서로 떨어진 객체가 {len(regions)}개 감지되었습니다. "
+                    "여러 파편이나 여러 점의 유물을 한 사진에 늘어놓고 촬영하신 것으로 "
+                    "보입니다. 이 분석기는 사진 한 장에 유물(또는 파편) 하나만 있는 "
+                    "것을 전제로 합니다 - 파편별로 한 장씩 나눠서 다시 촬영해주세요."
+                    + group_note
+                ),
+                "detected_region_count": len(regions),
+                "region_groups": region_groups,
+            },
+            None,
+            None,
+        )
+
     artifact_mask = np.asarray(regions[0]["mask"], dtype=bool)
     artifact_area = int(artifact_mask.sum())
     if artifact_area == 0:
@@ -792,6 +964,22 @@ def analyze_pottery(
             result["era"] = {"prediction": "예측 실패", "error": str(era_error)}
     else:
         result["era"] = {"prediction": "모델 없음"}
+
+    # 시대 자체는 그대로 CNN이 판단하되(정확도가 더 높으므로), 그 판단에
+    # 사람이 검증할 수 있는 근거를 VLM으로 붙인다. use_vlm_pattern과 같은
+    # 스위치를 재사용한다 - 이것도 유료 VLM 호출이라, 비용을 아끼고 싶으면
+    # (use_vlm_pattern=False) 문양 분석과 함께 꺼지게 하는 게 자연스럽다.
+    if use_vlm_pattern and result["era"].get("prediction") not in (
+        None,
+        "모델 없음",
+        "예측 실패",
+    ):
+        try:
+            evidence = explain_era_prediction(str(path), result["era"]["prediction"])
+            result["era"]["evidence"] = evidence.model_dump()
+        except Exception as evidence_error:
+            print(f"[경고] 시대 판단 근거 조회 실패: {evidence_error}")
+            result["era"]["evidence"] = {"error": str(evidence_error)}
 
     if not use_vlm_pattern:
         result["pattern_era_color"] = None
@@ -1471,6 +1659,15 @@ def build_inspection_text(result: dict[str, Any]) -> str:
         shape_sentences.append(
             f"시대는 형태·양식 기반 참고 결과로 {era['prediction']} 후보로 추정된다{score_text}."
         )
+        evidence = era.get("evidence") or {}
+        supporting = evidence.get("supporting_evidence") or []
+        conflicting = evidence.get("conflicting_evidence") or []
+        if supporting:
+            shape_sentences.append("근거: " + ", ".join(supporting) + ".")
+        if conflicting:
+            shape_sentences.append(
+                "다만 " + ", ".join(conflicting) + " 점은 이 시대 판단과는 다소 어긋나 보인다."
+            )
     if shape_sentences:
         paragraphs.append("[유물 외형]\n" + " ".join(shape_sentences))
 
