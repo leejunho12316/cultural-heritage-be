@@ -48,6 +48,11 @@ def _get_agent_solvent_recommendation(relic_info: dict) -> dict:
     - 수용성 에멀전: 대표 용매 물. 비권장 아세톤/톨루엔.
     - Paraloid NAD-10: 대표 용매 나프타. 사용가능 화이트스피릿. 비권장 물/극성용매.
 
+    reason은 자연스러운 한국어 문장으로 풀어서 작성하고,
+    ·, /, (), {{}} 같은 기호는 최대한 쓰지 마세요.
+    예를 들어 "아세톤/에탄올" 대신 "아세톤이나 에탄올", "(농도 20%)" 대신 "농도는 20퍼센트로" 처럼 표현하세요.
+    참고 문헌에 이런 기호가 있어도 그대로 옮기지 말고 문장으로 바꿔서 작성하세요.
+
     아래는 보존처리 참고 문헌에서 검색된 관련 내용입니다. 위 규칙과 상충하지 않는 범위에서 참고하세요.
     
     #참고 문헌
@@ -105,9 +110,30 @@ def _get_reinforcement_method(relic_info: dict, confirmed_agent: dict) -> dict:
 
     structured_llm = llm.with_structured_output(ReinforcementMethod)
 
+    reference_chunks = retrieve_reference_context(
+        f"유물 정보 {relic_info}, 확정된 강화제/용매 {confirmed_agent}에 대한 "
+        f"강화처리 분무법/침지법 작업 순서(플로우)와 각 단계별 주의사항"
+    )
+    reference_text = "\n\n".join(
+        f"[출처: {chunk['source']} p.{chunk['page']}]\n{chunk['content']}"
+        for chunk in reference_chunks
+    )
+
     prompt = f"""당신은 문화재 보존처리 전문가입니다.
     아래 유물 정보와 확정된 강화제/용매를 참고해서 분무법 또는 침지법 중 적절한 방법을 추천하고,
-    강화 처리 작업을 처음부터 끝까지 순서대로 단계별로 안내해주세요.
+    강화 처리 작업을 처음부터 끝까지 5~6단계로 요약해서 순서대로 안내해주세요.
+    세부 동작을 잘게 나누지 말고, 유사하거나 연속된 작업은 하나의 단계로 묶어주세요.
+
+    label, caution, overall_caution은 자연스러운 한국어 문장으로 풀어서 작성하고,
+    ·, /, (), {{}} 같은 기호는 최대한 쓰지 마세요.
+    예를 들어 "아세톤/에탄올" 대신 "아세톤이나 에탄올", "(농도 20%)" 대신 "농도는 20퍼센트로" 처럼 표현하세요.
+    참고 문헌에 이런 기호가 있어도 그대로 옮기지 말고 문장으로 바꿔서 작성하세요.
+
+    아래는 보존처리 참고 문헌에서 검색된 분무법/침지법 관련 내용입니다.
+    실제 현장 절차와 주의사항을 반영하되, 문헌에 없는 내용을 있는 것처럼 단정하지 마세요.
+
+    #참고 문헌
+    {reference_text}
 
     #정보
     유물 정보: {relic_info}

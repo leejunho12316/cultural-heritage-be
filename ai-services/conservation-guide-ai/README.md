@@ -70,7 +70,7 @@
     "treatmentPurpose": "전시용"
   },
   "relicPhoto": [],
-  "flow": ["reinforcement"]
+  "flow": ["disassembly","reinforcement"]
 }
 ```
 
@@ -157,8 +157,8 @@ BODY - form-data에 - Key는 file File 형식으로, Value는 실제 이미지 �
 -> 반환받은 URL 입력
 {
  "resume": {
-  "before_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/c9272846-d905-4da4-9c25-d908a9a8bb47-before.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260729T050406Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260729%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=fd76e37813bf873a8ed6f0be583352dc18c5a179b72ad9296c09732bf8207233"],
-  "after_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/b9395c1c-9d56-4877-a07e-cf8c7f8ab537-after.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260729T050427Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260729%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=dd3ae51dcee9b488b109638dae1590374ba744e31513b2b1bb584574fafadb49"]
+  "before_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/89b03de7-95e3-4d45-a5a0-d802f48a2891-before_%EC%95%9E%EB%A9%B4.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260731T062001Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260731%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=9a1e86b7f2054e6a72fb91ef12bc545dd835b58517c862bc3f366ddc94996fe8"],
+  "after_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/933ddcb5-0e55-42de-85c3-9cbeeb8443b6-after_%EC%95%9E%EB%A9%B4.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260731T062023Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260731%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=8bdab328f9335f8074e2c2aff0c7b7c6aa2506e9fcf32873da1af2b129791e82"]
  }
 }
 
