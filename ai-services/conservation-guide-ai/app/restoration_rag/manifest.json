@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "documents": [
+    {
+      "filename": "7_도자기 보존을 위한 복원제의 특성 연구-이해순.pdf",
+      "source": "이해순, 2005, 도자기 보존을 위한 복원제의 특성 연구, 국립중앙박물관",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "보물 제597호 토기 융기문 발의 과학적 조사 및 보존처리.pdf",
+      "source": "권오영 외, 2019, 보물 제597호 토기 융기문 발의 과학적 조사 및 보존처리, 국립문화재연구소",
+      "default_material": "ceramic"
+    },
+    {
+      "filename": "보존처리 지침서.pdf",
+      "source": "문화재청/국립문화재연구원, 보존처리 지침서",
+      "material_page_ranges": [
+        {"start": 54, "end": 60, "material": "ceramic"}
+      ]
+    },
+    {
+      "filename": "광주_조선백자_요지_출토_폐자기의_보존처리.pdf",
+      "source": "김현숙, 2025, 광주 조선백자 요지 출토 폐자기의 보존처리, 박물관 보존과학 제33집, 경기도자박물관",
+      "material_page_ranges": [
+        {"start": 9, "end": 15, "material": "ceramic"}
+      ]
+    },
+    {
+      "filename": "2024년_동산문화유산_보존처리_표준시방서.pdf",
+      "source": "문화재청, 2024, 동산문화유산 보존처리 표준시방서 (2230 도자기·토기문화유산)",
+      "material_page_ranges": [
+        {"start": 33, "end": 34, "material": "ceramic"}
+      ]
+    },
+    {
+      "filename": "보존과복원의세계.pdf",
+      "source": "국립중앙박물관 보존과학팀, 2007, 보존과 복원의 세계 - 토기·자기",
+      "material_page_ranges": [
+        {"start": 44, "end": 176, "material": "ceramic"}
+      ]
+    },
+    {
+      "filename": "[KSC] 2011_보존과학용어집.pdf",
+      "source": "한국문화재보존과학회, 2011, 보존과학용어집",
+      "default_material": "general"
+    },
+    {
+      "filename": "화성_향남_요리_출토_심발형_토기_수습과_보존처리.pdf",
+      "source": "권오영·함철희·이선명, 2020, 화성 향남 요리 출토 심발형 토기 수습과 보존처리, 보존과학회지 36(6)",
+      "material_page_ranges": [
+        {"start": 8, "end": 8, "material": "ceramic"}
+      ]
+    }
+  ]
+}

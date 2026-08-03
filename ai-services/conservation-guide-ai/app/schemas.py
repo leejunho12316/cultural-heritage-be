@@ -153,6 +153,7 @@ class RestorationMaterialRecommendation(BaseModel):
 class RestorationStep(BaseModel):
     order: int = Field(description="수행 순서 (1부터 시작)")
     label: str = Field(description="이 단계에서 수행할 작업 설명")
+    tools_used: list[str] = Field(description="이 단계에서 사용하는 도구/재료")
     caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
 
 class RestorationGuide(BaseModel):
