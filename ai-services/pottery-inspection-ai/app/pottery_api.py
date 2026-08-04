@@ -9,7 +9,7 @@ pottery_api.py
 
 실행 방법 (별도 설치 필요):
     pip install fastapi uvicorn "python-multipart"
-    uvicorn pottery_api:app --host 0.0.0.0 --port 8001
+    uvicorn pottery_api:app --host 0.0.0.0 --port 8000
 
 API 사용법/응답 필드 설명은 ../docs/API_SPEC.md 참고.
 """
@@ -142,4 +142,4 @@ async def inspect(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
