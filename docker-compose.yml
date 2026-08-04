@@ -62,7 +62,7 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
     ports:
-      - "8003:8001"
+      - "8003:8000"
     volumes:
       # ai_hub/pottery_multitask_model_v2(시대 CNN 모델)는 용량 때문에 git에
       # 안 올라가 있음 - 이 폴더 없으면 컨테이너는 정상 기동되지만 시대 판정만
@@ -74,7 +74,7 @@ services:
     build: .
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
-      POTTERY_INSPECTION_AI_BASE_URL: http://pottery-inspection-ai:8001
+      POTTERY_INSPECTION_AI_BASE_URL: http://pottery-inspection-ai:8000
       AWS_REGION: ${AWS_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
