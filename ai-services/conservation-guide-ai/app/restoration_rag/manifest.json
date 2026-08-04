@@ -27,9 +27,12 @@
     },
     {
       "filename": "2024년_동산문화유산_보존처리_표준시방서.pdf",
-      "source": "문화재청, 2024, 동산문화유산 보존처리 표준시방서 (2230 도자기·토기문화유산)",
+      "source": "문화재청, 2024, 동산문화유산 보존처리 표준시방서",
       "material_page_ranges": [
-        {"start": 33, "end": 34, "material": "ceramic"}
+        {"start": 33, "end": 34, "material": "ceramic"},
+        {"start": 24, "end": 25, "material": "metal"},
+        {"start": 56, "end": 59, "material": "stone"},
+        {"start": 91, "end": 92, "material": "wood"}
       ]
     },
     {
