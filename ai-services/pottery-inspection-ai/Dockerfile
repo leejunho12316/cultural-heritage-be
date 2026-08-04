@@ -17,7 +17,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /srv
 
+# sam2의 소스코드를 받아서 빌드할 때 그래픽카드(CUDA)용 확장까지 컴파일하려고 시도하는데, 이 컨테이너는 CPU 전용이라 그래픽카드가 없다.
+# 그래픽카드가 없는데 그래픽카드를 쓰려는 이 시도를 그대로 두면 CPU 코어 수만큼 병렬 컴파일이 붙으면서 메모리를 다 써버려 빌드가 멈추거나 죽는다.
+# SAM2_BUILD_CUDA=0으로 그 시도 자체를 꺼서 순수 파이썬만 설치한다.
+ENV SAM2_BUILD_CUDA=0
+ENV SAM2_BUILD_ALLOW_ERRORS=1
+
+# PyPI 기본 torch는 그래픽카드 구동용 대용량 부속 파일(nvidia-*)까지 딸려와서 다운로드/압축해제 중 메모리를 크게 잡아먹는다(WSL 메모리를 꽉 채워 시스템
+# 이 컨테이너는 그래픽카드가 없으므로 처음부터 CPU 전용 torch/torchvision을 받는다
+# - app/models/grounded_sam_detector.py가 "torch.cuda.is_available()이면 cuda, 아니면 cpu"로 이미 자동 분기하므로 동작에는 차이가 없다.
+ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
 # 의존성을 먼저 설치해 코드만 바뀔 때 캐시를 재사용한다(빌드 속도).
+# torch/torchvision은 위에서 이미 설치했으므로 아래에서 재설치되지 않는다.
 COPY app/requirements.txt ./app/requirements.txt
 RUN pip install --no-cache-dir -r app/requirements.txt
 
