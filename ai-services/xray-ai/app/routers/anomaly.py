@@ -100,6 +100,7 @@ async def detect(
 @router.post("/detect-batch")
 async def detect_batch(
     files: list[UploadFile] = File(...),
+    source_indexes: list[int] = Form(...),
     analysis_target: str = Form("원본 조각"),
     confidence: float = Form(None),
     imgsz: int = Form(None),
@@ -109,8 +110,14 @@ async def detect_batch(
     summaries = []
     next_index = 1
 
+    if len(files) != len(source_indexes):
+        raise HTTPException(
+            status_code=400,
+            detail="files와 source_indexes 개수가 일치해야 합니다.",
+        )
+
     try:
-        for file in files:
+        for file, source_index in zip(files, source_indexes):
             temp_path = save_upload(file)
             temp_paths.append(temp_path)
 
@@ -129,10 +136,12 @@ async def detect_batch(
 
                 for region in result["regions"]:
                     region["fileName"] = original_name
+                    region["sourceIndex"] = source_index
 
                 result["summary"]["fileName"] = (
                     original_name
                 )
+                result["summary"]["sourceIndex"] = source_index
 
                 all_regions.extend(result["regions"])
                 summaries.append(result["summary"])
@@ -140,8 +149,9 @@ async def detect_batch(
 
             except Exception as error:
                 # 한 장이 실패해도 나머지는 계속 처리한다
-                summaries.append({
+               summaries.append({
                     "fileName": original_name,
+                    "sourceIndex": source_index,
                     "analysisTarget": analysis_target,
                     "regionCount": 0,
                     "error": (

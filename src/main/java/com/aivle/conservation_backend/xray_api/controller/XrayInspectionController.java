@@ -3,11 +3,16 @@ package com.aivle.conservation_backend.xray_api.controller;
 import com.aivle.conservation_backend.xray_api.client.XrayAnomalyClient;
 import com.aivle.conservation_backend.xray_api.dto.AnalysisTarget;
 import com.aivle.conservation_backend.xray_api.dto.XrayDetectionResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayDefectMappingRequest;
+import com.aivle.conservation_backend.xray_api.dto.XrayDefectMappingResponse;
+import com.aivle.conservation_backend.xray_api.service.XrayDefectMappingService;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,11 +38,14 @@ import java.util.HashMap;
 public class XrayInspectionController {
 
     private final XrayAnomalyClient xrayAnomalyClient;
+    private final XrayDefectMappingService xrayDefectMappingService;
 
     public XrayInspectionController(
-            XrayAnomalyClient xrayAnomalyClient
+            XrayAnomalyClient xrayAnomalyClient,
+            XrayDefectMappingService xrayDefectMappingService
     ) {
         this.xrayAnomalyClient = xrayAnomalyClient;
+        this.xrayDefectMappingService = xrayDefectMappingService;
     }
 
     /**
@@ -91,6 +99,8 @@ public class XrayInspectionController {
     public ResponseEntity<XrayDetectionResponse> detectFragments(
             @RequestParam("files") List<MultipartFile> files,
 
+            @RequestParam("source_indexes") List<Integer> sourceIndexes,
+
             @RequestParam(
                     value = "confidence",
                     required = false
@@ -100,11 +110,30 @@ public class XrayInspectionController {
         XrayDetectionResponse response =
                 xrayAnomalyClient.detectBatch(
                         files,
+                        sourceIndexes,
                         AnalysisTarget.FRAGMENT,
                         confidence
                 );
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 원본 조각 결함을 layout.final.json의 최종 transform으로
+     * 결합본 좌표계에 투영한 뒤 결합본 결함과 기하학적으로 대응한다.
+     */
+    @PostMapping(
+            value = "/defect-mapping/{jobId}",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<XrayDefectMappingResponse> mapDefects(
+            @PathVariable String jobId,
+            @RequestBody XrayDefectMappingRequest request
+    ) {
+        return ResponseEntity.ok(
+                xrayDefectMappingService.mapDefects(jobId, request)
+        );
     }
 
     /**

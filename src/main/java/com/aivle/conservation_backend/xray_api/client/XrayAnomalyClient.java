@@ -173,14 +173,31 @@ public class XrayAnomalyClient {
      */
     public XrayDetectionResponse detectBatch(
             List<MultipartFile> files,
+            List<Integer> sourceIndexes,
             AnalysisTarget target,
             Double confidence
     ) {
+        if (files.size() != sourceIndexes.size()) {
+            throw new IllegalArgumentException(
+                    "files and sourceIndexes size mismatch: "
+                            + files.size() + " != " + sourceIndexes.size()
+            );
+        }
+
         MultiValueMap<String, Object> body =
                 new LinkedMultiValueMap<>();
 
-        for (MultipartFile file : files) {
+        for (int i = 0; i < files.size(); i++) {
+            MultipartFile file = files.get(i);
+            Integer sourceIndex = sourceIndexes.get(i);
+
+            System.out.println(
+                    "### ORIGINAL FILENAME = " + file.getOriginalFilename()
+                            + ", SOURCE_INDEX = " + sourceIndex
+            );
+
             body.add("files", toResource(file));
+            body.add("source_indexes", String.valueOf(sourceIndex));
         }
 
         body.add("analysis_target", target.getValue());

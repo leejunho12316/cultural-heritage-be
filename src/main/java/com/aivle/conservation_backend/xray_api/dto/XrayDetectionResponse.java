@@ -30,17 +30,17 @@ public record XrayDetectionResponse(
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record AnomalyRegion(
-            String regionId,
-            String analysisTarget,
-            String fileName,
-            String className,
-            Double confidence,
-            String position,
-            Double areaRatioPercent,
-            BoundingBox bbox,
-            Point center
-    ) {
-    }
+        String regionId,
+        String analysisTarget,
+        String fileName,
+        String className,
+        Double confidence,
+        String position,
+        Double areaRatioPercent,
+        BoundingBox bbox,
+        Point center,
+        Integer sourceIndex
+        ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BoundingBox(
@@ -70,7 +70,8 @@ public record XrayDetectionResponse(
             Integer inferenceImgsz,
             Double confidenceThreshold,
             Integer regionCount,
-            String error
+            String error,
+            Integer sourceIndex
     ) {
     }
 }

@@ -1,0 +1,346 @@
+{
+  "fragmentDetection": {
+    "success": true,
+    "regions": [
+      {
+        "regionId": "R-001",
+        "analysisTarget": "원본 조각",
+        "fileName": "xray-source-0.jpg",
+        "className": "anomaly",
+        "confidence": 0.7084,
+        "position": "중앙",
+        "areaRatioPercent": 6.674,
+        "bbox": {
+          "x1": 271.96,
+          "y1": 122.45,
+          "x2": 369.77,
+          "y2": 332.06
+        },
+        "center": {
+          "x": 320.86,
+          "y": 227.25
+        },
+        "sourceIndex": 0
+      },
+      {
+        "regionId": "R-002",
+        "analysisTarget": "원본 조각",
+        "fileName": "xray-source-0.jpg",
+        "className": "anomaly",
+        "confidence": 0.6967,
+        "position": "우측 중앙",
+        "areaRatioPercent": 3.746,
+        "bbox": {
+          "x1": 510.85,
+          "y1": 122.45,
+          "x2": 608.0,
+          "y2": 240.88
+        },
+        "center": {
+          "x": 559.42,
+          "y": 181.66
+        },
+        "sourceIndex": 0
+      },
+      {
+        "regionId": "R-003",
+        "analysisTarget": "원본 조각",
+        "fileName": "xray-source-1.jpg",
+        "className": "anomaly",
+        "confidence": 0.703,
+        "position": "좌측 중앙",
+        "areaRatioPercent": 4.943,
+        "bbox": {
+          "x1": 112.26,
+          "y1": 131.1,
+          "x2": 193.48,
+          "y2": 318.07
+        },
+        "center": {
+          "x": 152.87,
+          "y": 224.59
+        },
+        "sourceIndex": 1
+      },
+      {
+        "regionId": "R-004",
+        "analysisTarget": "원본 조각",
+        "fileName": "xray-source-1.jpg",
+        "className": "anomaly",
+        "confidence": 0.5727,
+        "position": "중앙",
+        "areaRatioPercent": 2.99,
+        "bbox": {
+          "x1": 348.05,
+          "y1": 123.32,
+          "x2": 429.53,
+          "y2": 236.03
+        },
+        "center": {
+          "x": 388.79,
+          "y": 179.68
+        },
+        "sourceIndex": 1
+      },
+      {
+        "regionId": "R-005",
+        "analysisTarget": "원본 조각",
+        "fileName": "xray-source-2.jpg",
+        "className": "anomaly",
+        "confidence": 0.4015,
+        "position": "중앙",
+        "areaRatioPercent": 0.5,
+        "bbox": {
+          "x1": 356.85,
+          "y1": 167.43,
+          "x2": 401.96,
+          "y2": 201.47
+        },
+        "center": {
+          "x": 379.4,
+          "y": 184.45
+        },
+        "sourceIndex": 2
+      },
+      {
+        "regionId": "R-006",
+        "analysisTarget": "원본 조각",
+        "fileName": "xray-source-2.jpg",
+        "className": "anomaly",
+        "confidence": 0.1943,
+        "position": "중앙 상단",
+        "areaRatioPercent": 0.254,
+        "bbox": {
+          "x1": 224.52,
+          "y1": 121.27,
+          "x2": 249.97,
+          "y2": 151.94
+        },
+        "center": {
+          "x": 237.24,
+          "y": 136.6
+        },
+        "sourceIndex": 2
+      },
+      {
+        "regionId": "R-007",
+        "analysisTarget": "원본 조각",
+        "fileName": "xray-source-3.jpg",
+        "className": "anomaly",
+        "confidence": 0.7339,
+        "position": "좌측 중앙",
+        "areaRatioPercent": 1.145,
+        "bbox": {
+          "x1": 61.97,
+          "y1": 246.82,
+          "x2": 117.29,
+          "y2": 310.42
+        },
+        "center": {
+          "x": 89.63,
+          "y": 278.62
+        },
+        "sourceIndex": 3
+      }
+    ],
+    "summary": null,
+    "totalRegionCount": 7,
+    "summaries": [
+      {
+        "fileName": "xray-source-0.jpg",
+        "analysisTarget": "원본 조각",
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "inferenceImgsz": 1280,
+        "confidenceThreshold": 0.08,
+        "regionCount": 2,
+        "error": null,
+        "sourceIndex": 0
+      },
+      {
+        "fileName": "xray-source-1.jpg",
+        "analysisTarget": "원본 조각",
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "inferenceImgsz": 1280,
+        "confidenceThreshold": 0.08,
+        "regionCount": 2,
+        "error": null,
+        "sourceIndex": 1
+      },
+      {
+        "fileName": "xray-source-2.jpg",
+        "analysisTarget": "원본 조각",
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "inferenceImgsz": 1280,
+        "confidenceThreshold": 0.08,
+        "regionCount": 2,
+        "error": null,
+        "sourceIndex": 2
+      },
+      {
+        "fileName": "xray-source-3.jpg",
+        "analysisTarget": "원본 조각",
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "inferenceImgsz": 1280,
+        "confidenceThreshold": 0.08,
+        "regionCount": 1,
+        "error": null,
+        "sourceIndex": 3
+      },
+      {
+        "fileName": "xray-source-4.jpg",
+        "analysisTarget": "원본 조각",
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "inferenceImgsz": 1280,
+        "confidenceThreshold": 0.08,
+        "regionCount": 0,
+        "error": null,
+        "sourceIndex": 4
+      },
+      {
+        "fileName": "xray-source-5.jpg",
+        "analysisTarget": "원본 조각",
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "inferenceImgsz": 1280,
+        "confidenceThreshold": 0.08,
+        "regionCount": 0,
+        "error": null,
+        "sourceIndex": 5
+      },
+      {
+        "fileName": "xray-source-6.jpg",
+        "analysisTarget": "원본 조각",
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "inferenceImgsz": 1280,
+        "confidenceThreshold": 0.08,
+        "regionCount": 0,
+        "error": null,
+        "sourceIndex": 6
+      }
+    ]
+  },
+  "assembledDetection": {
+    "success": true,
+    "regions": [
+      {
+        "regionId": "R-001",
+        "analysisTarget": "결합 완료본",
+        "fileName": "assembled_xray.png",
+        "className": "anomaly",
+        "confidence": 0.6413,
+        "position": "좌측 중앙",
+        "areaRatioPercent": 0.117,
+        "bbox": {
+          "x1": 929.67,
+          "y1": 1098.18,
+          "x2": 1013.46,
+          "y2": 1219.76
+        },
+        "center": {
+          "x": 971.56,
+          "y": 1158.97
+        },
+        "sourceIndex": null
+      },
+      {
+        "regionId": "R-002",
+        "analysisTarget": "결합 완료본",
+        "fileName": "assembled_xray.png",
+        "className": "anomaly",
+        "confidence": 0.5661,
+        "position": "중앙",
+        "areaRatioPercent": 0.075,
+        "bbox": {
+          "x1": 1200.28,
+          "y1": 1286.9,
+          "x2": 1284.29,
+          "y2": 1364.54
+        },
+        "center": {
+          "x": 1242.28,
+          "y": 1325.72
+        },
+        "sourceIndex": null
+      },
+      {
+        "regionId": "R-003",
+        "analysisTarget": "결합 완료본",
+        "fileName": "assembled_xray.png",
+        "className": "anomaly",
+        "confidence": 0.2564,
+        "position": "좌측 중앙",
+        "areaRatioPercent": 0.05,
+        "bbox": {
+          "x1": 1065.04,
+          "y1": 1327.4,
+          "x2": 1136.85,
+          "y2": 1387.51
+        },
+        "center": {
+          "x": 1100.94,
+          "y": 1357.46
+        },
+        "sourceIndex": null
+      },
+      {
+        "regionId": "R-004",
+        "analysisTarget": "결합 완료본",
+        "fileName": "assembled_xray.png",
+        "className": "anomaly",
+        "confidence": 0.2507,
+        "position": "좌측 중앙",
+        "areaRatioPercent": 0.052,
+        "bbox": {
+          "x1": 780.25,
+          "y1": 1340.02,
+          "x2": 854.11,
+          "y2": 1400.85
+        },
+        "center": {
+          "x": 817.18,
+          "y": 1370.44
+        },
+        "sourceIndex": null
+      },
+      {
+        "regionId": "R-005",
+        "analysisTarget": "결합 완료본",
+        "fileName": "assembled_xray.png",
+        "className": "anomaly",
+        "confidence": 0.1314,
+        "position": "좌측 중앙",
+        "areaRatioPercent": 0.075,
+        "bbox": {
+          "x1": 1027.38,
+          "y1": 1154.54,
+          "x2": 1124.43,
+          "y2": 1222.03
+        },
+        "center": {
+          "x": 1075.91,
+          "y": 1188.29
+        },
+        "sourceIndex": null
+      }
+    ],
+    "summary": {
+      "fileName": "assembled_xray.png",
+      "analysisTarget": "결합 완료본",
+      "imageWidth": 3312,
+      "imageHeight": 2623,
+      "inferenceImgsz": 2048,
+      "confidenceThreshold": 0.08,
+      "regionCount": 5,
+      "error": null,
+      "sourceIndex": null
+    },
+    "totalRegionCount": null,
+    "summaries": null
+  }
+}
