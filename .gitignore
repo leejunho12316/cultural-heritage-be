@@ -73,6 +73,11 @@ ai-services/xray-ai/.xray_input_cache/
 # 파이썬 캐시
 __pycache__/
 *.pyc
+.pytest_cache/
+
+### vca-ai ###
+ai-services/vca-ai/.env
+ai-services/vca-ai/.venv/
 
 ### frontend ###
 node_modules/

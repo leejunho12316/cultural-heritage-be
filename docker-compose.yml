@@ -57,10 +57,38 @@ services:
       start_period: 120s
       retries: 3
 
+  vca-ai:
+    build: ./ai-services/vca-ai
+    environment:
+      VCA_SHARED_STORAGE_ROOT: /vca_v2/output/input
+      VCA_ENGINE_ROOT: /vca_v2
+      VCA_DRY_RUN_TIMEOUT_SECONDS: "120"
+      UV_PROJECT_ENVIRONMENT: /opt/vca-uv-env
+      UV_CACHE_DIR: /opt/vca-uv-cache
+      UV_FROZEN: "true"
+    volumes:
+      - ./shared:/shared
+      - ../vca_v2:/vca_v2:ro
+      - ./shared/vca/engine-output:/vca_v2/output
+      - ./shared/vca/input-store:/vca_v2/output/input
+      - vca_uv_env:/opt/vca-uv-env
+      - vca_uv_cache:/opt/vca-uv-cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   conservation-backend:
     build: .
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
+      VCA_AI_BASE_URL: http://vca-ai:8000
+      VCA_AI_TIMEOUT_SECONDS: "150"
+      VCA_ACCESS_TOKEN: ${VCA_ACCESS_TOKEN:?VCA_ACCESS_TOKEN is required for /api/vca}
+      VCA_SHARED_STORAGE_ROOT: /shared/vca/input-store
+      VCA_SHARED_STORAGE_CONTAINER_ROOT: /vca_v2/output/input
+      VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
       AWS_REGION: ${AWS_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -80,6 +108,8 @@ services:
         condition: service_started
       xray-ai:
         condition: service_started
+      vca-ai:
+        condition: service_started
     ports:
       - "8080:8080"
     volumes:
@@ -87,3 +117,5 @@ services:
 
 volumes:
   pgdata:
+  vca_uv_env:
+  vca_uv_cache:

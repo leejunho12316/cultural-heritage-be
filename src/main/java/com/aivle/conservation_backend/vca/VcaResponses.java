@@ -123,6 +123,30 @@ public final class VcaResponses {
     ) {
     }
 
+    public record IntermediateResults(
+            String artifactId,
+            String assessmentRunId,
+            String projectName,
+            List<IntermediateStage> stages
+    ) {
+    }
+
+    public record IntermediateStage(
+            String stage,
+            String displayName,
+            List<IntermediateItem> items
+    ) {
+    }
+
+    public record IntermediateItem(
+            String relativePath,
+            String fileName,
+            String contentType,
+            long sizeBytes,
+            String preview
+    ) {
+    }
+
     public record ErrorEnvelope(ErrorDetail error) {
     }
 

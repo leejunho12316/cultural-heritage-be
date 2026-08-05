@@ -16,6 +16,9 @@ final class VcaAccessTokenInterceptor implements HandlerInterceptor {
 
     VcaAccessTokenInterceptor(String accessToken) {
         this.accessToken = accessToken == null ? "" : accessToken.trim();
+        if (this.accessToken.isEmpty()) {
+            throw new IllegalStateException("VCA access token must be configured.");
+        }
     }
 
     @Override
@@ -24,7 +27,7 @@ final class VcaAccessTokenInterceptor implements HandlerInterceptor {
             HttpServletResponse response,
             Object handler
     ) throws IOException {
-        if (accessToken.isEmpty() || HttpMethod.OPTIONS.matches(request.getMethod())) {
+        if (HttpMethod.OPTIONS.matches(request.getMethod())) {
             return true;
         }
         if (accessToken.equals(request.getHeader(HEADER)) || acceptsMediaQueryToken(request)) {

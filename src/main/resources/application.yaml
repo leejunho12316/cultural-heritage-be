@@ -58,10 +58,17 @@ xray:
     stitch-timeout-seconds: 2100
 
 vca:
-  access-token: ${VCA_ACCESS_TOKEN:}
+  access-token: ${VCA_ACCESS_TOKEN}
   # 기본 false면 SIGNED_PUT 경로를 사용한다. S3/object verifier가 없는
   # 로컬 in-memory 테스트에서만 VCA_LOCAL_DIRECT_COMPLETE_ENABLED=true로 켠다.
   local-direct-complete-enabled: ${VCA_LOCAL_DIRECT_COMPLETE_ENABLED:false}
+  storage:
+    local-root: ${VCA_SHARED_STORAGE_ROOT:./shared/vca}
+    container-root: ${VCA_SHARED_STORAGE_CONTAINER_ROOT:${VCA_SHARED_STORAGE_ROOT:./shared/vca}}
+    engine-output-root: ${VCA_ENGINE_OUTPUT_ROOT:./shared/vca/engine-output}
+  ai:
+    base-url: ${VCA_AI_BASE_URL:http://localhost:8002}
+    timeout-seconds: ${VCA_AI_TIMEOUT_SECONDS:150}
 
 # 프론트엔드 CORS 허용 주소
 app:

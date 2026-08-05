@@ -42,7 +42,7 @@
 | ---------- | ------------- |
 | PostgreSQL | `postgres:16` |
 
-`postgres`(LangGraph 체크포인터 + 앱 DB), `conservation-guide-ai`(FastAPI, 8000), `conservation-backend`(Spring, 8080) 3개 컨테이너로 구성.
+`postgres`(LangGraph 체크포인터 + 앱 DB), `conservation-guide-ai`(FastAPI, 8000), `xray-ai`(FastAPI, 8001), `vca-ai`(Docker 내부 FastAPI), `conservation-backend`(Spring, 8080) 컨테이너로 구성.
 
 ---
 
@@ -58,8 +58,10 @@
 | ---------------------- | ------------------------------- | ---- |
 | `conservation-backend` | Spring. 모든 요청의 관문        | 8080 |
 | `xray-ai`              | 결합 엔진, YOLO 탐지, 문안 생성 | 8001 |
+| `vca-ai`               | `vca_v2 --dry-run` 어댑터       | 내부 |
 
 프론트엔드는 Spring 만 호출한다. AI 서비스를 직접 부르지 않는다.
+`vca-ai`는 host port를 열지 않고 Docker 내부 네트워크에서만 Spring이 호출한다.
 
 > `docker compose up` 은 `postgres` 와 `conservation-guide-ai` 도
 > 함께 띄운다. X-RAY 와는 무관하지만 Spring 이 DB 에 의존하므로
@@ -107,6 +109,7 @@ curl http://localhost:8080/api/xray/health
 ```env
 OPENAI_API_KEY=...
 POSTGRES_PASSWORD=...
+VCA_ACCESS_TOKEN=로컬-VCA-토큰
 
 AWS_REGION=ap-northeast-2
 AWS_ACCESS_KEY_ID=...
@@ -119,6 +122,11 @@ AWS_S3_BUCKET=AWS-버킷-이름...
 
 `POSTGRES_PASSWORD` 가 없으면 DB 가 뜨지 않아 Spring 도 기동하지
 못한다.
+
+`VCA_ACCESS_TOKEN` 이 없으면 `docker compose config` 단계에서 실패한다.
+Spring의 `/api/vca/**`는 `X-VCA-Access-Token` 헤더가 일치해야 접근할 수
+있으며, 브라우저가 직접 열어야 하는 VCA media gateway URL만 제한적으로
+`vca_access_token` query parameter를 허용한다.
 
 #### AWS 콘솔에서 발급받는 방법
 1. IAM 관련
@@ -144,12 +152,30 @@ AWS_S3_BUCKET=AWS-버킷-이름...
 
 ### `shared/` (레포 루트)
 
-Spring 과 xray-ai 가 결합 작업 파일을 주고받는 폴더다. Docker 가
-만들어 주지만 미리 만들어 두면 권한 문제를 피할 수 있다.
+Spring 과 AI 서비스가 작업 파일을 주고받는 폴더다. Docker 가 만들어
+주지만 미리 만들어 두면 권한 문제를 피할 수 있다.
 
 ```bash
-mkdir -p shared
+mkdir -p shared/vca/input-store shared/vca/engine-output
 ```
+
+VCA 로컬 통합은 다음 경로를 사용한다.
+
+- Spring upload/input root: `/shared/vca/input-store`
+- Spring 이 `vca-ai`에 전달하는 input root: `/vca_v2/output/input`
+- Spring intermediate result root: `/shared/vca/engine-output`
+- `vca-ai` engine root: `/vca_v2`
+- `vca-ai` input root: `/vca_v2/output/input` → `./shared/vca/input-store`
+- `vca-ai` writable dry-run output: `/vca_v2/output` → `./shared/vca/engine-output`
+- `uv` project/cache paths: `/opt/vca-uv-env`, `/opt/vca-uv-cache`
+
+`../vca_v2` 소스는 read-only로 마운트한다. dry-run은 입력 이미지가
+workspace(`/vca_v2`) 안에 있어야 하므로 `./shared/vca/input-store`를
+`vca-ai` 내부에서 `/vca_v2/output/input`으로도 마운트한다. dry-run receipt와 stage output은
+`./shared/vca/engine-output`에 쓰므로 새 실행 전 같은 `projectName`의 기존
+중간 결과는 지워지고, 완료 후 Spring의
+`GET /api/vca/{artifactId}/runs/{assessmentRunId}/intermediate-results`에서
+상대 경로와 작은 텍스트 preview만 조회한다.
 
 ### `ai-services/xray-ai/models/*.pt`
 
