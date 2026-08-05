@@ -229,6 +229,12 @@ BODY - form-data에 - Key는 file File 형식으로, Value는 실제 이미지 �
 
 {
  "resume": {
+  "completed_step_ids": ["restoration-finishing-01", "restoration-finishing-02"]
+ }
+}
+
+{
+ "resume": {
   "photo_urls": ["/desktop/restoration_after.png"],
   "memo": "복원 완료"
  }
@@ -399,15 +405,16 @@ FE에서는 이 기본값들을 미리 체크된 것으로 인식하고 사람�
    
     복원 (nodes/restoration.py)
     - 4-1 restoration_material (LLM: 5종 합성수지 중 추천+이유) → restoration_confirm_material (interrupt: FE 선택)
-    - 4-2 restoration_guide (LLM: 단계별 안내) → restoration_confirm_guide (interrupt: 완료 체크)
-    - 4-3 restoration_end (interrupt: 사진/메모)
+    - 4-2 restoration_guide (LLM: 충전·성형 단계별 안내) → restoration_confirm_guide (interrupt: 완료 체크)
+    - 4-3 restoration_finishing (LLM: 마감처리(연마·채색·광택) 단계별 안내) → restoration_confirm_finishing (interrupt: 완료 체크)
+    - 4-4 restoration_end (interrupt: 사진/메모)
     
      schemas.py 추가 모델
    
     기존 DisassemblyChecklist/ToolRecommendation/DisassemblyMethod 3가지 형태(체크리스트형, 추천+이유형, 단계별안내형)를 각 스테이지에 재사용:
     - 체크리스트/분석형: CleaningAnalysis
     - 추천형: ReinforcementAgentRecommendation, BondingAdhesiveRecommendation, RestorationMaterialRecommendation
-    - 단계안내형: CleaningGuide, DryingGuide, ReinforcementMethod, BondingMethodRecommendation, RestorationGuide
+    - 단계안내형: CleaningGuide, DryingGuide, ReinforcementMethod, BondingMethodRecommendation, RestorationGuide, RestorationFinishingGuide
     - 신규 VLM 전용: ColorChangeAnalysis (ABSA 스타일 9개 항목: hue_shift/brightness_change/saturation_change/gloss_change/blanching/uneven_penetration/edge_visibility/crack_response/texture_change — 각 AspectResult(severity: none/mild/moderate/severe, description) 고정 필드 + overall_severity/recommendation 종합판정)
    
     수정/추가 파일 목록
