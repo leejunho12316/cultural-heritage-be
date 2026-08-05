@@ -153,8 +153,20 @@ class RestorationMaterialRecommendation(BaseModel):
 class RestorationStep(BaseModel):
     order: int = Field(description="수행 순서 (1부터 시작)")
     label: str = Field(description="이 단계에서 수행할 작업 설명")
+    tools_used: list[str] = Field(description="이 단계에서 사용하는 도구/재료")
     caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
 
 class RestorationGuide(BaseModel):
     steps: list[RestorationStep]
     overall_caution: str = Field(description="전체 복원 작업에서 가장 중요한 주의사항 한 줄")
+
+# 복원 - 마감처리(연마·채색·광택) 안내
+class RestorationFinishingStep(BaseModel):
+    order: int = Field(description="수행 순서 (1부터 시작)")
+    label: str = Field(description="이 단계에서 수행할 작업 설명")
+    tools_used: list[str] = Field(description="이 단계에서 사용하는 도구/재료")
+    caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
+
+class RestorationFinishingGuide(BaseModel):
+    steps: list[RestorationFinishingStep]
+    overall_caution: str = Field(description="전체 마감처리 작업에서 가장 중요한 주의사항 한 줄")
