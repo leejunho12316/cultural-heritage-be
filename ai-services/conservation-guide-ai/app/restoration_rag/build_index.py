@@ -101,6 +101,47 @@ def _contains_restoration_term(text: str) -> bool:
     return any(term.lower() in lowered for term in RESTORATION_TERMS)
 
 
+_HANGUL_RE = re.compile(r"[가-힣]")
+
+
+def _hangul_ratio(text: str) -> float:
+    letters = [c for c in text if c.isalpha()]
+    if not letters:
+        return 0.0
+    return sum(1 for c in letters if _HANGUL_RE.match(c)) / len(letters)
+
+
+def _collapse_hangul_spacing(text: str) -> str:
+    """음절 사이에 삽입된 불필요한 공백을 제거한다.
+
+    mojibake 복구가 필요했던 페이지는 원본 PDF의 글자 간격(justify) 정보를
+    pypdf가 잘못 해석해 음절마다 임의로 공백이 끼어 있다("충 전 제" 등). 이
+    상태로는 RESTORATION_TERMS 키워드가 문자열 일치를 못 해 필터를 통과하지
+    못하므로, 복구된 텍스트에 한해 한글 음절 사이 공백을 붙인다. 이 함수는
+    _recover_mojibake가 이미 "복구하는 게 낫다"고 판단한 텍스트에만 적용되므로,
+    정상 추출된 문헌의 실제 단어 간격에는 영향을 주지 않는다.
+    """
+    return re.sub(r"(?<=[가-힣])\s+(?=[가-힣])", "", text)
+
+
+def _recover_mojibake(text: str) -> str:
+    """일부 CID 폰트(예: KSCms-UHC-H)를 pypdf가 처리하지 못해, 원문 EUC-KR/CP949
+    바이트가 라틴-1 문자로 잘못 디코딩되는 경우를 복구한다.
+
+    정상적으로 추출된 한글은 라틴-1 범위(0~255)를 벗어나므로 latin-1 재인코딩
+    자체가 실패한다 — 그 경우 원문을 그대로 반환하므로 기존 정상 문헌에는
+    영향이 없고, 실제로 이 문제가 있는 페이지에만 적용된다.
+    """
+    try:
+        raw_bytes = text.encode("latin-1")
+    except UnicodeEncodeError:
+        return text
+    recovered = raw_bytes.decode("cp949", errors="ignore")
+    if _hangul_ratio(recovered) <= _hangul_ratio(text):
+        return text
+    return _collapse_hangul_spacing(recovered)
+
+
 def build_index() -> dict[str, Any]:
     manifest = _load_manifest()
     documents = manifest.get("documents", [])
@@ -140,6 +181,8 @@ def build_index() -> dict[str, Any]:
                     {"filename": filename, "page": page_number, "error": f"텍스트 추출 실패: {exc}"}
                 )
                 continue
+
+            page_text = _recover_mojibake(page_text)
 
             if not page_text.strip():
                 skipped_pages.append(
