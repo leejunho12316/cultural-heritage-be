@@ -1,0 +1,58 @@
+{
+  "module_version": "pottery-inspection-v11",
+  "inspection_text": "[유물 외형]\n사진상 외형은 파편한 것으로 추정된다. 단일 사진 기준으로 뒷면·내부·미세 결손은 확인할 수 없음. 표면 광택 수준은 높음으로 관찰된다. 시대는 형태·양식 기반 참고 결과로 고려 후보로 추정된다 (모델 점수 63%). 다만 철제 등자 형태의 유물, 도자기 기형·유약 관찰 불가 점은 이 시대 판단과는 다소 어긋나 보인다.\n\n[주요 문양]\n합의 기준을 넘기고 판정보류가 아닌 문양 후보가 없다.\n\n[상태 이상 후보]\n클로즈업 상태조사 결과, 뚜렷한 이상 후보는 관찰되지 않았다. 다만 이는 사진상으로 확인되지 않았다는 뜻이며, 실물 확인을 대체하지 않는다.\n\n[종합 의견]\n현재까지 확인된 범위에서는 전문가 우선 검토가 필요한 특이 소견이 발견되지 않았다. 다만 이는 AI의 1차 분석 결과이며 최종 판단은 전문가 검토를 거쳐야 한다.",
+  "summary": "형태: 사진상 외형 기준 파편 추정 (모델 점수 96%) / 표면 광택 수준: 높음 (모델 점수 100%) / 시대 후보: 고려 (모델 점수 63%, 형태·양식 기반 참고 결과) / 문양: 2회 이상 합의되고 판정보류가 아닌 후보 없음",
+  "human_review_recommended": false,
+  "detail": {
+    "status": "성공",
+    "completeness": {
+      "prediction": "파편",
+      "score": 0.96,
+      "interpretation": "사진상 외형 기준 파편 추정",
+      "features": {
+        "symmetry_iou": 0.396,
+        "circularity": 0.2268,
+        "max_defect_depth_ratio": 0.096
+      },
+      "limitation": "단일 사진 기준으로 뒷면·내부·미세 결손은 확인할 수 없음"
+    },
+    "glaze": {
+      "prediction": "높음",
+      "raw_model_label": "유광",
+      "score": 1.0,
+      "interpretation": "표면 광택 수준: 높음",
+      "explanation": "사진에서 강한 표면 반사가 관찰되는 유형",
+      "features": {
+        "highlight_area_ratio": 0.0503,
+        "highlight_kurtosis": 0.01,
+        "saturation_std": 30.85
+      },
+      "limitation": "사진에서 보이는 반사 특성만 추정합니다. 유약의 실제 존재 여부나 제작기법은 단일 RGB 사진만으로 확정하지 않습니다."
+    },
+    "era": {
+      "prediction": "고려",
+      "score": 0.627,
+      "interpretation": "이미지 형태/양식 기준 고려 후보(참고용)",
+      "source": "CNN(로컬, 무료, 교차검증 정확도 88%)",
+      "limitation": "score는 분류기의 softmax 출력값이며 실제 정답 확률(보정된 확신도)이 아닙니다. 모델의 교차검증 정확도는 88%로, score가 높다고 해서 그보다 더 정확하다는 뜻은 아닙니다. 단일 사진의 형태·양식 기준 참고 결과로만 활용하세요.",
+      "evidence": {
+        "supporting_evidence": [],
+        "conflicting_evidence": [
+          "철제 등자 형태의 유물",
+          "도자기 기형·유약 관찰 불가"
+        ],
+        "reasoning_confidence": "낮음"
+      }
+    },
+    "pattern_era_color": {
+      "overall_description": "사진에서 합의된 문양 후보를 식별하지 못했습니다.",
+      "patterns": [],
+      "uncertainty": "대상이 도자기 표면이 아니며 금속 부식·마모만 보입니다. 확인 가능한 연꽃문, 당초문, 기하문 등 전통 문양은 없습니다.; 대상 자체가 도자기가 아니며, 보이는 녹·부식·표면 질감은 장식 문양으로 판단하지 않았습니다.; 대상 자체가 도자기 표면이 아니며 표면의 얼룩·부식은 장식 문양으로 판단하지 않았습니다.",
+      "min_agreement_used": 2,
+      "calls_requested": 3,
+      "calls_succeeded": 3,
+      "display_policy": "기본 화면에는 2회 이상 위치 합의되고 판정보류가 아닌 문양만 표시",
+      "condition_review_enabled": true
+    }
+  }
+}

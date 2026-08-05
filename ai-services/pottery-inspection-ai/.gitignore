@@ -1,0 +1,46 @@
+# 가상환경
+venv
+grounded_venv
+grounded_venv_3.9
+
+# 비밀키
+.env
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+
+# Gradio 캐시/임시 파일
+.gradio/
+
+# 외부 레포(별도 git clone으로 설치)
+sam2_repo
+
+# 대용량 학습 데이터 - 팀원 각자 로컬/Drive에 받아서 사용
+datasets/
+corrosion_yolo_seg/
+emuseum_pottery/
+emuseum_pottery_all/
+sorted_glaze_v2/
+
+# 스크래치/테스트용 임시 산출물
+grounded_sam_test
+
+# 학습 결과물 (가중치, 로그, 그래프 등 대용량 + 실행마다 계속 바뀜)
+runs/
+
+# 추론 결과로 생성되는 파일 (실행할 때마다 새로 생김)
+outputs/
+batch_eval_result.csv
+
+# 모델 가중치/압축 파일 (대용량 바이너리 - Git에 안 어울림)
+*.pth
+*.zip
+
+# 참고: RF 모델(*.joblib)은 완전/광택 분류용으로 크기가 작아서(1~3MB)
+# 예외적으로 git에 포함합니다. app/completeness_rf.joblib, app/glaze_rf_v2.joblib,
+# training/glaze_rf.joblib 참고. 나중에 큰 joblib이 생기면 그 파일만 개별로
+# 여기 추가하세요.
+
+# 옛 부식/균열 탐지 파이프라인 - 로컬 참고용으로만 보관, git엔 안 올림
+archive/

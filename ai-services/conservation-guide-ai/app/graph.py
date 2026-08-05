@@ -51,6 +51,8 @@ from .nodes.restoration import (
   restoration_confirm_material_node,
   restoration_guide_node,
   restoration_confirm_guide_node,
+  restoration_finishing_node,
+  restoration_confirm_finishing_node,
   restoration_end,
 )
 
@@ -158,6 +160,8 @@ RESTORATION_NODE_CHAIN = [
     "restoration_confirm_material",
     "restoration_guide",
     "restoration_confirm_guide",
+    "restoration_finishing",
+    "restoration_confirm_finishing",
     "restoration_end",
 ]
 
@@ -166,6 +170,8 @@ _restoration_node_funcs = {
     "restoration_confirm_material": restoration_confirm_material_node,
     "restoration_guide": restoration_guide_node,
     "restoration_confirm_guide": restoration_confirm_guide_node,
+    "restoration_finishing": restoration_finishing_node,
+    "restoration_confirm_finishing": restoration_confirm_finishing_node,
     "restoration_end": restoration_end,
 }
 
