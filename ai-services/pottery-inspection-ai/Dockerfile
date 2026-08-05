@@ -35,8 +35,12 @@ COPY app/requirements.txt ./app/requirements.txt
 RUN pip install --no-cache-dir -r app/requirements.txt
 
 # 앱 코드 + 학습된 RF 모델(completeness_rf.joblib, glaze_rf_v2.joblib) 복사.
-# ai_hub/(시대 CNN 모델)는 크기가 커서 이미지에 안 넣고 런타임에 볼륨으로 마운트한다.
 COPY app/ ./app/
+
+# 시대 판정 CNN 모델(43MB, git에 커밋되어 있음)도 이미지에 함께 굽는다.
+# 예전엔 "용량이 커서" 런타임 볼륨 마운트로 뺐었지만, 실제로는 43MB 정도라
+# torch/SAM2까지 들어간 이미지 크기에 비하면 무시할 만한 수준이라 COPY로 단순화했다.
+COPY ai_hub/pottery_multitask_model_v2 ./ai_hub/pottery_multitask_model_v2
 
 WORKDIR /srv/app
 
