@@ -1,4 +1,4 @@
-package com.aivle.conservation_backend.vca;
+package com.aivle.conservation_backend.vca.config;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -8,13 +8,13 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.io.IOException;
 
-final class VcaAccessTokenInterceptor implements HandlerInterceptor {
+public final class VcaAccessTokenInterceptor implements HandlerInterceptor {
 
     private static final String HEADER = "X-VCA-Access-Token";
 
     private final String accessToken;
 
-    VcaAccessTokenInterceptor(String accessToken) {
+    public VcaAccessTokenInterceptor(String accessToken) {
         this.accessToken = accessToken == null ? "" : accessToken.trim();
         if (this.accessToken.isEmpty()) {
             throw new IllegalStateException("VCA access token must be configured.");

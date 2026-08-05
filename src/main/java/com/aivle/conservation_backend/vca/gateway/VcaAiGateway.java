@@ -8,7 +8,7 @@ public interface VcaAiGateway {
             String inputImageFolder
     );
 
-    VcaAiAssessmentStatus getAssessmentStatus(String runId);
+    VcaAiAssessmentRun getAssessmentStatus(String runId);
 
     VcaAiAssessmentReport getAssessmentReport(String runId);
 }

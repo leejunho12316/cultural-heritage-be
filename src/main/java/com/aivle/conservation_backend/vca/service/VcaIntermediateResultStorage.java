@@ -1,5 +1,7 @@
-package com.aivle.conservation_backend.vca;
+package com.aivle.conservation_backend.vca.service;
 
+import com.aivle.conservation_backend.vca.dto.IntermediateResultsResponse;
+import com.aivle.conservation_backend.vca.exception.VcaApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -44,16 +46,16 @@ public class VcaIntermediateResultStorage {
         this.outputRoot = Path.of(outputRoot).toAbsolutePath().normalize();
     }
 
-    VcaResponses.IntermediateResults read(
+    IntermediateResultsResponse read(
             String artifactId,
             String assessmentRunId,
             String projectName
     ) {
-        List<VcaResponses.IntermediateStage> stages = STAGES.stream()
+        List<IntermediateResultsResponse.Stage> stages = STAGES.stream()
                 .map(stage -> readStage(stage, projectName))
                 .filter(stage -> !stage.items().isEmpty())
                 .toList();
-        return new VcaResponses.IntermediateResults(
+        return new IntermediateResultsResponse(
                 artifactId,
                 assessmentRunId,
                 projectName,
@@ -61,17 +63,17 @@ public class VcaIntermediateResultStorage {
         );
     }
 
-    private VcaResponses.IntermediateStage readStage(
+    private IntermediateResultsResponse.Stage readStage(
             StageDescriptor stage,
             String projectName
     ) {
         Path stageDirectory = outputRoot.resolve(stage.stage()).resolve(projectName).normalize();
         if (!stageDirectory.startsWith(outputRoot) || !Files.isDirectory(stageDirectory)) {
-            return new VcaResponses.IntermediateStage(stage.stage(), stage.displayName(), List.of());
+            return new IntermediateResultsResponse.Stage(stage.stage(), stage.displayName(), List.of());
         }
         try {
             Path realStageDirectory = stageDirectory.toRealPath(LinkOption.NOFOLLOW_LINKS);
-            List<VcaResponses.IntermediateItem> items;
+            List<IntermediateResultsResponse.Item> items;
             try (var paths = Files.walk(stageDirectory)) {
                 items = paths
                         .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
@@ -79,7 +81,7 @@ public class VcaIntermediateResultStorage {
                         .map(path -> toItem(stageDirectory, path))
                         .toList();
             }
-            return new VcaResponses.IntermediateStage(stage.stage(), stage.displayName(), items);
+            return new IntermediateResultsResponse.Stage(stage.stage(), stage.displayName(), items);
         } catch (IOException exception) {
             throw new VcaApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
@@ -97,11 +99,11 @@ public class VcaIntermediateResultStorage {
         }
     }
 
-    private VcaResponses.IntermediateItem toItem(Path stageDirectory, Path file) {
+    private IntermediateResultsResponse.Item toItem(Path stageDirectory, Path file) {
         String relativePath = stageDirectory.relativize(file).toString()
                 .replace(File.separator, "/");
         try {
-            return new VcaResponses.IntermediateItem(
+            return new IntermediateResultsResponse.Item(
                     relativePath,
                     file.getFileName().toString(),
                     contentType(file),
@@ -129,9 +131,11 @@ public class VcaIntermediateResultStorage {
         if (!isPreviewable(file)) {
             return null;
         }
-        byte[] bytes = Files.readAllBytes(file);
-        int length = Math.min(bytes.length, PREVIEW_BYTES);
-        return new String(bytes, 0, length, StandardCharsets.UTF_8);
+        byte[] bytes;
+        try (var input = Files.newInputStream(file)) {
+            bytes = input.readNBytes(PREVIEW_BYTES);
+        }
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private static boolean isPreviewable(Path file) {

@@ -38,11 +38,11 @@ class AssessmentRunResponse(BaseModel):
 class AssessmentFindingResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    category: Literal["PLACEHOLDER"]
-    severity: Literal["INFO"]
-    message: Literal["VCA dry-run completed."]
+    category: Literal["VCA_ANOMALY", "VCA_REPORT"]
+    severity: Literal["INFO", "LOW"]
+    message: str = Field(min_length=1)
 
 
 class AssessmentReportResponse(AssessmentRunResponse):
-    summary: Literal["Deterministic VCA assessment placeholder."]
+    summary: str = Field(min_length=1)
     findings: tuple[AssessmentFindingResponse, ...]

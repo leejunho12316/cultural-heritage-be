@@ -1,10 +1,14 @@
-package com.aivle.conservation_backend.vca;
+package com.aivle.conservation_backend.vca.service;
 
 import com.jayway.jsonpath.JsonPath;
+import com.aivle.conservation_backend.vca.config.VcaAccessTokenInterceptor;
+import com.aivle.conservation_backend.vca.controller.VcaController;
+import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
+import com.aivle.conservation_backend.vca.dto.RunResponse;
+import com.aivle.conservation_backend.vca.exception.VcaExceptionHandler;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentFinding;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentReport;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentRun;
-import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentStatus;
 import com.aivle.conservation_backend.vca.gateway.VcaAiGateway;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,8 +22,20 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.net.URI;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -91,8 +107,8 @@ class VcaControllerTest {
         }
 
         @Override
-        public VcaAiAssessmentStatus getAssessmentStatus(String runId) {
-            return new VcaAiAssessmentStatus(runId, runId.replace("vca-ai-", ""), "COMPLETED");
+        public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+            return new VcaAiAssessmentRun(runId, runId.replace("vca-ai-", ""), "COMPLETED");
         }
 
         @Override
@@ -103,11 +119,108 @@ class VcaControllerTest {
                     "COMPLETED",
                     "Gateway generated VCA report.",
                     List.of(new VcaAiAssessmentFinding(
-                            "AI_PLACEHOLDER",
+                            "VCA_ANOMALY",
                             "INFO",
                             "Gateway finding propagated."
                     ))
             );
+        }
+    }
+
+    private static final class FakeVcaImageStorage implements VcaImageStorage {
+
+        private final Path root;
+        private boolean uploadVerified;
+        private boolean runInputMaterialized;
+
+        private FakeVcaImageStorage(Path root) {
+            this.root = root;
+        }
+
+        @Override
+        public PresignedUpload presignUpload(
+                String artifactId,
+                String imageId,
+                com.aivle.conservation_backend.vca.dto.PresignImageRequest request,
+                Instant expiresAt
+        ) {
+            String objectKey = objectKey(artifactId, imageId, request.fileName());
+            return new PresignedUpload(
+                    objectKey,
+                    URI.create("http://localhost:9000/conservation-local/" + objectKey),
+                    Map.of(
+                            "Content-Type", request.contentType(),
+                            "x-amz-meta-sha256", request.sha256()
+                    )
+            );
+        }
+
+        @Override
+        public StoredImage storeUpload(String artifactId, String imageId, org.springframework.web.multipart.MultipartFile file) {
+            String objectKey = objectKey(artifactId, imageId, file.getOriginalFilename());
+            try {
+                Path objectPath = root.resolve(objectKey);
+                Files.createDirectories(objectPath.getParent());
+                Files.write(objectPath, file.getBytes());
+                return new StoredImage(
+                        file.getOriginalFilename(),
+                        file.getContentType(),
+                        file.getSize(),
+                        sha256(file.getBytes()),
+                        objectKey
+                );
+            } catch (java.io.IOException exception) {
+                throw new IllegalStateException(exception);
+            }
+        }
+
+        @Override
+        public void verifyUpload(String objectKey, long expectedSizeBytes, String expectedSha256) {
+            uploadVerified = true;
+        }
+
+        @Override
+        public URI presignedDownload(String objectKey) {
+            return URI.create("http://localhost:9000/conservation-local/" + objectKey + "?X-Amz-Signature=test");
+        }
+
+        @Override
+        public VcaSharedStorage.RunInputDirectory materializeRunInput(
+                String assessmentRunId,
+                List<StoredImageReference> images
+        ) {
+            try {
+                Path inputDirectory = root.resolve(assessmentRunId).resolve("input");
+                Files.createDirectories(inputDirectory);
+                for (StoredImageReference image : images) {
+                    Files.writeString(inputDirectory.resolve(image.imageId() + "-" + image.fileName()), image.objectKey());
+                }
+                runInputMaterialized = true;
+                return new VcaSharedStorage.RunInputDirectory("/shared/vca/" + assessmentRunId + "/input");
+            } catch (java.io.IOException exception) {
+                throw new IllegalStateException(exception);
+            }
+        }
+
+        @Override
+        public void delete(String objectKey) {
+            try {
+                Files.deleteIfExists(root.resolve(objectKey));
+            } catch (java.io.IOException exception) {
+                throw new IllegalStateException(exception);
+            }
+        }
+
+        private static String objectKey(String artifactId, String imageId, String fileName) {
+            return "vca/images/" + artifactId + "/" + imageId + "/" + fileName;
+        }
+
+        private static String sha256(byte[] bytes) {
+            try {
+                return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+            } catch (NoSuchAlgorithmException exception) {
+                throw new IllegalStateException(exception);
+            }
         }
     }
 
@@ -173,8 +286,10 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.images").isArray())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.summary.overallCondition").value("FAIR"))
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
                 .andExpect(jsonPath("$.findings[0].severity").value("MEDIUM"))
                 .andExpect(jsonPath("$.recommendations[0].priority").value("HIGH"))
+                .andExpect(jsonPath("$.recommendations[0].title").value("동일 조건 재촬영"))
                 .andReturn();
         assertThat(reportResult.getResponse().getContentAsString())
                 .doesNotContain(
@@ -183,7 +298,9 @@ class VcaControllerTest {
                         "assessment_report",
                         "report_summary",
                         "report_finding",
-                        "report_recommendation"
+                        "report_recommendation",
+                        "placeholder",
+                        "Connect production VCA pipeline"
                 );
 
         MvcResult pdfResult = mockMvc.perform(post(
@@ -280,6 +397,57 @@ class VcaControllerTest {
                                 """.formatted(SHA256)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("UPLOAD_NOT_VERIFIED"));
+    }
+
+    @Test
+    void usesObjectStorageForSignedVcaUploadDownloadAndRunInput() throws Exception {
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        FakeVcaImageStorage imageStorage = new FakeVcaImageStorage(tempDirectory.resolve("objects"));
+        MockMvc productionMvc = mvc(new VcaService(
+                false,
+                new StaticVcaAiGateway(),
+                sharedStorage,
+                imageStorage
+        ));
+
+        MvcResult presignResult = productionMvc.perform(post("/api/vca/s3-artifact/images/presign")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "fileName": "front.jpg",
+                                  "contentType": "image/jpeg",
+                                  "sizeBytes": 2048,
+                                  "sha256": "%s"
+                                }
+                                """.formatted(SHA256)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.uploadMode").value("SIGNED_PUT"))
+                .andExpect(jsonPath("$.uploadUrl").value(org.hamcrest.Matchers.startsWith(
+                        "http://localhost:9000/conservation-local/vca/images/s3-artifact/")))
+                .andExpect(jsonPath("$.requiredHeaders['x-amz-meta-sha256']").value(SHA256))
+                .andReturn();
+        String imageId = JsonPath.read(presignResult.getResponse().getContentAsString(), "$.imageId");
+
+        productionMvc.perform(post("/api/vca/s3-artifact/images/{imageId}/complete", imageId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"sha256":"%s"}
+                                """.formatted(SHA256)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UPLOADED"));
+        assertThat(imageStorage.uploadVerified).isTrue();
+
+        productionMvc.perform(get("/api/vca/s3-artifact/files/sha256/{sha256}", SHA256))
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string(
+                        "Location",
+                        org.hamcrest.Matchers.startsWith("http://localhost:9000/conservation-local/vca/images/")
+                ));
+
+        productionMvc.perform(post("/api/vca/s3-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("RUNNING"));
+        assertThat(imageStorage.runInputMaterialized).isTrue();
     }
 
     @Test
@@ -452,8 +620,8 @@ class VcaControllerTest {
             }
 
             @Override
-            public VcaAiAssessmentStatus getAssessmentStatus(String runId) {
-                return new VcaAiAssessmentStatus(runId, runId.replace("vca-ai-", ""), "COMPLETED");
+            public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+                return new VcaAiAssessmentRun(runId, runId.replace("vca-ai-", ""), "COMPLETED");
             }
 
             @Override
@@ -464,7 +632,7 @@ class VcaControllerTest {
                         "COMPLETED",
                         "Gateway generated VCA report.",
                         List.of(new VcaAiAssessmentFinding(
-                                "AI_PLACEHOLDER",
+                                "VCA_ANOMALY",
                                 "INFO",
                                 "Gateway finding propagated."
                         ))
@@ -517,9 +685,122 @@ class VcaControllerTest {
                 ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
                 .andExpect(jsonPath("$.summary.description").value("Gateway generated VCA report."))
-                .andExpect(jsonPath("$.findings[0].category").value("AI_PLACEHOLDER"))
+                .andExpect(jsonPath("$.findings[0].category").value("VCA_ANOMALY"))
+                .andExpect(jsonPath("$.findings[0].title").value("VCA 이상 후보"))
+                .andExpect(jsonPath("$.recommendations[0].title").value("전문가 검토 후 보존처리 계획에 반영"))
                 .andExpect(jsonPath("$.findings[0].description").value("Gateway finding propagated."));
+    }
+
+    @Test
+    void createsPdfAfterSyncingAiStatusWithoutPriorReportOrArtifactPoll() throws Exception {
+        VcaAiGateway gateway = new VcaAiGateway() {
+            @Override
+            public VcaAiAssessmentRun createAssessmentRun(
+                    String assessmentId,
+                    String projectName,
+                    String inputImageFolder
+            ) {
+                return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+                return new VcaAiAssessmentRun(
+                        runId,
+                        runId.replace("vca-ai-", ""),
+                        "COMPLETED"
+                );
+            }
+
+            @Override
+            public VcaAiAssessmentReport getAssessmentReport(String runId) {
+                throw new AssertionError("Report must not be fetched while creating a PDF job.");
+            }
+        };
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+
+        gatewayMvc.perform(multipart("/api/vca/pdf-sync-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
+                .andExpect(status().isCreated());
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/pdf-sync-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("RUNNING"))
+                .andReturn();
+        String assessmentRunId = JsonPath.read(
+                runResult.getResponse().getContentAsString(),
+                "$.assessmentRunId"
+        );
+
+        gatewayMvc.perform(post(
+                        "/api/vca/pdf-sync-artifact/runs/{assessmentRunId}/report/pdf",
+                        assessmentRunId
+                ))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("QUEUED"));
+    }
+
+    @Test
+    void keepsArtifactReadsAvailableWhileAiRunCreationIsInFlight() throws Exception {
+        CountDownLatch gatewayEntered = new CountDownLatch(1);
+        CountDownLatch releaseGateway = new CountDownLatch(1);
+        VcaAiGateway gateway = new VcaAiGateway() {
+            @Override
+            public VcaAiAssessmentRun createAssessmentRun(
+                    String assessmentId,
+                    String projectName,
+                    String inputImageFolder
+            ) {
+                gatewayEntered.countDown();
+                try {
+                    assertThat(releaseGateway.await(5, TimeUnit.SECONDS)).isTrue();
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+                return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+                return new VcaAiAssessmentRun(runId, runId.replace("vca-ai-", ""), "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentReport getAssessmentReport(String runId) {
+                throw new AssertionError("Report must not be fetched while creating a run.");
+            }
+        };
+        VcaService service = new VcaService(
+                true,
+                gateway,
+                new VcaSharedStorage(tempDirectory.toString(), "/shared/vca")
+        );
+        service.uploadImage(
+                "nonblocking-artifact",
+                new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)
+        );
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<RunResponse> runFuture = executor.submit(() -> service.createRun("nonblocking-artifact"));
+            assertThat(gatewayEntered.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<ArtifactDetailResponse> detailFuture = executor.submit(
+                    () -> service.getArtifact("nonblocking-artifact")
+            );
+            ArtifactDetailResponse detail = detailFuture.get(1, TimeUnit.SECONDS);
+            assertThat(detail.runs()).hasSize(1);
+            assertThat(detail.runs().get(0).status()).isEqualTo("QUEUED");
+
+            releaseGateway.countDown();
+            assertThat(runFuture.get(5, TimeUnit.SECONDS).status()).isEqualTo("RUNNING");
+        } finally {
+            releaseGateway.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -615,6 +896,53 @@ class VcaControllerTest {
 
         assertThat(result.getResponse().getContentAsString())
                 .doesNotContain(tempDirectory.toString(), "/shared", "/vca_v2");
+    }
+
+    @Test
+    void boundsIntermediatePreviewToConfiguredPreviewBytes() throws Exception {
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        Path outputRoot = tempDirectory.resolve("engine-output");
+        VcaIntermediateResultStorage intermediateStorage =
+                new VcaIntermediateResultStorage(outputRoot.toString());
+        MockMvc gatewayMvc = mvc(new VcaService(
+                true,
+                new StaticVcaAiGateway(),
+                sharedStorage,
+                intermediateStorage
+        ));
+        gatewayMvc.perform(multipart("/api/vca/preview-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
+                .andExpect(status().isCreated());
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/preview-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String assessmentRunId = JsonPath.read(
+                runResult.getResponse().getContentAsString(),
+                "$.assessmentRunId"
+        );
+        String projectName = "preview-artifact-" + assessmentRunId;
+        Path manifest = outputRoot.resolve("preprocessing").resolve(projectName).resolve("large.json");
+        Files.createDirectories(manifest.getParent());
+        Files.writeString(
+                manifest,
+                "HEAD" + "x".repeat(8_188) + "TAIL_MARKER",
+                StandardCharsets.UTF_8
+        );
+
+        MvcResult result = gatewayMvc.perform(get(
+                        "/api/vca/preview-artifact/runs/{assessmentRunId}/intermediate-results",
+                        assessmentRunId
+                ))
+                .andExpect(status().isOk())
+                .andReturn();
+        String preview = JsonPath.read(
+                result.getResponse().getContentAsString(),
+                "$.stages[0].items[0].preview"
+        );
+        assertThat(preview)
+                .hasSize(8_192)
+                .startsWith("HEAD")
+                .doesNotContain("TAIL_MARKER");
     }
 
     @Test

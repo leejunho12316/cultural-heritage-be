@@ -1,4 +1,17 @@
-package com.aivle.conservation_backend.vca;
+package com.aivle.conservation_backend.vca.service;
+
+import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse;
+import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse.ArtifactSummary;
+import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
+import com.aivle.conservation_backend.vca.dto.CompleteImageRequest;
+import com.aivle.conservation_backend.vca.dto.ImageResponse;
+import com.aivle.conservation_backend.vca.dto.IntermediateResultsResponse;
+import com.aivle.conservation_backend.vca.dto.PdfJobResponse;
+import com.aivle.conservation_backend.vca.dto.PresignImageRequest;
+import com.aivle.conservation_backend.vca.dto.PresignImageResponse;
+import com.aivle.conservation_backend.vca.dto.ReportResponse;
+import com.aivle.conservation_backend.vca.dto.RunResponse;
+import com.aivle.conservation_backend.vca.exception.VcaApiException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +24,6 @@ import org.springframework.web.multipart.MultipartFile;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentFinding;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentReport;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentRun;
-import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentStatus;
 import com.aivle.conservation_backend.vca.gateway.VcaAiGateway;
 
 import java.net.URI;
@@ -35,6 +47,11 @@ public class VcaService {
             Pattern.compile("^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$");
     private static final Pattern SHA256 = Pattern.compile("^[A-Fa-f0-9]{64}$");
     private static final String LOCAL_ORIGIN = "https://vca-local.invalid";
+    private static final String REPORT_HEADLINE = "VCA 육안 조사 결과";
+    private static final String FINDING_TITLE = "VCA 이상 후보";
+    private static final String RECOMMENDATION_TITLE = "전문가 검토 후 보존처리 계획에 반영";
+    private static final String RECOMMENDATION_DESCRIPTION =
+            "AI가 제안한 이상 후보와 중간 처리 결과를 전문가가 검토한 뒤 보존처리 계획에 반영하세요.";
 
     private final Map<String, ArtifactState> artifacts = new LinkedHashMap<>();
     private final Map<String, ImageState> uploadedImagesBySha256 = new LinkedHashMap<>();
@@ -43,6 +60,7 @@ public class VcaService {
     private final boolean localDirectCompleteEnabled;
     private final Optional<VcaAiGateway> vcaAiGateway;
     private final Optional<VcaSharedStorage> sharedStorage;
+    private final Optional<VcaImageStorage> imageStorage;
     private final Optional<VcaIntermediateResultStorage> intermediateResultStorage;
 
     @Autowired
@@ -50,24 +68,27 @@ public class VcaService {
             @Value("${vca.local-direct-complete-enabled:false}") boolean localDirectCompleteEnabled,
             VcaAiGateway vcaAiGateway,
             VcaSharedStorage sharedStorage,
+            VcaImageStorage imageStorage,
             VcaIntermediateResultStorage intermediateResultStorage
     ) {
         this(
                 localDirectCompleteEnabled,
                 Optional.of(vcaAiGateway),
                 Optional.of(sharedStorage),
+                Optional.of(imageStorage),
                 Optional.of(intermediateResultStorage)
         );
     }
 
     VcaService(boolean localDirectCompleteEnabled) {
-        this(localDirectCompleteEnabled, Optional.empty(), Optional.empty(), Optional.empty());
+        this(localDirectCompleteEnabled, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     VcaService(boolean localDirectCompleteEnabled, VcaAiGateway vcaAiGateway) {
         this(
                 localDirectCompleteEnabled,
                 Optional.of(vcaAiGateway),
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty()
         );
@@ -82,7 +103,38 @@ public class VcaService {
                 localDirectCompleteEnabled,
                 Optional.of(vcaAiGateway),
                 Optional.of(sharedStorage),
+                Optional.empty(),
                 Optional.empty()
+        );
+    }
+
+    VcaService(
+            boolean localDirectCompleteEnabled,
+            VcaAiGateway vcaAiGateway,
+            VcaSharedStorage sharedStorage,
+            VcaImageStorage imageStorage
+    ) {
+        this(
+                localDirectCompleteEnabled,
+                Optional.of(vcaAiGateway),
+                Optional.of(sharedStorage),
+                Optional.of(imageStorage),
+                Optional.empty()
+        );
+    }
+
+    VcaService(
+            boolean localDirectCompleteEnabled,
+            VcaAiGateway vcaAiGateway,
+            VcaSharedStorage sharedStorage,
+            VcaIntermediateResultStorage intermediateResultStorage
+    ) {
+        this(
+                localDirectCompleteEnabled,
+                Optional.of(vcaAiGateway),
+                Optional.of(sharedStorage),
+                Optional.empty(),
+                Optional.of(intermediateResultStorage)
         );
     }
 
@@ -90,17 +142,19 @@ public class VcaService {
             boolean localDirectCompleteEnabled,
             Optional<VcaAiGateway> vcaAiGateway,
             Optional<VcaSharedStorage> sharedStorage,
+            Optional<VcaImageStorage> imageStorage,
             Optional<VcaIntermediateResultStorage> intermediateResultStorage
     ) {
         this.localDirectCompleteEnabled = localDirectCompleteEnabled;
         this.vcaAiGateway = vcaAiGateway;
         this.sharedStorage = sharedStorage;
+        this.imageStorage = imageStorage;
         this.intermediateResultStorage = intermediateResultStorage;
         seedDemoArtifact();
     }
 
-    public synchronized VcaResponses.ArtifactCollection getArtifacts() {
-        return new VcaResponses.ArtifactCollection(
+    public synchronized ArtifactCollectionResponse getArtifacts() {
+        return new ArtifactCollectionResponse(
                 artifacts.values().stream().map(artifact -> {
                     advanceDemoRuns(artifact);
                     return toSummary(artifact);
@@ -108,46 +162,60 @@ public class VcaService {
         );
     }
 
-    public synchronized VcaResponses.ArtifactDetail getArtifact(String artifactId) {
+    public synchronized ArtifactDetailResponse getArtifact(String artifactId) {
         ArtifactState artifact = getOrCreateArtifact(artifactId);
         advanceDemoRuns(artifact);
         return toDetail(artifact);
     }
 
-    public synchronized VcaResponses.PresignImage presignImage(
+    public synchronized PresignImageResponse presignImage(
             String artifactId,
-            VcaRequests.PresignImageRequest request
+            PresignImageRequest request
     ) {
         ArtifactState artifact = getOrCreateArtifact(artifactId);
         Instant now = Instant.now();
         String imageId = UUID.randomUUID().toString();
         String sha256 = request.sha256().toLowerCase(Locale.ROOT);
+        String uploadMode = uploadMode();
+        String uploadUrl;
+        Map<String, String> requiredHeaders;
+        String objectKey = null;
+        if ("SIGNED_PUT".equals(uploadMode) && imageStorage.isPresent()) {
+            VcaImageStorage.PresignedUpload upload = imageStorage.get()
+                    .presignUpload(artifactId, imageId, request, now.plus(15, ChronoUnit.MINUTES));
+            objectKey = upload.objectKey();
+            uploadUrl = upload.uploadUrl().toString();
+            requiredHeaders = upload.requiredHeaders();
+        } else {
+            Instant expiresAt = now.plus(15, ChronoUnit.MINUTES);
+            String signature = UUID.randomUUID().toString().replace("-", "");
+            uploadUrl = LOCAL_ORIGIN + "/uploads/" + imageId
+                    + "?expires=" + expiresAt.getEpochSecond()
+                    + "&signature=" + signature;
+            requiredHeaders = Map.of(
+                    "Content-Type", request.contentType(),
+                    "X-VCA-Content-SHA256", sha256
+            );
+        }
         ImageState image = new ImageState(
                 imageId,
                 request.fileName(),
                 request.contentType(),
                 request.sizeBytes(),
                 sha256,
-                uploadMode(),
+                uploadMode,
                 "PENDING",
                 now,
                 null,
+                objectKey,
                 null
         );
         artifact.images.put(imageId, image);
         artifact.updatedAt = now;
 
         Instant expiresAt = now.plus(15, ChronoUnit.MINUTES);
-        String signature = UUID.randomUUID().toString().replace("-", "");
-        String uploadUrl = LOCAL_ORIGIN + "/uploads/" + imageId
-                + "?expires=" + expiresAt.getEpochSecond()
-                + "&signature=" + signature;
-        Map<String, String> requiredHeaders = Map.of(
-                "Content-Type", request.contentType(),
-                "X-VCA-Content-SHA256", sha256
-        );
         log.info("VCA image upload reserved artifactId={} imageId={}", artifactId, imageId);
-        return new VcaResponses.PresignImage(
+        return new PresignImageResponse(
                 imageId,
                 "PENDING",
                 image.uploadMode,
@@ -158,23 +226,43 @@ public class VcaService {
         );
     }
 
-    public synchronized VcaResponses.Image uploadImage(String artifactId, MultipartFile file) {
+    public synchronized ImageResponse uploadImage(String artifactId, MultipartFile file) {
         ArtifactState artifact = getOrCreateArtifact(artifactId);
         String imageId = UUID.randomUUID().toString();
-        VcaSharedStorage.StoredImage storedImage = requireSharedStorage().storeUpload(imageId, file);
         Instant now = Instant.now();
-        ImageState image = new ImageState(
-                imageId,
-                storedImage.fileName(),
-                storedImage.contentType(),
-                storedImage.sizeBytes(),
-                storedImage.sha256(),
-                "DIRECT_UPLOAD",
-                "UPLOADED",
-                now,
-                now,
-                storedImage.localPath()
-        );
+        ImageState image;
+        if (imageStorage.isPresent()) {
+            VcaImageStorage.StoredImage storedImage = imageStorage.get()
+                    .storeUpload(artifactId, imageId, file);
+            image = new ImageState(
+                    imageId,
+                    storedImage.fileName(),
+                    storedImage.contentType(),
+                    storedImage.sizeBytes(),
+                    storedImage.sha256(),
+                    "DIRECT_UPLOAD",
+                    "UPLOADED",
+                    now,
+                    now,
+                    storedImage.objectKey(),
+                    null
+            );
+        } else {
+            VcaSharedStorage.StoredImage storedImage = requireSharedStorage().storeUpload(imageId, file);
+            image = new ImageState(
+                    imageId,
+                    storedImage.fileName(),
+                    storedImage.contentType(),
+                    storedImage.sizeBytes(),
+                    storedImage.sha256(),
+                    "DIRECT_UPLOAD",
+                    "UPLOADED",
+                    now,
+                    now,
+                    null,
+                    storedImage.localPath()
+            );
+        }
         artifact.images.put(imageId, image);
         artifact.updatedAt = now;
         uploadedImagesBySha256.put(image.sha256, image);
@@ -182,27 +270,29 @@ public class VcaService {
         return toImage(artifact, image);
     }
 
-    public synchronized VcaResponses.Image completeImage(
+    public synchronized ImageResponse completeImage(
             String artifactId,
             String imageId,
-            VcaRequests.CompleteImageRequest request
+            CompleteImageRequest request
     ) {
         ArtifactState artifact = requireArtifact(artifactId);
         validateUuid(imageId, "imageId");
         ImageState image = requireImage(artifact, imageId);
-        if (!"DIRECT_COMPLETE".equals(image.uploadMode)) {
-            throw new VcaApiException(
-                    HttpStatus.CONFLICT,
-                    "UPLOAD_NOT_VERIFIED",
-                    "The upload object must be verified before completion."
-            );
-        }
         String suppliedSha256 = request.sha256().toLowerCase(Locale.ROOT);
         if (!image.sha256.equals(suppliedSha256)) {
             throw new VcaApiException(
                     HttpStatus.CONFLICT,
                     "SHA256_MISMATCH",
                     "The completed upload checksum does not match the reserved image."
+            );
+        }
+        if ("SIGNED_PUT".equals(image.uploadMode) && image.objectKey != null && imageStorage.isPresent()) {
+            imageStorage.get().verifyUpload(image.objectKey, image.sizeBytes, suppliedSha256);
+        } else if (!"DIRECT_COMPLETE".equals(image.uploadMode)) {
+            throw new VcaApiException(
+                    HttpStatus.CONFLICT,
+                    "UPLOAD_NOT_VERIFIED",
+                    "The upload object must be verified before completion."
             );
         }
         if (!"UPLOADED".equals(image.status)) {
@@ -228,14 +318,32 @@ public class VcaService {
             );
         }
         uploadedImagesBySha256.remove(removed.sha256, removed);
-        if (removed.localPath != null) {
+        if (removed.objectKey != null && imageStorage.isPresent()) {
+            imageStorage.get().delete(removed.objectKey);
+        } else if (removed.localPath != null) {
             requireSharedStorage().deleteUpload(removed.imageId, removed.localPath);
         }
         artifact.updatedAt = Instant.now();
         log.info("VCA image metadata deleted artifactId={} imageId={}", artifactId, imageId);
     }
 
-    public synchronized VcaResponses.Run createRun(String artifactId) {
+    public RunResponse createRun(String artifactId) {
+        RunCreation reservation = reserveRun(artifactId);
+        VcaAiAssessmentRun aiRun;
+        try {
+            aiRun = createAiAssessmentRun(
+                    artifactId,
+                    reservation.assessmentRunId,
+                    reservation.uploadedImages
+            );
+        } catch (RuntimeException exception) {
+            cancelRunReservation(artifactId, reservation.assessmentRunId);
+            throw exception;
+        }
+        return completeRunReservation(artifactId, reservation, aiRun);
+    }
+
+    private synchronized RunCreation reserveRun(String artifactId) {
         ArtifactState artifact = getOrCreateArtifact(artifactId);
         boolean activeRunExists = artifact.runs.values().stream()
                 .anyMatch(run -> "QUEUED".equals(run.status) || "RUNNING".equals(run.status));
@@ -259,41 +367,66 @@ public class VcaService {
 
         Instant now = Instant.now();
         String assessmentRunId = UUID.randomUUID().toString();
-        VcaAiAssessmentRun aiRun = createAiAssessmentRun(
-                artifactId,
-                assessmentRunId,
-                uploadedImages
-        );
-        List<VcaResponses.ReportImage> reportImages = uploadedImages.stream()
-                .map(image -> new VcaResponses.ReportImage(
-                        image.imageId,
-                        image.fileName,
-                        fileGatewayUrl(artifactId, image.sha256)
-                ))
-                .toList();
-        VcaResponses.Report report = VcaDemoReportFactory.create(
-                artifactId,
-                assessmentRunId,
-                now,
-                reportImages
-        );
         RunState run = new RunState(
                 assessmentRunId,
-                aiRun.status(),
+                "QUEUED",
                 uploadedImages.size(),
                 now,
-                "COMPLETED".equals(aiRun.status()) ? now : null,
-                aiRun.runId(),
-                report
+                null,
+                null,
+                null
         );
         artifact.runs.put(assessmentRunId, run);
         artifact.updatedAt = now;
-        log.info("VCA assessment queued artifactId={} assessmentRunId={} imageCount={}",
+        log.info("VCA assessment run reserved artifactId={} assessmentRunId={} imageCount={}",
                 artifactId, assessmentRunId, uploadedImages.size());
+        return new RunCreation(assessmentRunId, uploadedImages);
+    }
+
+    private synchronized RunResponse completeRunReservation(
+            String artifactId,
+            RunCreation reservation,
+            VcaAiAssessmentRun aiRun
+    ) {
+        ArtifactState artifact = requireArtifact(artifactId);
+        RunState run = requireRun(artifact, reservation.assessmentRunId);
+        ReportResponse report = null;
+        if (vcaAiGateway.isEmpty()) {
+            List<ReportResponse.Image> reportImages = reservation.uploadedImages.stream()
+                    .map(image -> new ReportResponse.Image(
+                            image.imageId,
+                            image.fileName,
+                            fileGatewayUrl(artifactId, image.sha256)
+                    ))
+                    .toList();
+            report = VcaDemoReportFactory.create(
+                    artifactId,
+                    reservation.assessmentRunId,
+                    run.createdAt,
+                    reportImages
+            );
+        }
+        Instant now = Instant.now();
+        run.status = aiRun.status();
+        run.aiRunId = aiRun.runId();
+        run.completedAt = "COMPLETED".equals(aiRun.status()) ? now : null;
+        run.report = report;
+        artifact.updatedAt = now;
+        log.info("VCA assessment queued artifactId={} assessmentRunId={} imageCount={}",
+                artifactId, reservation.assessmentRunId, reservation.uploadedImages.size());
         return toRun(artifact, run);
     }
 
-    public synchronized VcaResponses.Report getReport(
+    private synchronized void cancelRunReservation(String artifactId, String assessmentRunId) {
+        ArtifactState artifact = requireArtifact(artifactId);
+        RunState run = artifact.runs.get(assessmentRunId);
+        if (run != null && run.aiRunId == null) {
+            artifact.runs.remove(assessmentRunId);
+            artifact.updatedAt = Instant.now();
+        }
+    }
+
+    public synchronized ReportResponse getReport(
             String artifactId,
             String assessmentRunId
     ) {
@@ -323,7 +456,7 @@ public class VcaService {
         return run.report;
     }
 
-    public synchronized VcaResponses.IntermediateResults getIntermediateResults(
+    public synchronized IntermediateResultsResponse getIntermediateResults(
             String artifactId,
             String assessmentRunId
     ) {
@@ -332,7 +465,7 @@ public class VcaService {
         String runProjectName = projectName(artifactId, run.assessmentRunId);
         return intermediateResultStorage
                 .map(storage -> storage.read(artifactId, run.assessmentRunId, runProjectName))
-                .orElseGet(() -> new VcaResponses.IntermediateResults(
+                .orElseGet(() -> new IntermediateResultsResponse(
                         artifactId,
                         run.assessmentRunId,
                         runProjectName,
@@ -343,15 +476,17 @@ public class VcaService {
     public synchronized URI getFileDownloadLocation(String artifactId, String sha256) {
         ArtifactState artifact = requireArtifact(artifactId);
         String normalizedSha256 = validateSha256(sha256);
-        boolean fileBelongsToArtifact = artifact.images.values().stream()
-                .anyMatch(image -> normalizedSha256.equals(image.sha256)
-                        && "UPLOADED".equals(image.status));
-        if (!fileBelongsToArtifact) {
-            throw new VcaApiException(
-                    HttpStatus.NOT_FOUND,
-                    "FILE_NOT_FOUND",
-                    "The requested VCA file was not found."
-            );
+        ImageState image = artifact.images.values().stream()
+                .filter(candidate -> normalizedSha256.equals(candidate.sha256)
+                        && "UPLOADED".equals(candidate.status))
+                .findFirst()
+                .orElseThrow(() -> new VcaApiException(
+                        HttpStatus.NOT_FOUND,
+                        "FILE_NOT_FOUND",
+                        "The requested VCA file was not found."
+                ));
+        if (image.objectKey != null && imageStorage.isPresent()) {
+            return imageStorage.get().presignedDownload(image.objectKey);
         }
         Instant expiresAt = Instant.now().plus(5, ChronoUnit.MINUTES);
         return URI.create(LOCAL_ORIGIN + "/files/" + normalizedSha256
@@ -359,12 +494,13 @@ public class VcaService {
                 + "&signature=" + UUID.randomUUID().toString().replace("-", ""));
     }
 
-    public synchronized VcaResponses.PdfJob createPdfJob(
+    public synchronized PdfJobResponse createPdfJob(
             String artifactId,
             String assessmentRunId
     ) {
         ArtifactState artifact = requireArtifact(artifactId);
         RunState run = requireRun(artifact, assessmentRunId);
+        syncRunWithAi(artifact, run);
         if (!"COMPLETED".equals(run.status)) {
             throw new VcaApiException(
                     HttpStatus.CONFLICT,
@@ -387,7 +523,7 @@ public class VcaService {
         return toPdfJob(job);
     }
 
-    public synchronized VcaResponses.PdfJob getPdfJob(String artifactId, String jobId) {
+    public synchronized PdfJobResponse getPdfJob(String artifactId, String jobId) {
         PdfJobState job = requirePdfJob(artifactId, jobId);
         if ("QUEUED".equals(job.status) || "RUNNING".equals(job.status)) {
             job.status = "COMPLETED";
@@ -412,11 +548,11 @@ public class VcaService {
                 + "&signature=" + UUID.randomUUID().toString().replace("-", ""));
     }
 
-    private VcaResponses.ArtifactSummary toSummary(ArtifactState artifact) {
+    private ArtifactSummary toSummary(ArtifactState artifact) {
         String latestRunId = new ArrayList<>(artifact.runs.keySet()).stream()
                 .reduce((first, second) -> second)
                 .orElse(null);
-        return new VcaResponses.ArtifactSummary(
+        return new ArtifactSummary(
                 artifact.artifactId,
                 artifact.displayName,
                 firstUploadedImageUrl(artifact),
@@ -426,8 +562,8 @@ public class VcaService {
         );
     }
 
-    private VcaResponses.ArtifactDetail toDetail(ArtifactState artifact) {
-        return new VcaResponses.ArtifactDetail(
+    private ArtifactDetailResponse toDetail(ArtifactState artifact) {
+        return new ArtifactDetailResponse(
                 artifact.artifactId,
                 artifact.displayName,
                 artifactStatus(artifact),
@@ -441,11 +577,11 @@ public class VcaService {
         );
     }
 
-    private VcaResponses.Image toImage(ArtifactState artifact, ImageState image) {
+    private ImageResponse toImage(ArtifactState artifact, ImageState image) {
         String downloadUrl = "UPLOADED".equals(image.status)
                 ? fileGatewayUrl(artifact.artifactId, image.sha256)
                 : null;
-        return new VcaResponses.Image(
+        return new ImageResponse(
                 image.imageId,
                 image.fileName,
                 image.contentType,
@@ -457,8 +593,8 @@ public class VcaService {
         );
     }
 
-    private VcaResponses.Run toRun(ArtifactState artifact, RunState run) {
-        return new VcaResponses.Run(
+    private RunResponse toRun(ArtifactState artifact, RunState run) {
+        return new RunResponse(
                 run.assessmentRunId,
                 artifact.artifactId,
                 run.status,
@@ -470,12 +606,12 @@ public class VcaService {
         );
     }
 
-    private VcaResponses.PdfJob toPdfJob(PdfJobState job) {
+    private PdfJobResponse toPdfJob(PdfJobState job) {
         String downloadUrl = "COMPLETED".equals(job.status)
                 ? "/api/vca/" + job.artifactId + "/report-pdf-jobs/"
                         + job.jobId + "/download"
                 : null;
-        return new VcaResponses.PdfJob(
+        return new PdfJobResponse(
                 job.jobId,
                 job.assessmentRunId,
                 job.status,
@@ -519,17 +655,31 @@ public class VcaService {
         if (vcaAiGateway.isEmpty()) {
             return new VcaAiAssessmentRun(assessmentRunId, assessmentRunId, "QUEUED");
         }
-        VcaSharedStorage.RunInputDirectory inputDirectory = requireSharedStorage()
-                .materializeRunInput(
-                        assessmentRunId,
-                        uploadedImages.stream()
-                                .map(image -> new VcaSharedStorage.StoredImageReference(
-                                        image.imageId,
-                                        image.fileName,
-                                        image.localPath
-                                ))
-                                .toList()
-                );
+        VcaSharedStorage.RunInputDirectory inputDirectory;
+        if (imageStorage.isPresent() && uploadedImages.stream().anyMatch(image -> image.objectKey != null)) {
+            inputDirectory = imageStorage.get().materializeRunInput(
+                    assessmentRunId,
+                    uploadedImages.stream()
+                            .map(image -> new VcaImageStorage.StoredImageReference(
+                                    image.imageId,
+                                    image.fileName,
+                                    image.objectKey
+                            ))
+                            .toList()
+            );
+        } else {
+            inputDirectory = requireSharedStorage()
+                    .materializeRunInput(
+                            assessmentRunId,
+                            uploadedImages.stream()
+                                    .map(image -> new VcaSharedStorage.StoredImageReference(
+                                            image.imageId,
+                                            image.fileName,
+                                            image.localPath
+                                    ))
+                                    .toList()
+                    );
+        }
         return vcaAiGateway.get().createAssessmentRun(
                 assessmentRunId,
                 projectName(artifactId, assessmentRunId),
@@ -546,10 +696,10 @@ public class VcaService {
     }
 
     private void syncRunWithAi(ArtifactState artifact, RunState run) {
-        if (vcaAiGateway.isEmpty()) {
+        if (vcaAiGateway.isEmpty() || run.aiRunId == null) {
             return;
         }
-        VcaAiAssessmentStatus aiStatus = vcaAiGateway.get().getAssessmentStatus(run.aiRunId);
+        VcaAiAssessmentRun aiStatus = vcaAiGateway.get().getAssessmentStatus(run.aiRunId);
         run.status = aiStatus.status();
         if ("COMPLETED".equals(run.status) && run.completedAt == null) {
             run.completedAt = Instant.now();
@@ -557,7 +707,7 @@ public class VcaService {
         artifact.updatedAt = Instant.now();
     }
 
-    private VcaResponses.Report toReport(
+    private ReportResponse toReport(
             ArtifactState artifact,
             RunState run,
             VcaAiAssessmentReport aiReport
@@ -567,48 +717,48 @@ public class VcaService {
                 .findFirst()
                 .map(image -> image.imageId)
                 .orElse(null);
-        List<VcaResponses.ReportImage> reportImages = artifact.images.values().stream()
+        List<ReportResponse.Image> reportImages = artifact.images.values().stream()
                 .filter(image -> "UPLOADED".equals(image.status))
-                .map(image -> new VcaResponses.ReportImage(
+                .map(image -> new ReportResponse.Image(
                         image.imageId,
                         image.fileName,
                         fileGatewayUrl(artifact.artifactId, image.sha256)
                 ))
                 .toList();
-        return new VcaResponses.Report(
+        return new ReportResponse(
                 run.assessmentRunId,
                 artifact.artifactId,
                 aiReport.status(),
                 Instant.now(),
-                new VcaResponses.ReportSummary(
+                new ReportResponse.Summary(
                         "FAIR",
                         "LOW",
-                        "VCA adapter placeholder",
+                        REPORT_HEADLINE,
                         aiReport.summary()
                 ),
                 toFindings(aiReport.findings(), primaryImageId),
-                List.of(new VcaResponses.Recommendation(
-                        "recommendation-connect-vca-pipeline",
+                List.of(new ReportResponse.Recommendation(
+                        "recommendation-review-vca-results",
                         "MEDIUM",
-                        "Connect production VCA pipeline",
-                        "Replace the deterministic adapter with the vca_v2 orchestration pipeline."
+                        RECOMMENDATION_TITLE,
+                        RECOMMENDATION_DESCRIPTION
                 )),
                 reportImages
         );
     }
 
-    private List<VcaResponses.Finding> toFindings(
+    private List<ReportResponse.Finding> toFindings(
             List<VcaAiAssessmentFinding> aiFindings,
             String primaryImageId
     ) {
-        List<VcaResponses.Finding> findings = new ArrayList<>();
+        List<ReportResponse.Finding> findings = new ArrayList<>();
         for (int index = 0; index < aiFindings.size(); index++) {
             VcaAiAssessmentFinding finding = aiFindings.get(index);
-            findings.add(new VcaResponses.Finding(
+            findings.add(new ReportResponse.Finding(
                     "finding-vca-ai-" + (index + 1),
                     finding.category(),
                     finding.severity(),
-                    "VCA adapter finding",
+                    FINDING_TITLE,
                     finding.message(),
                     1.0,
                     primaryImageId
@@ -781,6 +931,7 @@ public class VcaService {
         private final String sha256;
         private final String uploadMode;
         private final Instant createdAt;
+        private final String objectKey;
         private final Path localPath;
         private String status;
         private Instant uploadedAt;
@@ -795,6 +946,7 @@ public class VcaService {
                 String status,
                 Instant createdAt,
                 Instant uploadedAt,
+                String objectKey,
                 Path localPath
         ) {
             this.imageId = imageId;
@@ -806,7 +958,18 @@ public class VcaService {
             this.status = status;
             this.createdAt = createdAt;
             this.uploadedAt = uploadedAt;
+            this.objectKey = objectKey;
             this.localPath = localPath;
+        }
+    }
+
+    private static final class RunCreation {
+        private final String assessmentRunId;
+        private final List<ImageState> uploadedImages;
+
+        private RunCreation(String assessmentRunId, List<ImageState> uploadedImages) {
+            this.assessmentRunId = assessmentRunId;
+            this.uploadedImages = uploadedImages;
         }
     }
 
@@ -814,10 +977,10 @@ public class VcaService {
         private final String assessmentRunId;
         private final int imageCount;
         private final Instant createdAt;
-        private final String aiRunId;
+        private String aiRunId;
         private String status;
         private Instant completedAt;
-        private VcaResponses.Report report;
+        private ReportResponse report;
 
         private RunState(
                 String assessmentRunId,
@@ -826,7 +989,7 @@ public class VcaService {
                 Instant createdAt,
                 Instant completedAt,
                 String aiRunId,
-                VcaResponses.Report report
+                ReportResponse report
         ) {
             this.assessmentRunId = assessmentRunId;
             this.status = status;

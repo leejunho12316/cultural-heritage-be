@@ -35,6 +35,9 @@ aws:
   secret-access-key: ${AWS_SECRET_ACCESS_KEY}
   s3:
     bucket: ${AWS_S3_BUCKET}
+    endpoint: ${AWS_S3_ENDPOINT:}
+    presign-endpoint: ${AWS_S3_PRESIGN_ENDPOINT:${AWS_S3_ENDPOINT:}}
+    path-style-access-enabled: ${AWS_S3_PATH_STYLE_ACCESS_ENABLED:false}
 xray:
   storage:
     # Spring Boot 컨테이너가 입력 ZIP과 job.json을 저장하는 경로
@@ -66,6 +69,8 @@ vca:
     local-root: ${VCA_SHARED_STORAGE_ROOT:./shared/vca}
     container-root: ${VCA_SHARED_STORAGE_CONTAINER_ROOT:${VCA_SHARED_STORAGE_ROOT:./shared/vca}}
     engine-output-root: ${VCA_ENGINE_OUTPUT_ROOT:./shared/vca/engine-output}
+  s3:
+    object-prefix: ${VCA_S3_OBJECT_PREFIX:vca/images}
   ai:
     base-url: ${VCA_AI_BASE_URL:http://localhost:8002}
     timeout-seconds: ${VCA_AI_TIMEOUT_SECONDS:150}

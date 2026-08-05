@@ -1,5 +1,17 @@
-package com.aivle.conservation_backend.vca;
+package com.aivle.conservation_backend.vca.controller;
 
+import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse;
+import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
+import com.aivle.conservation_backend.vca.dto.CompleteImageRequest;
+import com.aivle.conservation_backend.vca.dto.ImageResponse;
+import com.aivle.conservation_backend.vca.dto.IntermediateResultsResponse;
+import com.aivle.conservation_backend.vca.dto.PdfJobResponse;
+import com.aivle.conservation_backend.vca.dto.PresignImageRequest;
+import com.aivle.conservation_backend.vca.dto.PresignImageResponse;
+import com.aivle.conservation_backend.vca.dto.ReportResponse;
+import com.aivle.conservation_backend.vca.dto.RunResponse;
+import com.aivle.conservation_backend.vca.exception.VcaApiException;
+import com.aivle.conservation_backend.vca.service.VcaService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -27,17 +39,17 @@ public class VcaController {
     }
 
     @GetMapping
-    public VcaResponses.ArtifactCollection getArtifacts() {
+    public ArtifactCollectionResponse getArtifacts() {
         return vcaService.getArtifacts();
     }
 
     @GetMapping("/{artifactId}")
-    public VcaResponses.ArtifactDetail getArtifact(@PathVariable String artifactId) {
+    public ArtifactDetailResponse getArtifact(@PathVariable String artifactId) {
         return vcaService.getArtifact(artifactId);
     }
 
     @GetMapping("/{artifactId}/runs/{assessmentRunId}/report")
-    public VcaResponses.Report getReport(
+    public ReportResponse getReport(
             @PathVariable String artifactId,
             @PathVariable String assessmentRunId
     ) {
@@ -45,7 +57,7 @@ public class VcaController {
     }
 
     @GetMapping("/{artifactId}/runs/{assessmentRunId}/intermediate-results")
-    public VcaResponses.IntermediateResults getIntermediateResults(
+    public IntermediateResultsResponse getIntermediateResults(
             @PathVariable String artifactId,
             @PathVariable String assessmentRunId
     ) {
@@ -63,9 +75,9 @@ public class VcaController {
     }
 
     @PostMapping("/{artifactId}/images/presign")
-    public ResponseEntity<VcaResponses.PresignImage> presignImage(
+    public ResponseEntity<PresignImageResponse> presignImage(
             @PathVariable String artifactId,
-            @Valid @RequestBody VcaRequests.PresignImageRequest request
+            @Valid @RequestBody PresignImageRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(vcaService.presignImage(artifactId, request));
@@ -75,7 +87,7 @@ public class VcaController {
             path = "/{artifactId}/images",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
-    public ResponseEntity<VcaResponses.Image> uploadImage(
+    public ResponseEntity<ImageResponse> uploadImage(
             @PathVariable String artifactId,
             @RequestParam("file") MultipartFile file
     ) {
@@ -84,10 +96,10 @@ public class VcaController {
     }
 
     @PostMapping("/{artifactId}/images/{imageId}/complete")
-    public VcaResponses.Image completeImage(
+    public ImageResponse completeImage(
             @PathVariable String artifactId,
             @PathVariable String imageId,
-            @Valid @RequestBody VcaRequests.CompleteImageRequest request
+            @Valid @RequestBody CompleteImageRequest request
     ) {
         return vcaService.completeImage(artifactId, imageId, request);
     }
@@ -102,12 +114,12 @@ public class VcaController {
     }
 
     @PostMapping("/{artifactId}/runs")
-    public ResponseEntity<VcaResponses.Run> createRun(@PathVariable String artifactId) {
+    public ResponseEntity<RunResponse> createRun(@PathVariable String artifactId) {
         return ResponseEntity.accepted().body(vcaService.createRun(artifactId));
     }
 
     @PostMapping("/{artifactId}/runs/{assessmentRunId}/report/pdf")
-    public ResponseEntity<VcaResponses.PdfJob> createPdfJob(
+    public ResponseEntity<PdfJobResponse> createPdfJob(
             @PathVariable String artifactId,
             @PathVariable String assessmentRunId
     ) {
@@ -116,7 +128,7 @@ public class VcaController {
     }
 
     @GetMapping("/{artifactId}/report-pdf-jobs/{jobId}")
-    public VcaResponses.PdfJob getPdfJob(
+    public PdfJobResponse getPdfJob(
             @PathVariable String artifactId,
             @PathVariable String jobId
     ) {

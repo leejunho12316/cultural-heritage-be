@@ -1,4 +1,4 @@
-package com.aivle.conservation_backend.vca;
+package com.aivle.conservation_backend.vca.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;

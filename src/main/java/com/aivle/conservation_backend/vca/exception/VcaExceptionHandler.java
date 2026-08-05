@@ -1,5 +1,7 @@
-package com.aivle.conservation_backend.vca;
+package com.aivle.conservation_backend.vca.exception;
 
+import com.aivle.conservation_backend.vca.controller.VcaController;
+import com.aivle.conservation_backend.vca.dto.ErrorEnvelopeResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,14 +14,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class VcaExceptionHandler {
 
     @ExceptionHandler(VcaApiException.class)
-    public ResponseEntity<VcaResponses.ErrorEnvelope> handleVcaApiException(
+    public ResponseEntity<ErrorEnvelopeResponse> handleVcaApiException(
             VcaApiException exception
     ) {
         return error(exception.status(), exception.code(), exception.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<VcaResponses.ErrorEnvelope> handleValidation(
+    public ResponseEntity<ErrorEnvelopeResponse> handleValidation(
             MethodArgumentNotValidException exception
     ) {
         String message = exception.getBindingResult().getFieldErrors().stream()
@@ -33,7 +35,7 @@ public class VcaExceptionHandler {
             ConstraintViolationException.class,
             HttpMessageNotReadableException.class
     })
-    public ResponseEntity<VcaResponses.ErrorEnvelope> handleMalformedRequest(
+    public ResponseEntity<ErrorEnvelopeResponse> handleMalformedRequest(
             Exception exception
     ) {
         return error(
@@ -43,12 +45,12 @@ public class VcaExceptionHandler {
         );
     }
 
-    private ResponseEntity<VcaResponses.ErrorEnvelope> error(
+    private ResponseEntity<ErrorEnvelopeResponse> error(
             HttpStatus status,
             String code,
             String message
     ) {
-        VcaResponses.ErrorDetail detail = new VcaResponses.ErrorDetail(code, message);
-        return ResponseEntity.status(status).body(new VcaResponses.ErrorEnvelope(detail));
+        ErrorEnvelopeResponse.ErrorDetail detail = new ErrorEnvelopeResponse.ErrorDetail(code, message);
+        return ResponseEntity.status(status).body(new ErrorEnvelopeResponse(detail));
     }
 }

@@ -13,6 +13,33 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c '
+      until /usr/bin/mc alias set local http://minio:9000 "$${AWS_ACCESS_KEY_ID}" "$${AWS_SECRET_ACCESS_KEY}"; do sleep 2; done;
+      /usr/bin/mc mb --ignore-existing "local/$${AWS_S3_BUCKET}";
+      /usr/bin/mc anonymous set none "local/$${AWS_S3_BUCKET}";
+      '
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+
   conservation-guide-ai:
     build: ./ai-services/conservation-guide-ai
     environment:
@@ -62,7 +89,14 @@ services:
     environment:
       VCA_SHARED_STORAGE_ROOT: /vca_v2/output/input
       VCA_ENGINE_ROOT: /vca_v2
-      VCA_DRY_RUN_TIMEOUT_SECONDS: "120"
+      VCA_RUN_TIMEOUT_SECONDS: "3600"
+      VCA_RUN_MODE: ${VCA_RUN_MODE:-real}
+      VCA_DEVICE: auto
+      VCA_MAX_IMAGES: "1"
+      VCA_SKIP_VISUAL_CUES: ${VCA_SKIP_VISUAL_CUES:-false}
+      VCA_MODEL_CACHE_ROOT: /opt/vca-models/models
+      VCA_DOCUMENT_CORPUS_DIR: /opt/vca-data/document
+      VCA_BOOTSTRAP_MODELS: ${VCA_BOOTSTRAP_MODELS:-false}
       UV_PROJECT_ENVIRONMENT: /opt/vca-uv-env
       UV_CACHE_DIR: /opt/vca-uv-cache
       UV_FROZEN: "true"
@@ -71,8 +105,10 @@ services:
       - ../vca_v2:/vca_v2:ro
       - ./shared/vca/engine-output:/vca_v2/output
       - ./shared/vca/input-store:/vca_v2/output/input
+      - ${VCA_HOST_DOCUMENT_CORPUS:-./shared/vca/document-corpus}:/opt/vca-data/document:ro
       - vca_uv_env:/opt/vca-uv-env
       - vca_uv_cache:/opt/vca-uv-cache
+      - vca_model_cache:/opt/vca-models
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -84,7 +120,7 @@ services:
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
       VCA_AI_BASE_URL: http://vca-ai:8000
-      VCA_AI_TIMEOUT_SECONDS: "150"
+      VCA_AI_TIMEOUT_SECONDS: "3900"
       VCA_ACCESS_TOKEN: ${VCA_ACCESS_TOKEN:?VCA_ACCESS_TOKEN is required for /api/vca}
       VCA_SHARED_STORAGE_ROOT: /shared/vca/input-store
       VCA_SHARED_STORAGE_CONTAINER_ROOT: /vca_v2/output/input
@@ -93,6 +129,10 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
+      AWS_S3_PRESIGN_ENDPOINT: ${AWS_S3_PRESIGN_ENDPOINT:-${AWS_S3_ENDPOINT}}
+      AWS_S3_PATH_STYLE_ACCESS_ENABLED: ${AWS_S3_PATH_STYLE_ACCESS_ENABLED:-false}
+      VCA_S3_OBJECT_PREFIX: ${VCA_S3_OBJECT_PREFIX:-vca/images}
       XRAY_AI_BASE_URL: http://xray-ai:8000
       XRAY_AI_TIMEOUT_SECONDS: "300"
       XRAY_AI_CONFIG_NAME: config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json
@@ -104,6 +144,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
       conservation-guide-ai:
         condition: service_started
       xray-ai:
@@ -117,5 +159,7 @@ services:
 
 volumes:
   pgdata:
+  minio_data:
   vca_uv_env:
   vca_uv_cache:
+  vca_model_cache:

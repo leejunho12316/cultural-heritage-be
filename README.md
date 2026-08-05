@@ -58,7 +58,7 @@
 | ---------------------- | ------------------------------- | ---- |
 | `conservation-backend` | Spring. 모든 요청의 관문        | 8080 |
 | `xray-ai`              | 결합 엔진, YOLO 탐지, 문안 생성 | 8001 |
-| `vca-ai`               | `vca_v2 --dry-run` 어댑터       | 내부 |
+| `vca-ai`               | `vca_v2` real/dry-run 어댑터    | 내부 |
 
 프론트엔드는 Spring 만 호출한다. AI 서비스를 직접 부르지 않는다.
 `vca-ai`는 host port를 열지 않고 Docker 내부 네트워크에서만 Spring이 호출한다.
@@ -110,11 +110,20 @@ curl http://localhost:8080/api/xray/health
 OPENAI_API_KEY=...
 POSTGRES_PASSWORD=...
 VCA_ACCESS_TOKEN=로컬-VCA-토큰
+VCA_RUN_MODE=dry-run
+VCA_DEVICE=auto
+VCA_MAX_IMAGES=1
+VCA_MODEL_CACHE_ROOT=/opt/vca-models/models
+VCA_BOOTSTRAP_MODELS=false
+VCA_S3_OBJECT_PREFIX=vca/images
 
 AWS_REGION=ap-northeast-2
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_S3_BUCKET=AWS-버킷-이름...
+AWS_ACCESS_KEY_ID=minioadmin
+AWS_SECRET_ACCESS_KEY=minioadmin-vca-20260805
+AWS_S3_BUCKET=conservation-local
+AWS_S3_ENDPOINT=http://minio:9000
+AWS_S3_PRESIGN_ENDPOINT=http://localhost:9000
+AWS_S3_PATH_STYLE_ACCESS_ENABLED=true
 ```
 
 `OPENAI_API_KEY` 가 없으면 상태조사 문안 생성만 조용히 실패한다.
@@ -127,6 +136,28 @@ AWS_S3_BUCKET=AWS-버킷-이름...
 Spring의 `/api/vca/**`는 `X-VCA-Access-Token` 헤더가 일치해야 접근할 수
 있으며, 브라우저가 직접 열어야 하는 VCA media gateway URL만 제한적으로
 `vca_access_token` query parameter를 허용한다.
+
+`VCA_RUN_MODE=dry-run`은 GPU와 모델 없이 FE → Spring → `vca-ai` → `vca_v2`
+배선을 검증하는 로컬 smoke 모드다. 실제 모델 결과를 검증하려면
+`VCA_RUN_MODE=real`로 바꾸고 모델 캐시를 준비한다. `VCA_DEVICE=auto`는
+CUDA, Apple MPS, CPU 순서로 선택하며 GPU가 없으면 CPU로 실행한다.
+명시적으로 CPU 실험을 하려면 `VCA_DEVICE=cpu`를 사용한다.
+
+VCA 이미지 업로드는 Spring이 S3-compatible object storage에 저장한다.
+로컬 기본값은 Docker MinIO다. 실제 S3로 바꿀 때는 아래 값만 교체한다.
+
+| 환경변수 | 로컬 MinIO 값 | 실제 S3 전환 시 |
+| --- | --- | --- |
+| `AWS_S3_BUCKET` | `conservation-local` | 실제 버킷명 |
+| `AWS_S3_ENDPOINT` | `http://minio:9000` | 빈 값 또는 내부 S3-compatible endpoint |
+| `AWS_S3_PRESIGN_ENDPOINT` | `http://localhost:9000` | 브라우저가 접근할 endpoint |
+| `AWS_S3_PATH_STYLE_ACCESS_ENABLED` | `true` | AWS S3는 보통 `false` |
+| `VCA_S3_OBJECT_PREFIX` | `vca/images` | 원하는 object key prefix |
+
+`VCA_BOOTSTRAP_MODELS=true`를 켜면 `vca-ai` 컨테이너 시작 시
+`/vca_v2`의 `vision` 의존성을 설치하고 Hugging Face 모델을
+`VCA_MODEL_CACHE_ROOT` 아래에 내려받는다. 기본값은 `false`라서 dry-run
+개발에서는 큰 모델 다운로드를 건너뛴다.
 
 #### AWS 콘솔에서 발급받는 방법
 1. IAM 관련
@@ -161,17 +192,21 @@ mkdir -p shared/vca/input-store shared/vca/engine-output
 
 VCA 로컬 통합은 다음 경로를 사용한다.
 
-- Spring upload/input root: `/shared/vca/input-store`
+- Spring run input root: `/shared/vca/input-store`
+- VCA image object storage: `s3://${AWS_S3_BUCKET}/${VCA_S3_OBJECT_PREFIX}/...`
 - Spring 이 `vca-ai`에 전달하는 input root: `/vca_v2/output/input`
 - Spring intermediate result root: `/shared/vca/engine-output`
 - `vca-ai` engine root: `/vca_v2`
 - `vca-ai` input root: `/vca_v2/output/input` → `./shared/vca/input-store`
 - `vca-ai` writable dry-run output: `/vca_v2/output` → `./shared/vca/engine-output`
 - `uv` project/cache paths: `/opt/vca-uv-env`, `/opt/vca-uv-cache`
+- model cache path: `/opt/vca-models/models`
 
-`../vca_v2` 소스는 read-only로 마운트한다. dry-run은 입력 이미지가
-workspace(`/vca_v2`) 안에 있어야 하므로 `./shared/vca/input-store`를
-`vca-ai` 내부에서 `/vca_v2/output/input`으로도 마운트한다. dry-run receipt와 stage output은
+`../vca_v2` 소스는 read-only로 마운트한다. VCA 이미지는 S3/MinIO에 먼저
+저장되고, run 생성 시 Spring이 선택된 object를 `./shared/vca/input-store`에
+materialize한다. dry-run과 real run 모두 입력 이미지가 workspace(`/vca_v2`)
+안에 있어야 하므로 이 폴더를 `vca-ai` 내부에서 `/vca_v2/output/input`으로도
+마운트한다. dry-run receipt와 stage output은
 `./shared/vca/engine-output`에 쓰므로 새 실행 전 같은 `projectName`의 기존
 중간 결과는 지워지고, 완료 후 Spring의
 `GET /api/vca/{artifactId}/runs/{assessmentRunId}/intermediate-results`에서

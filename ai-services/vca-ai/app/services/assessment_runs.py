@@ -3,21 +3,40 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Final, NewType
+from typing import Final, assert_never
+
+from app.services.assessment_models import (
+    AssessmentFinding,
+    AssessmentId,
+    AssessmentReport,
+    AssessmentRun,
+    AssessmentRunId,
+    InputImageFolder,
+    MaxImages,
+    ProjectName,
+    RunTimeoutSeconds,
+)
+from app.services.assessment_input_validation import (
+    InvalidInputImageFolderError,
+    InvalidProjectNameError,
+    is_valid_project_name,
+    validate_input_image_folder,
+    validate_project_name,
+)
+from app.services.vca_artifacts import load_vca_report
 
 
-AssessmentId = NewType("AssessmentId", str)
-AssessmentRunId = NewType("AssessmentRunId", str)
-InputImageFolder = NewType("InputImageFolder", str)
-ProjectName = NewType("ProjectName", str)
+__all__ = (
+    "InvalidInputImageFolderError",
+    "InvalidProjectNameError",
+)
+
 
 _RUN_PREFIX: Final = "vca-"
+_RUN_PROJECT_SEPARATOR: Final = "~"
 _ASSESSMENT_ID_PATTERN: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
-_PROJECT_NAME_PATTERN: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
-_SUPPORTED_IMAGE_SUFFIXES: Final = frozenset(
-    {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
-)
 _ENGINE_OUTPUT_STAGES: Final = (
     "preprocessing",
     "rough_masking",
@@ -31,24 +50,16 @@ _ENGINE_OUTPUT_STAGES: Final = (
 )
 
 
-@dataclass(frozen=True, slots=True)
-class AssessmentRun:
-    run_id: AssessmentRunId
-    assessment_id: AssessmentId
+class VcaDevice(StrEnum):
+    AUTO = "auto"
+    CUDA = "cuda"
+    MPS = "mps"
+    CPU = "cpu"
 
 
-@dataclass(frozen=True, slots=True)
-class AssessmentFinding:
-    category: str
-    severity: str
-    message: str
-
-
-@dataclass(frozen=True, slots=True)
-class AssessmentReport:
-    run: AssessmentRun
-    summary: str
-    findings: tuple[AssessmentFinding, ...]
+class VcaRunMode(StrEnum):
+    REAL = "real"
+    DRY_RUN = "dry-run"
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,37 +71,31 @@ class InvalidAssessmentRunIdError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
-class InvalidProjectNameError(Exception):
-    project_name: str
-
-    def __str__(self) -> str:
-        return f"Invalid VCA project name: {self.project_name}"
-
-
-@dataclass(frozen=True, slots=True)
-class InvalidInputImageFolderError(Exception):
-    input_image_folder: str
-
-    reason: str
-
-    def __str__(self) -> str:
-        return f"Invalid VCA input image folder: {self.reason}"
-
-
-@dataclass(frozen=True, slots=True)
-class VcaDryRunFailedError(Exception):
+class VcaRunFailedError(Exception):
     assessment_id: AssessmentId
     reason: str
 
     def __str__(self) -> str:
-        return f"VCA dry-run failed for {self.assessment_id}: {self.reason}"
+        return f"VCA run failed for {self.assessment_id}: {self.reason}"
+
+
+@dataclass(frozen=True, slots=True)
+class VcaRuntimeSettingsError(Exception):
+    reason: str
+
+    def __str__(self) -> str:
+        return f"Invalid VCA runtime settings: {self.reason}"
 
 
 @dataclass(frozen=True, slots=True)
 class VcaRuntimeSettings:
     shared_storage_root: Path
     engine_root: Path
-    timeout_seconds: int
+    timeout_seconds: RunTimeoutSeconds
+    run_mode: VcaRunMode
+    device: VcaDevice | None
+    max_images: MaxImages | None
+    model_cache_root: Path | None
 
 
 def create_assessment_run(
@@ -99,88 +104,124 @@ def create_assessment_run(
     input_image_folder: InputImageFolder,
 ) -> AssessmentRun:
     settings = runtime_settings_from_env()
-    _validate_project_name(project_name)
-    input_directory = _validate_input_image_folder(input_image_folder, settings)
-    _clear_project_output(assessment_id, project_name, settings)
-    _run_vca_dry_run(assessment_id, project_name, input_directory, settings)
-    return AssessmentRun(
-        run_id=AssessmentRunId(f"{_RUN_PREFIX}{assessment_id}"),
-        assessment_id=assessment_id,
+    validate_project_name(project_name)
+    input_directory = validate_input_image_folder(
+        input_image_folder, settings.shared_storage_root
     )
+    run = AssessmentRun(
+        run_id=AssessmentRunId(
+            f"{_RUN_PREFIX}{assessment_id}{_RUN_PROJECT_SEPARATOR}{project_name}"
+        ),
+        assessment_id=assessment_id,
+        project_name=project_name,
+    )
+    _clear_project_output(assessment_id, project_name, settings)
+    _run_vca(run, input_directory, settings)
+    return run
 
 
 def runtime_settings_from_env() -> VcaRuntimeSettings:
     return VcaRuntimeSettings(
-        shared_storage_root=Path(
-            os.environ.get("VCA_SHARED_STORAGE_ROOT", "/shared/vca")
-        ),
+        shared_storage_root=Path(os.environ.get("VCA_SHARED_STORAGE_ROOT", "/shared/vca")),
         engine_root=Path(os.environ.get("VCA_ENGINE_ROOT", "/vca_v2")),
-        timeout_seconds=int(os.environ.get("VCA_DRY_RUN_TIMEOUT_SECONDS", "120")),
+        timeout_seconds=_run_timeout_seconds_from_env(),
+        run_mode=_run_mode_from_env(),
+        device=_device_from_env(),
+        max_images=_max_images_from_env(),
+        model_cache_root=_model_cache_root_from_env(),
     )
 
 
 def get_assessment_run(run_id: str) -> AssessmentRun:
-    if not run_id.startswith(_RUN_PREFIX):
+    run_values = run_id.removeprefix(_RUN_PREFIX)
+    assessment_id, separator, project_name = run_values.partition(_RUN_PROJECT_SEPARATOR)
+    if (
+        run_values == run_id
+        or not separator
+        or _ASSESSMENT_ID_PATTERN.fullmatch(assessment_id) is None
+        or not is_valid_project_name(project_name)
+    ):
         raise InvalidAssessmentRunIdError(run_id)
-
-    assessment_id = run_id.removeprefix(_RUN_PREFIX)
-    if _ASSESSMENT_ID_PATTERN.fullmatch(assessment_id) is None:
-        raise InvalidAssessmentRunIdError(run_id)
-
     return AssessmentRun(
         run_id=AssessmentRunId(run_id),
         assessment_id=AssessmentId(assessment_id),
+        project_name=ProjectName(project_name),
     )
 
 
 def get_assessment_report(run: AssessmentRun) -> AssessmentReport:
+    settings = runtime_settings_from_env()
+    artifacts = load_vca_report(
+        settings.engine_root,
+        str(run.project_name),
+        is_dry_run=settings.run_mode is VcaRunMode.DRY_RUN,
+    )
     return AssessmentReport(
         run=run,
-        summary="Deterministic VCA assessment placeholder.",
-        findings=(
+        summary=artifacts.summary,
+        findings=tuple(
             AssessmentFinding(
-                category="PLACEHOLDER",
-                severity="INFO",
-                message="VCA dry-run completed.",
-            ),
+                category=finding.category,
+                severity=finding.severity,
+                message=finding.message,
+            )
+            for finding in artifacts.findings
         ),
     )
 
 
-def _validate_project_name(project_name: ProjectName) -> None:
-    if _PROJECT_NAME_PATTERN.fullmatch(project_name) is None:
-        raise InvalidProjectNameError(str(project_name))
-
-
-def _validate_input_image_folder(
-    input_image_folder: InputImageFolder,
-    settings: VcaRuntimeSettings,
-) -> Path:
-    shared_root = settings.shared_storage_root.resolve()
-    input_directory = Path(input_image_folder).resolve()
-    if not input_directory.is_relative_to(shared_root):
-        raise InvalidInputImageFolderError(
-            str(input_image_folder),
-            "folder must be under VCA_SHARED_STORAGE_ROOT",
-        )
-    if not input_directory.is_dir():
-        raise InvalidInputImageFolderError(
-            str(input_image_folder),
-            "folder does not exist",
-        )
-    if not _contains_supported_image(input_directory):
-        raise InvalidInputImageFolderError(
-            str(input_image_folder),
-            "folder contains no supported images",
-        )
-    return input_directory
-
-
-def _contains_supported_image(input_directory: Path) -> bool:
-    return any(
-        child.is_file() and child.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES
-        for child in input_directory.iterdir()
+def _run_timeout_seconds_from_env() -> RunTimeoutSeconds:
+    raw_timeout = os.environ.get(
+        "VCA_RUN_TIMEOUT_SECONDS",
+        os.environ.get("VCA_DRY_RUN_TIMEOUT_SECONDS", "120"),
     )
+    try:
+        timeout_seconds = int(raw_timeout)
+    except ValueError as error:
+        raise VcaRuntimeSettingsError("VCA_RUN_TIMEOUT_SECONDS must be an integer") from error
+    if timeout_seconds < 1:
+        raise VcaRuntimeSettingsError("VCA_RUN_TIMEOUT_SECONDS must be positive")
+    return RunTimeoutSeconds(timeout_seconds)
+
+
+def _run_mode_from_env() -> VcaRunMode:
+    raw_run_mode = os.environ.get("VCA_RUN_MODE", VcaRunMode.REAL)
+    try:
+        return VcaRunMode(raw_run_mode)
+    except ValueError as error:
+        raise VcaRuntimeSettingsError(
+            "VCA_RUN_MODE must be real or dry-run"
+        ) from error
+
+
+def _device_from_env() -> VcaDevice | None:
+    raw_device = os.environ.get("VCA_DEVICE")
+    if raw_device is None:
+        return None
+    try:
+        return VcaDevice(raw_device)
+    except ValueError as error:
+        raise VcaRuntimeSettingsError("VCA_DEVICE must be auto, cuda, mps, or cpu") from error
+
+
+def _model_cache_root_from_env() -> Path | None:
+    raw_model_cache_root = os.environ.get("VCA_MODEL_CACHE_ROOT")
+    if raw_model_cache_root is None:
+        return None
+    if not raw_model_cache_root.strip():
+        raise VcaRuntimeSettingsError("VCA_MODEL_CACHE_ROOT must not be blank")
+    return Path(raw_model_cache_root)
+
+
+def _max_images_from_env() -> MaxImages | None:
+    raw_max_images = os.environ.get("VCA_MAX_IMAGES")
+    if raw_max_images is None:
+        return None
+    if raw_max_images == "all" or (
+        raw_max_images.isdecimal() and int(raw_max_images) > 0
+    ):
+        return MaxImages(raw_max_images)
+    raise VcaRuntimeSettingsError("VCA_MAX_IMAGES must be all or a positive integer")
 
 
 def _clear_project_output(
@@ -196,15 +237,13 @@ def _clear_project_output(
         try:
             shutil.rmtree(stage_project_directory)
         except OSError as error:
-            raise VcaDryRunFailedError(
-                assessment_id,
-                f"failed to clear previous output for {stage}",
+            raise VcaRunFailedError(
+                assessment_id, f"failed to clear previous output for {stage}"
             ) from error
 
 
-def _run_vca_dry_run(
-    assessment_id: AssessmentId,
-    project_name: ProjectName,
+def _run_vca(
+    run: AssessmentRun,
     input_directory: Path,
     settings: VcaRuntimeSettings,
 ) -> None:
@@ -214,10 +253,21 @@ def _run_vca_dry_run(
         "python",
         "-m",
         "modules.orchestration.startup",
-        str(project_name),
+        str(run.project_name),
         str(input_directory),
-        "--dry-run",
     ]
+    match settings.run_mode:
+        case VcaRunMode.DRY_RUN:
+            command.append("--dry-run")
+        case VcaRunMode.REAL:
+            if settings.device is not None:
+                command.extend(("--device", str(settings.device)))
+        case unexpected:
+            assert_never(unexpected)
+    if settings.max_images is not None:
+        command.extend(("--max-images", str(settings.max_images)))
+    if settings.model_cache_root is not None:
+        command.extend(("--model-cache-root", str(settings.model_cache_root)))
     try:
         subprocess.run(
             command,
@@ -228,17 +278,13 @@ def _run_vca_dry_run(
             timeout=settings.timeout_seconds,
         )
     except subprocess.CalledProcessError as error:
-        raise VcaDryRunFailedError(
-            assessment_id,
-            error.stderr.strip() or error.stdout.strip() or "dry-run exited non-zero",
+        raise VcaRunFailedError(
+            run.assessment_id,
+            error.stderr.strip() or error.stdout.strip() or "run exited non-zero",
         ) from error
     except subprocess.TimeoutExpired as error:
-        raise VcaDryRunFailedError(
-            assessment_id,
-            f"dry-run timed out after {error.timeout} seconds",
+        raise VcaRunFailedError(
+            run.assessment_id, f"run timed out after {error.timeout} seconds"
         ) from error
     except FileNotFoundError as error:
-        raise VcaDryRunFailedError(
-            assessment_id,
-            "uv executable was not found",
-        ) from error
+        raise VcaRunFailedError(run.assessment_id, "uv executable was not found") from error

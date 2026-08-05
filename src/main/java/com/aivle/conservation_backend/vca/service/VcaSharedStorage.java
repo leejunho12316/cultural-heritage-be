@@ -1,5 +1,6 @@
-package com.aivle.conservation_backend.vca;
+package com.aivle.conservation_backend.vca.service;
 
+import com.aivle.conservation_backend.vca.exception.VcaApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
