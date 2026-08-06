@@ -1,0 +1,10 @@
+services:
+  conservation-backend:
+    environment:
+      VCA_AI_BASE_URL: http://host.docker.internal:8000
+      VCA_SHARED_STORAGE_CONTAINER_ROOT: /Users/csc9211/Documents/project/vca_v2/output/input
+      VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
+    volumes:
+      - ./shared:/shared
+      - ../vca_v2/output/input:/shared/vca/input-store
+      - ../vca_v2/output:/shared/vca/engine-output

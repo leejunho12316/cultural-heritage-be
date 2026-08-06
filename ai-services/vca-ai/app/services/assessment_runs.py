@@ -96,6 +96,7 @@ class VcaRuntimeSettings:
     device: VcaDevice | None
     max_images: MaxImages | None
     model_cache_root: Path | None
+    allow_unverified_model_hashes: bool
 
 
 def create_assessment_run(
@@ -129,6 +130,7 @@ def runtime_settings_from_env() -> VcaRuntimeSettings:
         device=_device_from_env(),
         max_images=_max_images_from_env(),
         model_cache_root=_model_cache_root_from_env(),
+        allow_unverified_model_hashes=_allow_unverified_model_hashes_from_env(),
     )
 
 
@@ -213,6 +215,10 @@ def _model_cache_root_from_env() -> Path | None:
     return Path(raw_model_cache_root)
 
 
+def _allow_unverified_model_hashes_from_env() -> bool:
+    return os.environ.get("VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES") == "true"
+
+
 def _max_images_from_env() -> MaxImages | None:
     raw_max_images = os.environ.get("VCA_MAX_IMAGES")
     if raw_max_images is None:
@@ -268,6 +274,8 @@ def _run_vca(
         command.extend(("--max-images", str(settings.max_images)))
     if settings.model_cache_root is not None:
         command.extend(("--model-cache-root", str(settings.model_cache_root)))
+    if settings.allow_unverified_model_hashes:
+        command.append("--allow-unverified-model-hashes-local-only")
     try:
         subprocess.run(
             command,

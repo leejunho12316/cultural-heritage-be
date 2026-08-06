@@ -113,6 +113,39 @@ def test_assessment_run_when_optional_engine_settings_are_configured(
     assert "--dry-run" not in captured_command
 
 
+def test_assessment_run_when_local_unverified_model_hashes_are_allowed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: local wiring verification explicitly allows unverified model cache hashes.
+    shared_root = tmp_path / "shared" / "vca"
+    input_folder = create_input_folder(shared_root)
+    engine_root = tmp_path / "vca_v2"
+    captured_command: list[str] = []
+
+    def fake_run(
+        command: list[str], *, cwd: Path, check: bool, capture_output: bool, text: bool, timeout: int
+    ) -> subprocess.CompletedProcess[str]:
+        _ = cwd, check, capture_output, text, timeout
+        captured_command.extend(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+    monkeypatch.setenv("VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES", "true")
+    monkeypatch.setattr(assessment_runs.subprocess, "run", fake_run)
+
+    # When: Spring creates a run through the local adapter.
+    response = client.post(
+        "/internal/vca/assessment-runs",
+        json={"assessmentId": "artifact-123", "projectName": "artifact-123-run-123", "inputImageFolder": str(input_folder)},
+    )
+
+    # Then: the local-only startup bypass flag is forwarded.
+    assert response.status_code == 202
+    assert "--allow-unverified-model-hashes-local-only" in captured_command
+
+
 def test_assessment_run_when_dry_run_mode_is_explicitly_configured(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
