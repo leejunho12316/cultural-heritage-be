@@ -205,6 +205,23 @@ class VcaS3ImageStorage implements VcaImageStorage {
     }
 
     @Override
+    public StoredImageContent read(String objectKey, String fileName, String contentType) {
+        try {
+            byte[] bytes = s3Client.getObject(
+                    GetObjectRequest.builder().bucket(bucket).key(objectKey).build(),
+                    ResponseTransformer.toBytes()
+            ).asByteArray();
+            return new StoredImageContent(fileName, contentType, bytes);
+        } catch (S3Exception exception) {
+            throw new VcaApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "UPLOAD_STORAGE_READ_FAILED",
+                    "Failed to read the stored VCA image."
+            );
+        }
+    }
+
+    @Override
     public void delete(String objectKey) {
         try {
             s3Client.deleteObject(DeleteObjectRequest.builder()

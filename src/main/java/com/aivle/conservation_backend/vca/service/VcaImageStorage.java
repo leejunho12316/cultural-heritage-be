@@ -28,6 +28,8 @@ interface VcaImageStorage {
             List<StoredImageReference> images
     );
 
+    StoredImageContent read(String objectKey, String fileName, String contentType);
+
     void delete(String objectKey);
 
     record PresignedUpload(
@@ -47,5 +49,8 @@ interface VcaImageStorage {
     }
 
     record StoredImageReference(String imageId, String fileName, String objectKey) {
+    }
+
+    record StoredImageContent(String fileName, String contentType, byte[] bytes) {
     }
 }
