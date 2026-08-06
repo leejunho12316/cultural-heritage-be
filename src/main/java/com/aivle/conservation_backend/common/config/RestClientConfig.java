@@ -21,9 +21,18 @@ public class RestClientConfig {
                 .build();
     }
     @Bean
-    public RestClient potteryInspectionAiRestClient(@Value("${pottery-inspection-ai.base-url}") String baseUrl){
+    public RestClient potteryInspectionAiRestClient(
+            @Value("${pottery-inspection-ai.base-url}") String baseUrl,
+            @Value("${pottery-inspection-ai.timeout-seconds}") long timeoutSeconds
+    ) {
+        SimpleClientHttpRequestFactory requestFactory =
+                new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
+
         return RestClient.builder()
                 .baseUrl(baseUrl)
+                .requestFactory(requestFactory)
                 .build();
     }
 
