@@ -2,6 +2,7 @@ package com.aivle.conservation_backend.vca.dto;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public record ReportResponse(
         String assessmentRunId,
@@ -11,7 +12,9 @@ public record ReportResponse(
         Summary summary,
         List<Finding> findings,
         List<Recommendation> recommendations,
-        List<Image> images
+        List<Image> images,
+        PotteryInspection potteryInspection,
+        PotteryInspectionStatus potteryInspectionStatus
 ) {
 
     public record Summary(
@@ -45,6 +48,24 @@ public record ReportResponse(
             String imageId,
             String fileName,
             String downloadUrl
+    ) {
+    }
+
+    public record PotteryInspection(
+            String moduleVersion,
+            String inspectionText,
+            String summary,
+            boolean humanReviewRecommended,
+            Map<String, Object> detail
+    ) {
+    }
+
+    public record PotteryInspectionStatus(
+            boolean applicable,
+            String status,
+            boolean retryable,
+            String failureMessage,
+            Instant lastAttemptedAt
     ) {
     }
 }

@@ -3,9 +3,11 @@ package com.aivle.conservation_backend.vca.controller;
 import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse;
 import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
 import com.aivle.conservation_backend.vca.dto.CompleteImageRequest;
+import com.aivle.conservation_backend.vca.dto.CreateRunRequest;
 import com.aivle.conservation_backend.vca.dto.ImageResponse;
 import com.aivle.conservation_backend.vca.dto.IntermediateResultsResponse;
 import com.aivle.conservation_backend.vca.dto.PdfJobResponse;
+import com.aivle.conservation_backend.vca.dto.PotteryInspectionRequest;
 import com.aivle.conservation_backend.vca.dto.PresignImageRequest;
 import com.aivle.conservation_backend.vca.dto.PresignImageResponse;
 import com.aivle.conservation_backend.vca.dto.ReportResponse;
@@ -114,8 +116,11 @@ public class VcaController {
     }
 
     @PostMapping("/{artifactId}/runs")
-    public ResponseEntity<RunResponse> createRun(@PathVariable String artifactId) {
-        return ResponseEntity.accepted().body(vcaService.createRun(artifactId));
+    public ResponseEntity<RunResponse> createRun(
+            @PathVariable String artifactId,
+            @RequestBody(required = false) CreateRunRequest request
+    ) {
+        return ResponseEntity.accepted().body(vcaService.createRun(artifactId, request));
     }
 
     @PostMapping("/{artifactId}/runs/{assessmentRunId}/report/pdf")
@@ -125,6 +130,15 @@ public class VcaController {
     ) {
         return ResponseEntity.accepted()
                 .body(vcaService.createPdfJob(artifactId, assessmentRunId));
+    }
+
+    @PostMapping("/{artifactId}/runs/{assessmentRunId}/pottery-inspection")
+    public ReportResponse runPotteryInspection(
+            @PathVariable String artifactId,
+            @PathVariable String assessmentRunId,
+            @RequestBody(required = false) PotteryInspectionRequest request
+    ) {
+        return vcaService.runPotteryInspection(artifactId, assessmentRunId, request);
     }
 
     @GetMapping("/{artifactId}/report-pdf-jobs/{jobId}")
