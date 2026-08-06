@@ -215,6 +215,29 @@ public class XrayStitchService {
     }
 
     /**
+     * Konva 최종 보정과 서버 재렌더링까지 끝난 최종 결합본을 반환한다.
+     */
+    public Resource getFinalResult(String jobId) {
+        XrayJobStatusResponse status = requireCompletedJob(jobId);
+        Path outputDirectory = resolveArtifactOutputDirectory(
+                jobId,
+                status.artifactId()
+        );
+        Path finalImagePath = outputDirectory
+                .resolve("assembled_xray.final.png")
+                .normalize();
+
+        validatePathInside(outputDirectory, finalImagePath, "final assembled image");
+
+        if (!Files.isRegularFile(finalImagePath)) {
+            throw new IllegalStateException(
+                    "Final X-ray assembled image is not available: " + finalImagePath
+            );
+        }
+        return new FileSystemResource(finalImagePath);
+    }
+
+    /**
      * 조각별 배치 정보를 반환한다.
      *
      * 결합 엔진이 만든 layout.json 을 그대로 내려준다. 조각마다
@@ -308,6 +331,78 @@ public class XrayStitchService {
     }
 
     /**
+     * 결합 작업에 저장된 원본 X-ray 파일을 originalSourceIndex 순서로 반환한다.
+     * 결함분석 단계에서는 프론트가 파일을 다시 보내지 않고 이 정본을 사용한다.
+     */
+    public List<Resource> getOrderedXraySourceResources(String jobId) {
+        requireFinalizedJob(jobId);
+
+        Path jobDirectory = resolveJobDirectory(jobId);
+        Path xrayDirectory = jobDirectory.resolve("inputs").resolve("xray").normalize();
+        if (!xrayDirectory.startsWith(jobDirectory) || !Files.isDirectory(xrayDirectory)) {
+            throw new IllegalStateException(
+                    "X-ray source directory is not available: " + xrayDirectory
+            );
+        }
+
+        try (var stream = Files.list(xrayDirectory)) {
+            List<Path> paths = stream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> isSupportedXrayImage(path.getFileName().toString()))
+                    .sorted((left, right) -> compareNaturalFileNames(
+                            left.getFileName().toString(),
+                            right.getFileName().toString()
+                    ))
+                    .toList();
+
+            if (paths.isEmpty()) {
+                throw new IllegalStateException(
+                        "No X-ray source images were found: " + xrayDirectory
+                );
+            }
+            return paths.stream().map(FileSystemResource::new).map(Resource.class::cast).toList();
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to list X-ray source images: " + xrayDirectory,
+                    e
+            );
+        }
+    }
+
+    /**
+     * 결합 완료 + Konva final layout + 최종 이미지/provenance 생성까지 끝났는지 검증한다.
+     */
+    public XrayJobStatusResponse requireFinalizedJob(String jobId) {
+        XrayJobStatusResponse status = requireCompletedJob(jobId);
+        Path outputDirectory = resolveArtifactOutputDirectory(jobId, status.artifactId());
+
+        List<String> requiredFiles = List.of(
+                "layout.final.json",
+                "assembled_xray.final.png",
+                "source_owner.final.png",
+                "fragment_owner.final.png",
+                "seam_zone.final.png",
+                "overlap_mask.final.png",
+                "provenance.final.json"
+        );
+        for (String fileName : requiredFiles) {
+            Path path = outputDirectory.resolve(fileName).normalize();
+            validatePathInside(outputDirectory, path, fileName);
+            if (!Files.isRegularFile(path)) {
+                throw new IllegalStateException(
+                        "X-ray finalization is not completed. Missing: " + path
+                );
+            }
+        }
+        return status;
+    }
+
+    public Path getFinalArtifactOutputDirectory(String jobId) {
+        XrayJobStatusResponse status = requireFinalizedJob(jobId);
+        return resolveArtifactOutputDirectory(jobId, status.artifactId());
+    }
+
+    /**
      * Konva에서 확정한 이동/회전 값을 자동 결합 layout에 반영하여
      * layout.final.json으로 저장한다.
      *
@@ -376,6 +471,11 @@ public class XrayStitchService {
             layout.put("finalizedAt", Instant.now().toString());
 
             writeJsonAtomically(finalLayoutPath, layout);
+
+            // layout.final.json과 실제 최종 이미지/provenance가 항상 같은 transform을
+            // 사용하도록 FastAPI가 공유 폴더의 원본 X-ray로 다시 렌더링한다.
+            xrayStitchClient.finalizeJob(jobId);
+
             return Files.readString(finalLayoutPath, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException(

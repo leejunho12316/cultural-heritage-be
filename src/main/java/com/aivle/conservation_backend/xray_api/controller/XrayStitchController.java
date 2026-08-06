@@ -92,6 +92,33 @@ public class XrayStitchController {
             );
         }
     }
+    @GetMapping(
+            value = "/{jobId}/result/final",
+            produces = MediaType.IMAGE_PNG_VALUE
+    )
+    public ResponseEntity<Resource> getFinalJobResult(
+            @PathVariable String jobId
+    ) {
+        try {
+            Resource result = xrayStitchService.getFinalResult(jobId);
+            ContentDisposition disposition = ContentDisposition
+                    .inline()
+                    .filename("assembled-xray-final.png", StandardCharsets.UTF_8)
+                    .build();
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_PNG)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                    .body(result);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    e.getMessage(),
+                    e
+            );
+        }
+    }
+
     /**
      * Konva에서 최종 확정한 조각 위치/회전을 저장한다.
      *

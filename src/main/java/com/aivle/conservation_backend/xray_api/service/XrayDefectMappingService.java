@@ -7,17 +7,32 @@ import com.aivle.conservation_backend.xray_api.dto.XrayJobStatusResponse;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.image.Raster;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class XrayDefectMappingService {
 
     private static final double EPSILON = 1.0e-9;
+    private static final double MATCH_IOU_THRESHOLD = 0.10;
+    private static final double MATCH_COVERAGE_THRESHOLD = 0.10;
+    private static final double ARTIFACT_MASK_COVERAGE_THRESHOLD = 0.15;
+    private static final double SOURCE_ONLY_GROUP_IOU_THRESHOLD = 0.50;
+    private static final double VISIBLE_THRESHOLD = 0.80;
+    private static final double NOT_VISIBLE_THRESHOLD = 0.05;
 
     private final XrayStitchService xrayStitchService;
     private final ObjectMapper objectMapper;
@@ -79,7 +94,13 @@ public class XrayDefectMappingService {
         }
 
         List<XrayDefectMappingResponse.DefectGroup> defectGroups =
-             buildDefectGroups(mappings);
+                buildDefectGroups(mappings);
+
+        ProvenanceMaps provenance = readProvenance(jobId, canvas);
+        List<XrayDefectMappingResponse.AssembledDecision> assembledDecisions =
+                buildAssembledDecisions(assembledRegions, defectGroups, provenance);
+        List<XrayDefectMappingResponse.SourceOnlyGroup> sourceOnlyGroups =
+                buildSourceOnlyGroups(mappings, provenance);
 
         return new XrayDefectMappingResponse(
                 jobId,
@@ -87,7 +108,9 @@ public class XrayDefectMappingService {
                 "FINAL",
                 canvas,
                 mappings,
-                defectGroups
+                defectGroups,
+                assembledDecisions,
+                sourceOnlyGroups
         );
     }
 
@@ -176,8 +199,17 @@ public class XrayDefectMappingService {
         Map<String, DefectGroupAccumulator> groups = new LinkedHashMap<>();
 
         for (XrayDefectMappingResponse.SourceDefectMapping mapping : mappings) {
+            if (mapping.projections() == null) {
+                continue;
+            }
             for (XrayDefectMappingResponse.Projection projection
                     : mapping.projections()) {
+                // 둘 이상의 결합본 영역과 겹친 AMBIGUOUS projection은
+                // 어느 결함을 확인해 준 것인지 확정할 수 없으므로 CONFIRMED 근거에서 제외한다.
+                if (!"MATCHED".equals(projection.status())
+                        || projection.assembledMatches() == null) {
+                    continue;
+                }
 
                 for (XrayDefectMappingResponse.AssembledMatch match
                         : projection.assembledMatches()) {
@@ -227,6 +259,320 @@ public class XrayDefectMappingService {
         return result;
     }
 
+    private List<XrayDefectMappingResponse.AssembledDecision> buildAssembledDecisions(
+            List<XrayDetectionResponse.AnomalyRegion> assembledRegions,
+            List<XrayDefectMappingResponse.DefectGroup> defectGroups,
+            ProvenanceMaps provenance
+    ) {
+        Map<String, Integer> observationCounts = new HashMap<>();
+        for (XrayDefectMappingResponse.DefectGroup group : defectGroups) {
+            observationCounts.put(
+                    group.assembledRegionId(),
+                    group.observations() != null ? group.observations().size() : 0
+            );
+        }
+
+        List<XrayDefectMappingResponse.AssembledDecision> result = new ArrayList<>();
+        for (XrayDetectionResponse.AnomalyRegion region : assembledRegions) {
+            validateRegion(region, "assembled");
+            Rect bbox = Rect.from(region.bbox());
+            int sourceObservationCount = observationCounts.getOrDefault(region.regionId(), 0);
+            double seamCoverage = binaryCoverage(bbox, provenance.seamZone());
+            double overlapCoverage = binaryCoverage(bbox, provenance.overlapMask());
+
+            String status;
+            if (sourceObservationCount > 0) {
+                status = "CONFIRMED";
+            } else if (seamCoverage >= ARTIFACT_MASK_COVERAGE_THRESHOLD
+                    || overlapCoverage >= ARTIFACT_MASK_COVERAGE_THRESHOLD) {
+                status = "ASSEMBLY_ARTIFACT_SUSPECT";
+            } else {
+                status = "ASSEMBLED_ONLY";
+            }
+
+            result.add(new XrayDefectMappingResponse.AssembledDecision(
+                    region.regionId(),
+                    status,
+                    sourceObservationCount,
+                    round6(seamCoverage),
+                    round6(overlapCoverage)
+            ));
+        }
+        return result;
+    }
+
+    private List<XrayDefectMappingResponse.SourceOnlyGroup> buildSourceOnlyGroups(
+            List<XrayDefectMappingResponse.SourceDefectMapping> mappings,
+            ProvenanceMaps provenance
+    ) {
+        List<SourceOnlyCandidate> candidates = new ArrayList<>();
+
+        for (XrayDefectMappingResponse.SourceDefectMapping mapping : mappings) {
+            if (mapping.projections() == null) {
+                continue;
+            }
+            for (XrayDefectMappingResponse.Projection projection : mapping.projections()) {
+                if (projection.assembledMatches() != null
+                        && !projection.assembledMatches().isEmpty()) {
+                    continue;
+                }
+
+                double visibilityRatio = sourceVisibility(
+                        projection.transformedPolygon(),
+                        mapping.originalSourceIndex(),
+                        provenance.sourceOwner()
+                );
+                String visibilityStatus = visibilityStatus(visibilityRatio);
+
+                XrayDefectMappingResponse.SourceOnlyObservation observation =
+                        new XrayDefectMappingResponse.SourceOnlyObservation(
+                                mapping.sourceRegionId(),
+                                mapping.sourceFileName(),
+                                mapping.originalSourceIndex(),
+                                projection.layoutFragmentIndex(),
+                                projection.subfragmentIndex(),
+                                projection.transformedBBox(),
+                                round6(visibilityRatio),
+                                visibilityStatus
+                        );
+                candidates.add(new SourceOnlyCandidate(observation));
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+
+        int[] parent = new int[candidates.size()];
+        for (int i = 0; i < parent.length; i++) {
+            parent[i] = i;
+        }
+
+        for (int i = 0; i < candidates.size(); i++) {
+            for (int j = i + 1; j < candidates.size(); j++) {
+                var first = candidates.get(i).observation();
+                var second = candidates.get(j).observation();
+                boolean sameSourceRegion = first.originalSourceIndex() == second.originalSourceIndex()
+                        && first.sourceRegionId().equals(second.sourceRegionId());
+                boolean crossSourceOverlap = first.originalSourceIndex() != second.originalSourceIndex()
+                        && bboxIou(first.transformedBBox(), second.transformedBBox())
+                        >= SOURCE_ONLY_GROUP_IOU_THRESHOLD;
+
+                if (sameSourceRegion || crossSourceOverlap) {
+                    union(parent, i, j);
+                }
+            }
+        }
+
+        Map<Integer, List<XrayDefectMappingResponse.SourceOnlyObservation>> grouped =
+                new LinkedHashMap<>();
+        for (int i = 0; i < candidates.size(); i++) {
+            int root = find(parent, i);
+            grouped.computeIfAbsent(root, ignored -> new ArrayList<>())
+                    .add(candidates.get(i).observation());
+        }
+
+        List<XrayDefectMappingResponse.SourceOnlyGroup> result = new ArrayList<>();
+        int groupIndex = 1;
+        for (List<XrayDefectMappingResponse.SourceOnlyObservation> observations
+                : grouped.values()) {
+            double maxVisibility = observations.stream()
+                    .mapToDouble(XrayDefectMappingResponse.SourceOnlyObservation::visibilityRatio)
+                    .max()
+                    .orElse(0.0);
+
+            String status = maxVisibility >= VISIBLE_THRESHOLD
+                    ? "SOURCE_ONLY_VISIBLE"
+                    : maxVisibility <= NOT_VISIBLE_THRESHOLD
+                    ? "SOURCE_ONLY_NOT_VISIBLE"
+                    : "SOURCE_ONLY_PARTIALLY_VISIBLE";
+
+            result.add(new XrayDefectMappingResponse.SourceOnlyGroup(
+                    "S-" + String.format("%03d", groupIndex++),
+                    status,
+                    unionBBox(observations),
+                    List.copyOf(observations)
+            ));
+        }
+        return result;
+    }
+
+    private ProvenanceMaps readProvenance(
+            String jobId,
+            XrayDefectMappingResponse.Canvas canvas
+    ) {
+        Path outputDirectory = xrayStitchService.getFinalArtifactOutputDirectory(jobId);
+        PixelMap sourceOwner = readPixelMap(
+                outputDirectory.resolve("source_owner.final.png"),
+                canvas,
+                "source owner"
+        );
+        PixelMap seamZone = readPixelMap(
+                outputDirectory.resolve("seam_zone.final.png"),
+                canvas,
+                "seam zone"
+        );
+        PixelMap overlapMask = readPixelMap(
+                outputDirectory.resolve("overlap_mask.final.png"),
+                canvas,
+                "overlap mask"
+        );
+        return new ProvenanceMaps(sourceOwner, seamZone, overlapMask);
+    }
+
+    private PixelMap readPixelMap(
+            Path path,
+            XrayDefectMappingResponse.Canvas canvas,
+            String label
+    ) {
+        if (!Files.isRegularFile(path)) {
+            throw new IllegalStateException("Final " + label + " is missing: " + path);
+        }
+        try {
+            BufferedImage image = ImageIO.read(path.toFile());
+            if (image == null) {
+                throw new IllegalStateException("Failed to decode " + label + ": " + path);
+            }
+            if (image.getWidth() != canvas.width() || image.getHeight() != canvas.height()) {
+                throw new IllegalStateException(
+                        "Final " + label + " size mismatch. expected="
+                                + canvas.width() + "x" + canvas.height()
+                                + ", actual=" + image.getWidth() + "x" + image.getHeight()
+                );
+            }
+            return new PixelMap(image.getRaster(), image.getWidth(), image.getHeight());
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read final " + label + ": " + path, e);
+        }
+    }
+
+    private double binaryCoverage(Rect bbox, PixelMap map) {
+        int x0 = Math.max(0, (int) Math.floor(bbox.x1()));
+        int y0 = Math.max(0, (int) Math.floor(bbox.y1()));
+        int x1 = Math.min(map.width(), (int) Math.ceil(bbox.x2()));
+        int y1 = Math.min(map.height(), (int) Math.ceil(bbox.y2()));
+        if (x0 >= x1 || y0 >= y1) {
+            return 0.0;
+        }
+
+        long positive = 0;
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++) {
+                if (map.sample(x, y) > 0) {
+                    positive++;
+                }
+            }
+        }
+        return Math.min(1.0, positive / Math.max(bbox.area(), 1.0));
+    }
+
+    private double sourceVisibility(
+            List<XrayDefectMappingResponse.Point> polygon,
+            int originalSourceIndex,
+            PixelMap sourceOwner
+    ) {
+        double expectedArea = polygonArea(polygon);
+        if (expectedArea <= EPSILON) {
+            return 0.0;
+        }
+
+        XrayDefectMappingResponse.BoundingBox bbox = boundingBox(polygon);
+        int x0 = Math.max(0, (int) Math.floor(bbox.x1()));
+        int y0 = Math.max(0, (int) Math.floor(bbox.y1()));
+        int x1 = Math.min(sourceOwner.width(), (int) Math.ceil(bbox.x2()));
+        int y1 = Math.min(sourceOwner.height(), (int) Math.ceil(bbox.y2()));
+
+        long visible = 0;
+        int ownerValue = originalSourceIndex + 1;
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++) {
+                if (pointInsidePolygon(x + 0.5, y + 0.5, polygon)
+                        && sourceOwner.sample(x, y) == ownerValue) {
+                    visible++;
+                }
+            }
+        }
+        return Math.min(1.0, visible / expectedArea);
+    }
+
+    private boolean pointInsidePolygon(
+            double x,
+            double y,
+            List<XrayDefectMappingResponse.Point> polygon
+    ) {
+        boolean inside = false;
+        for (int i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+            var pi = polygon.get(i);
+            var pj = polygon.get(j);
+            boolean intersects = ((pi.y() > y) != (pj.y() > y))
+                    && (x < (pj.x() - pi.x()) * (y - pi.y())
+                    / ((pj.y() - pi.y()) + EPSILON) + pi.x());
+            if (intersects) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    private String visibilityStatus(double ratio) {
+        if (ratio >= VISIBLE_THRESHOLD) {
+            return "VISIBLE";
+        }
+        if (ratio <= NOT_VISIBLE_THRESHOLD) {
+            return "NOT_VISIBLE";
+        }
+        return "PARTIALLY_VISIBLE";
+    }
+
+    private double bboxIou(
+            XrayDefectMappingResponse.BoundingBox first,
+            XrayDefectMappingResponse.BoundingBox second
+    ) {
+        double x1 = Math.max(first.x1(), second.x1());
+        double y1 = Math.max(first.y1(), second.y1());
+        double x2 = Math.min(first.x2(), second.x2());
+        double y2 = Math.min(first.y2(), second.y2());
+        if (x2 <= x1 || y2 <= y1) {
+            return 0.0;
+        }
+        double intersection = (x2 - x1) * (y2 - y1);
+        double firstArea = (first.x2() - first.x1()) * (first.y2() - first.y1());
+        double secondArea = (second.x2() - second.x1()) * (second.y2() - second.y1());
+        return intersection / Math.max(firstArea + secondArea - intersection, EPSILON);
+    }
+
+    private XrayDefectMappingResponse.BoundingBox unionBBox(
+            List<XrayDefectMappingResponse.SourceOnlyObservation> observations
+    ) {
+        double x1 = Double.POSITIVE_INFINITY;
+        double y1 = Double.POSITIVE_INFINITY;
+        double x2 = Double.NEGATIVE_INFINITY;
+        double y2 = Double.NEGATIVE_INFINITY;
+        for (var observation : observations) {
+            var bbox = observation.transformedBBox();
+            x1 = Math.min(x1, bbox.x1());
+            y1 = Math.min(y1, bbox.y1());
+            x2 = Math.max(x2, bbox.x2());
+            y2 = Math.max(y2, bbox.y2());
+        }
+        return new XrayDefectMappingResponse.BoundingBox(x1, y1, x2, y2);
+    }
+
+    private int find(int[] parent, int value) {
+        if (parent[value] != value) {
+            parent[value] = find(parent, parent[value]);
+        }
+        return parent[value];
+    }
+
+    private void union(int[] parent, int first, int second) {
+        int firstRoot = find(parent, first);
+        int secondRoot = find(parent, second);
+        if (firstRoot != secondRoot) {
+            parent[secondRoot] = firstRoot;
+        }
+    }
+
     private List<XrayDefectMappingResponse.AssembledMatch> findAssembledMatches(
             List<XrayDefectMappingResponse.Point> sourcePolygon,
             List<XrayDetectionResponse.AnomalyRegion> assembledRegions
@@ -260,9 +606,9 @@ public class XrayDefectMappingService {
                     : 0.0;
 
             // Ignore trivial geometric overlaps that are not meaningful defect matches.
-            if (iou < 0.1
-                    || sourceCoverage < 0.1
-                    || assembledCoverage < 0.1) {
+            if (iou < MATCH_IOU_THRESHOLD
+                    || sourceCoverage < MATCH_COVERAGE_THRESHOLD
+                    || assembledCoverage < MATCH_COVERAGE_THRESHOLD) {
                 continue;
             }
 
@@ -819,6 +1165,28 @@ public class XrayDefectMappingService {
         return Math.round(value * 1_000_000.0) / 1_000_000.0;
     }
 
+
+    private record ProvenanceMaps(
+            PixelMap sourceOwner,
+            PixelMap seamZone,
+            PixelMap overlapMask
+    ) {
+    }
+
+    private record PixelMap(
+            Raster raster,
+            int width,
+            int height
+    ) {
+        int sample(int x, int y) {
+            return raster.getSample(x, y, 0);
+        }
+    }
+
+    private record SourceOnlyCandidate(
+            XrayDefectMappingResponse.SourceOnlyObservation observation
+    ) {
+    }
 
     private record DefectGroupAccumulator(
             String assembledRegionId,
