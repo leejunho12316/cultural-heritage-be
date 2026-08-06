@@ -1,0 +1,203 @@
+# 계정ID: 815373273907, 리전: ap-northeast-2
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conservation-guide-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conservation-guide-ai
+  template:
+    metadata:
+      labels:
+        app: conservation-guide-ai
+    spec:
+      containers:
+        - name: conservation-guide-ai
+          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/conservation-guide-ai:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: app-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conservation-guide-ai
+spec:
+  selector:
+    app: conservation-guide-ai
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xray-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xray-ai
+  template:
+    metadata:
+      labels:
+        app: xray-ai
+    spec:
+      containers:
+        - name: xray-ai
+          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/xray-ai:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: XRAY_DEVICE
+              value: "cpu"
+            - name: XRAY_DEFAULT_CONF
+              value: "0.08"
+            - name: XRAY_NMS_IOU
+              value: "0.5"
+            - name: XRAY_STITCH_JOBS_ROOT
+              value: "/shared/jobs"
+            - name: XRAY_STITCH_ENGINE_DIR
+              value: "/code"
+            - name: XRAY_STITCH_SINGLE_SCRIPT
+              value: "/code/scripts/assemble_xray.py"
+            - name: XRAY_STITCH_BATCH_SCRIPT
+              value: "/code/scripts/batch_assemble.py"
+            - name: XRAY_STITCH_CONFIG_DIR
+              value: "/code/configs"
+            - name: XRAY_STITCH_MAPPING_DIR
+              value: "/code/mappings"
+            - name: XRAY_STITCH_MAPPING_PATH
+              value: "/code/mappings/mapping.color_front.json"
+            - name: XRAY_STITCH_CACHE_DIR
+              value: "/shared/cache"
+          envFrom:
+            - secretRef:
+                name: app-secrets
+          volumeMounts:
+            - name: shared-storage
+              mountPath: /shared
+      volumes:
+        - name: shared-storage
+          persistentVolumeClaim:
+            claimName: shared-efs-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xray-ai
+spec:
+  selector:
+    app: xray-ai
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pottery-inspection-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pottery-inspection-ai
+  template:
+    metadata:
+      labels:
+        app: pottery-inspection-ai
+    spec:
+      containers:
+        - name: pottery-inspection-ai
+          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/pottery-inspection-ai:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: app-secrets
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /root/.cache/huggingface
+      volumes:
+        - name: hf-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pottery-inspection-ai
+spec:
+  selector:
+    app: pottery-inspection-ai
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conservation-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conservation-backend
+  template:
+    metadata:
+      labels:
+        app: conservation-backend
+    spec:
+      containers:
+        - name: conservation-backend
+          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/conservation-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: CONSERVATION_GUIDE_AI_BASE_URL
+              value: "http://conservation-guide-ai:8000"
+            - name: XRAY_AI_BASE_URL
+              value: "http://xray-ai:8000"
+            - name: XRAY_AI_TIMEOUT_SECONDS
+              value: "300"
+            - name: XRAY_AI_CONFIG_NAME
+              value: "config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json"
+            - name: XRAY_STORAGE_LOCAL_ROOT
+              value: "/shared/jobs"
+            - name: XRAY_STORAGE_CONTAINER_ROOT
+              value: "/shared/jobs"
+            - name: POTTERY_INSPECTION_AI_BASE_URL
+              value: "http://pottery-inspection-ai:8000"
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: POSTGRES_PASSWORD
+          envFrom:
+            - secretRef:
+                name: app-secrets
+          volumeMounts:
+            - name: shared-storage
+              mountPath: /shared
+      volumes:
+        - name: shared-storage
+          persistentVolumeClaim:
+            claimName: shared-efs-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conservation-backend
+spec:
+  selector:
+    app: conservation-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: LoadBalancer
