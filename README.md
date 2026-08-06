@@ -62,6 +62,8 @@
 
 프론트엔드는 Spring 만 호출한다. AI 서비스를 직접 부르지 않는다.
 `vca-ai`는 host port를 열지 않고 Docker 내부 네트워크에서만 Spring이 호출한다.
+VCA 엔진 소스는 `ai-services/vca-ai/engine`에 포함되어 있어 별도
+`../vca_v2` 체크아웃 없이 Docker 이미지 안의 `/vca_v2`에서 실행된다.
 
 > `docker compose up` 은 `postgres` 와 `conservation-guide-ai` 도
 > 함께 띄운다. X-RAY 와는 무관하지만 Spring 이 DB 에 의존하므로
@@ -114,7 +116,7 @@ VCA_RUN_MODE=dry-run
 VCA_DEVICE=auto
 VCA_MAX_IMAGES=1
 VCA_MODEL_CACHE_ROOT=/opt/vca-models/models
-VCA_BOOTSTRAP_MODELS=false
+VCA_BOOTSTRAP_MODELS=true
 VCA_S3_OBJECT_PREFIX=vca/images
 
 AWS_REGION=ap-northeast-2
@@ -155,9 +157,9 @@ VCA 이미지 업로드는 Spring이 S3-compatible object storage에 저장한�
 | `VCA_S3_OBJECT_PREFIX` | `vca/images` | 원하는 object key prefix |
 
 `VCA_BOOTSTRAP_MODELS=true`를 켜면 `vca-ai` 컨테이너 시작 시
-`/vca_v2`의 `vision` 의존성을 설치하고 Hugging Face 모델을
-`VCA_MODEL_CACHE_ROOT` 아래에 내려받는다. 기본값은 `false`라서 dry-run
-개발에서는 큰 모델 다운로드를 건너뛴다.
+이미지 안의 `/vca_v2` 엔진에서 `vision` 의존성을 설치하고 Hugging Face
+모델을 `VCA_MODEL_CACHE_ROOT` 아래 named volume으로 내려받는다. 첫 실행은
+오래 걸리지만 이후에는 Docker volume 캐시를 재사용한다.
 
 #### AWS 콘솔에서 발급받는 방법
 1. IAM 관련
@@ -187,7 +189,7 @@ Spring 과 AI 서비스가 작업 파일을 주고받는 폴더다. Docker 가 �
 주지만 미리 만들어 두면 권한 문제를 피할 수 있다.
 
 ```bash
-mkdir -p shared/vca/input-store shared/vca/engine-output
+mkdir -p shared/vca/input-store shared/vca/engine-output shared/vca/document-corpus
 ```
 
 VCA 로컬 통합은 다음 경로를 사용한다.
@@ -199,18 +201,64 @@ VCA 로컬 통합은 다음 경로를 사용한다.
 - `vca-ai` engine root: `/vca_v2`
 - `vca-ai` input root: `/vca_v2/output/input` → `./shared/vca/input-store`
 - `vca-ai` writable dry-run output: `/vca_v2/output` → `./shared/vca/engine-output`
+- `vca-ai` RAG document corpus: `/opt/vca-data/document` → `./shared/vca/document-corpus`
 - `uv` project/cache paths: `/opt/vca-uv-env`, `/opt/vca-uv-cache`
 - model cache path: `/opt/vca-models/models`
 
-`../vca_v2` 소스는 read-only로 마운트한다. VCA 이미지는 S3/MinIO에 먼저
+VCA 엔진 소스는 `vca-ai` 이미지에 포함된다. VCA 이미지는 S3/MinIO에 먼저
 저장되고, run 생성 시 Spring이 선택된 object를 `./shared/vca/input-store`에
-materialize한다. dry-run과 real run 모두 입력 이미지가 workspace(`/vca_v2`)
-안에 있어야 하므로 이 폴더를 `vca-ai` 내부에서 `/vca_v2/output/input`으로도
-마운트한다. dry-run receipt와 stage output은
+materialize한다. dry-run과 real run 모두 입력 이미지가 컨테이너의
+workspace(`/vca_v2`) 안에 있어야 하므로 이 폴더를 `vca-ai` 내부에서
+`/vca_v2/output/input`으로도 마운트한다. dry-run receipt와 stage output은
 `./shared/vca/engine-output`에 쓰므로 새 실행 전 같은 `projectName`의 기존
 중간 결과는 지워지고, 완료 후 Spring의
 `GET /api/vca/{artifactId}/runs/{assessmentRunId}/intermediate-results`에서
 상대 경로와 작은 텍스트 preview만 조회한다.
+
+Real mode의 RAG 단계는 `./shared/vca/document-corpus`에 들어 있는 문서 corpus를
+읽는다. 스크립트는 폴더를 만들지만 문서 내용은 자동 생성하지 않는다. 비어
+있으면 RAG 단계가 실패할 수 있으므로 실제 분석 전 corpus 파일을 준비한다.
+
+#### BYOD RAG corpus 준비
+
+RAG 문서는 GitHub에 커밋하지 않는다. Google Drive 등으로 받은 PDF는 FE의
+육안 조사 화면에서 `RAG 문서 corpus` 카드로 업로드한다. 브라우저는 Spring의
+`/api/vca/corpus/pdfs` API만 호출하고, Spring은 파일을
+`shared/vca/document-corpus` 루트에 저장한다. 현재 VCA RAG loader는 이 폴더
+바로 아래의 PDF만 읽으므로 하위 폴더 구조는 지원하지 않는다.
+
+API로 직접 확인할 때는 `/api/vca/**`와 같은 access token을 사용한다.
+
+```bash
+curl -H "X-VCA-Access-Token: $VCA_ACCESS_TOKEN" \
+  http://localhost:8080/api/vca/corpus/pdfs
+
+curl -H "X-VCA-Access-Token: $VCA_ACCESS_TOKEN" \
+  -F "file=@/path/to/document.pdf;type=application/pdf" \
+  http://localhost:8080/api/vca/corpus/pdfs
+```
+
+`scripts/prepare-rag-corpus.ps1`는 대량 파일을 로컬에서 미리 복사해야 하는
+경우의 보조 도구일 뿐, 일반 실행 흐름에는 필요하지 않다.
+
+이 방식은 BYOD(Bring Your Own Documents) 모델이다. 코드와 모델 부트스트랩은
+repo/컨테이너가 관리하고, 저작권이나 용량 이슈가 있는 RAG 문서는 사용자가
+별도 저장소에서 가져와 로컬에 배치한다.
+
+### Windows 실제 환경 실행
+
+PowerShell에서 BE/FE 개인 repo를 받고 DB, MinIO, AI services, Spring,
+React를 한 번에 띄우려면 다음 스크립트를 사용한다.
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\launch-real-vca-env.ps1
+```
+
+스크립트는 `POSTGRES_PASSWORD=postgres`, `VCA_RUN_MODE=real`,
+`VCA_BOOTSTRAP_MODELS=true`로 `.env`를 만들고, `docker compose up --build -d`와
+`npm run dev`를 실행한다. `OPENAI_API_KEY`가 필요하면 실행 전에 PowerShell에서
+`$env:OPENAI_API_KEY="..."`를 설정한다.
 
 ### `ai-services/xray-ai/models/*.pt`
 

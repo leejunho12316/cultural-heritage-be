@@ -80,6 +80,12 @@ __pycache__/
 ### vca-ai ###
 ai-services/vca-ai/.env
 ai-services/vca-ai/.venv/
+ai-services/vca-ai/engine/output/
+ai-services/vca-ai/engine/models/hf/
+ai-services/vca-ai/engine/models/rag/
+ai-services/vca-ai/engine/.models
+ai-services/vca-ai/engine/.venv/
+ai-services/vca-ai/engine/**/.omo/
 
 ### frontend ###
 node_modules/
