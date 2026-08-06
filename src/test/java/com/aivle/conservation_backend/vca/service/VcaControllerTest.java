@@ -1,5 +1,7 @@
 package com.aivle.conservation_backend.vca.service;
 
+import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
+import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
 import com.jayway.jsonpath.JsonPath;
 import com.aivle.conservation_backend.vca.config.VcaAccessTokenInterceptor;
 import com.aivle.conservation_backend.vca.controller.VcaController;
@@ -37,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -203,6 +206,15 @@ class VcaControllerTest {
         }
 
         @Override
+        public StoredImageContent read(String objectKey, String fileName, String contentType) {
+            try {
+                return new StoredImageContent(fileName, contentType, Files.readAllBytes(root.resolve(objectKey)));
+            } catch (java.io.IOException exception) {
+                throw new IllegalStateException(exception);
+            }
+        }
+
+        @Override
         public void delete(String objectKey) {
             try {
                 Files.deleteIfExists(root.resolve(objectKey));
@@ -221,6 +233,49 @@ class VcaControllerTest {
             } catch (NoSuchAlgorithmException exception) {
                 throw new IllegalStateException(exception);
             }
+        }
+    }
+
+    private static final class FakePotteryInspectionAiClient extends PotteryInspectionAiClient {
+
+        private final AtomicInteger calls = new AtomicInteger();
+        private String inspectedFileName;
+
+        private FakePotteryInspectionAiClient() {
+            super(null);
+        }
+
+        @Override
+        public PotteryInspectionResponseDto inspect(
+                org.springframework.web.multipart.MultipartFile image,
+                int nCalls,
+                boolean useVlmPattern
+        ) {
+            calls.incrementAndGet();
+            inspectedFileName = image.getOriginalFilename();
+            return new PotteryInspectionResponseDto(
+                    "pottery-test-v1",
+                    "도자기 문양 검사 결과입니다.",
+                    "도자기 문양 요약",
+                    true,
+                    Map.of("pattern", "cloud")
+            );
+        }
+    }
+
+    private static final class FailingPotteryInspectionAiClient extends PotteryInspectionAiClient {
+
+        private FailingPotteryInspectionAiClient() {
+            super(null);
+        }
+
+        @Override
+        public PotteryInspectionResponseDto inspect(
+                org.springframework.web.multipart.MultipartFile image,
+                int nCalls,
+                boolean useVlmPattern
+        ) {
+            throw new IllegalStateException("pottery service unavailable");
         }
     }
 
@@ -691,6 +746,133 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.findings[0].title").value("VCA 이상 후보"))
                 .andExpect(jsonPath("$.recommendations[0].title").value("전문가 검토 후 보존처리 계획에 반영"))
                 .andExpect(jsonPath("$.findings[0].description").value("Gateway finding propagated."));
+    }
+
+    @Test
+    void runsPotteryInspectionFromReportOnlyForPotteryMaterial() throws Exception {
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        FakePotteryInspectionAiClient potteryClient = new FakePotteryInspectionAiClient();
+        MockMvc gatewayMvc = mvc(new VcaService(
+                true,
+                new StaticVcaAiGateway(),
+                sharedStorage,
+                potteryClient
+        ));
+
+        gatewayMvc.perform(multipart("/api/vca/pottery-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
+                .andExpect(status().isCreated());
+        MvcResult potteryRun = gatewayMvc.perform(post("/api/vca/pottery-artifact/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"도자기"}
+                                """))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String potteryRunId = JsonPath.read(potteryRun.getResponse().getContentAsString(), "$.assessmentRunId");
+
+        gatewayMvc.perform(get(
+                        "/api/vca/pottery-artifact/runs/{assessmentRunId}/report",
+                        potteryRunId
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
+                .andExpect(jsonPath("$.potteryInspection").isEmpty())
+                .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(true))
+                .andExpect(jsonPath("$.potteryInspectionStatus.status").value("NOT_STARTED"));
+        assertThat(potteryClient.calls.get()).isZero();
+
+        gatewayMvc.perform(post("/api/vca/pottery-artifact/runs/{assessmentRunId}/pottery-inspection", potteryRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"도자기"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
+                .andExpect(jsonPath("$.potteryInspection.moduleVersion").value("pottery-test-v1"))
+                .andExpect(jsonPath("$.potteryInspection.summary").value("도자기 문양 요약"))
+                .andExpect(jsonPath("$.potteryInspection.humanReviewRecommended").value(true))
+                .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(true))
+                .andExpect(jsonPath("$.potteryInspectionStatus.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(true));
+        assertThat(potteryClient.calls.get()).isEqualTo(1);
+        assertThat(potteryClient.inspectedFileName).isEqualTo("front.jpg");
+
+        gatewayMvc.perform(multipart("/api/vca/bronze-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
+                .andExpect(status().isCreated());
+        MvcResult bronzeRun = gatewayMvc.perform(post("/api/vca/bronze-artifact/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"청동"}
+                                """))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String bronzeRunId = JsonPath.read(bronzeRun.getResponse().getContentAsString(), "$.assessmentRunId");
+
+        gatewayMvc.perform(get(
+                        "/api/vca/bronze-artifact/runs/{assessmentRunId}/report",
+                        bronzeRunId
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
+                .andExpect(jsonPath("$.potteryInspection").isEmpty());
+
+        gatewayMvc.perform(post("/api/vca/bronze-artifact/runs/{assessmentRunId}/pottery-inspection", bronzeRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"청동"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
+                .andExpect(jsonPath("$.potteryInspection").isEmpty())
+                .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(false))
+                .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(false));
+        assertThat(potteryClient.calls.get()).isEqualTo(1);
+    }
+
+    @Test
+    void potteryInspectionFailureLeavesVcaReportAvailableAndRetryable() throws Exception {
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        MockMvc gatewayMvc = mvc(new VcaService(
+                true,
+                new StaticVcaAiGateway(),
+                sharedStorage,
+                new FailingPotteryInspectionAiClient()
+        ));
+
+        gatewayMvc.perform(multipart("/api/vca/pottery-failure-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
+                .andExpect(status().isCreated());
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/pottery-failure-artifact/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"도자기"}
+                                """))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String runId = JsonPath.read(runResult.getResponse().getContentAsString(), "$.assessmentRunId");
+
+        gatewayMvc.perform(post("/api/vca/pottery-failure-artifact/runs/{assessmentRunId}/pottery-inspection", runId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"도자기"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
+                .andExpect(jsonPath("$.potteryInspection").isEmpty())
+                .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(true))
+                .andExpect(jsonPath("$.potteryInspectionStatus.status").value("FAILED"))
+                .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(true))
+                .andExpect(jsonPath("$.potteryInspectionStatus.failureMessage").value("pottery service unavailable"));
+
+        gatewayMvc.perform(get(
+                        "/api/vca/pottery-failure-artifact/runs/{assessmentRunId}/report",
+                        runId
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
+                .andExpect(jsonPath("$.potteryInspectionStatus.status").value("FAILED"));
     }
 
     @Test

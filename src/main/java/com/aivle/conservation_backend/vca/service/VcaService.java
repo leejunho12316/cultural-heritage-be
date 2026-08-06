@@ -1,12 +1,16 @@
 package com.aivle.conservation_backend.vca.service;
 
+import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
+import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
 import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse;
 import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse.ArtifactSummary;
 import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
 import com.aivle.conservation_backend.vca.dto.CompleteImageRequest;
+import com.aivle.conservation_backend.vca.dto.CreateRunRequest;
 import com.aivle.conservation_backend.vca.dto.ImageResponse;
 import com.aivle.conservation_backend.vca.dto.IntermediateResultsResponse;
 import com.aivle.conservation_backend.vca.dto.PdfJobResponse;
+import com.aivle.conservation_backend.vca.dto.PotteryInspectionRequest;
 import com.aivle.conservation_backend.vca.dto.PresignImageRequest;
 import com.aivle.conservation_backend.vca.dto.PresignImageResponse;
 import com.aivle.conservation_backend.vca.dto.ReportResponse;
@@ -26,7 +30,10 @@ import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentReport;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentRun;
 import com.aivle.conservation_backend.vca.gateway.VcaAiGateway;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -52,6 +59,10 @@ public class VcaService {
     private static final String RECOMMENDATION_TITLE = "전문가 검토 후 보존처리 계획에 반영";
     private static final String RECOMMENDATION_DESCRIPTION =
             "AI가 제안한 이상 후보와 중간 처리 결과를 전문가가 검토한 뒤 보존처리 계획에 반영하세요.";
+    private static final int POTTERY_INSPECTION_CALLS = 1;
+    private static final String POTTERY_STATUS_NOT_STARTED = "NOT_STARTED";
+    private static final String POTTERY_STATUS_COMPLETED = "COMPLETED";
+    private static final String POTTERY_STATUS_FAILED = "FAILED";
 
     private final Map<String, ArtifactState> artifacts = new LinkedHashMap<>();
     private final Map<String, ImageState> uploadedImagesBySha256 = new LinkedHashMap<>();
@@ -62,6 +73,7 @@ public class VcaService {
     private final Optional<VcaSharedStorage> sharedStorage;
     private final Optional<VcaImageStorage> imageStorage;
     private final Optional<VcaIntermediateResultStorage> intermediateResultStorage;
+    private final Optional<PotteryInspectionAiClient> potteryInspectionAiClient;
 
     @Autowired
     public VcaService(
@@ -69,25 +81,35 @@ public class VcaService {
             VcaAiGateway vcaAiGateway,
             VcaSharedStorage sharedStorage,
             VcaImageStorage imageStorage,
-            VcaIntermediateResultStorage intermediateResultStorage
+            VcaIntermediateResultStorage intermediateResultStorage,
+            PotteryInspectionAiClient potteryInspectionAiClient
     ) {
         this(
                 localDirectCompleteEnabled,
                 Optional.of(vcaAiGateway),
                 Optional.of(sharedStorage),
                 Optional.of(imageStorage),
-                Optional.of(intermediateResultStorage)
+                Optional.of(intermediateResultStorage),
+                Optional.of(potteryInspectionAiClient)
         );
     }
 
     VcaService(boolean localDirectCompleteEnabled) {
-        this(localDirectCompleteEnabled, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+        this(
+                localDirectCompleteEnabled,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty()
+        );
     }
 
     VcaService(boolean localDirectCompleteEnabled, VcaAiGateway vcaAiGateway) {
         this(
                 localDirectCompleteEnabled,
                 Optional.of(vcaAiGateway),
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty()
@@ -104,6 +126,7 @@ public class VcaService {
                 Optional.of(vcaAiGateway),
                 Optional.of(sharedStorage),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty()
         );
     }
@@ -119,6 +142,7 @@ public class VcaService {
                 Optional.of(vcaAiGateway),
                 Optional.of(sharedStorage),
                 Optional.of(imageStorage),
+                Optional.empty(),
                 Optional.empty()
         );
     }
@@ -134,7 +158,24 @@ public class VcaService {
                 Optional.of(vcaAiGateway),
                 Optional.of(sharedStorage),
                 Optional.empty(),
-                Optional.of(intermediateResultStorage)
+                Optional.of(intermediateResultStorage),
+                Optional.empty()
+        );
+    }
+
+    VcaService(
+            boolean localDirectCompleteEnabled,
+            VcaAiGateway vcaAiGateway,
+            VcaSharedStorage sharedStorage,
+            PotteryInspectionAiClient potteryInspectionAiClient
+    ) {
+        this(
+                localDirectCompleteEnabled,
+                Optional.of(vcaAiGateway),
+                Optional.of(sharedStorage),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(potteryInspectionAiClient)
         );
     }
 
@@ -143,13 +184,15 @@ public class VcaService {
             Optional<VcaAiGateway> vcaAiGateway,
             Optional<VcaSharedStorage> sharedStorage,
             Optional<VcaImageStorage> imageStorage,
-            Optional<VcaIntermediateResultStorage> intermediateResultStorage
+            Optional<VcaIntermediateResultStorage> intermediateResultStorage,
+            Optional<PotteryInspectionAiClient> potteryInspectionAiClient
     ) {
         this.localDirectCompleteEnabled = localDirectCompleteEnabled;
         this.vcaAiGateway = vcaAiGateway;
         this.sharedStorage = sharedStorage;
         this.imageStorage = imageStorage;
         this.intermediateResultStorage = intermediateResultStorage;
+        this.potteryInspectionAiClient = potteryInspectionAiClient;
         seedDemoArtifact();
     }
 
@@ -328,6 +371,10 @@ public class VcaService {
     }
 
     public RunResponse createRun(String artifactId) {
+        return createRun(artifactId, null);
+    }
+
+    public RunResponse createRun(String artifactId, CreateRunRequest request) {
         RunCreation reservation = reserveRun(artifactId);
         VcaAiAssessmentRun aiRun;
         try {
@@ -340,7 +387,7 @@ public class VcaService {
             cancelRunReservation(artifactId, reservation.assessmentRunId);
             throw exception;
         }
-        return completeRunReservation(artifactId, reservation, aiRun);
+        return completeRunReservation(artifactId, reservation, aiRun, request == null ? null : request.material());
     }
 
     private synchronized RunCreation reserveRun(String artifactId) {
@@ -374,7 +421,8 @@ public class VcaService {
                 now,
                 null,
                 null,
-                null
+                null,
+                uploadedImages
         );
         artifact.runs.put(assessmentRunId, run);
         artifact.updatedAt = now;
@@ -386,7 +434,8 @@ public class VcaService {
     private synchronized RunResponse completeRunReservation(
             String artifactId,
             RunCreation reservation,
-            VcaAiAssessmentRun aiRun
+            VcaAiAssessmentRun aiRun,
+            String material
     ) {
         ArtifactState artifact = requireArtifact(artifactId);
         RunState run = requireRun(artifact, reservation.assessmentRunId);
@@ -411,10 +460,109 @@ public class VcaService {
         run.aiRunId = aiRun.runId();
         run.completedAt = "COMPLETED".equals(aiRun.status()) ? now : null;
         run.report = report;
+        run.material = material;
+        run.potteryInspectionStatus = initialPotteryInspectionStatus(material);
         artifact.updatedAt = now;
         log.info("VCA assessment queued artifactId={} assessmentRunId={} imageCount={}",
                 artifactId, reservation.assessmentRunId, reservation.uploadedImages.size());
         return toRun(artifact, run);
+    }
+
+    public ReportResponse runPotteryInspection(
+            String artifactId,
+            String assessmentRunId,
+            PotteryInspectionRequest request
+    ) {
+        PotteryInspectionTarget target = preparePotteryInspection(artifactId, assessmentRunId, request);
+        if (!target.applicable()) {
+            return markPotteryInspectionNotApplicable(artifactId, assessmentRunId);
+        }
+        try {
+            ReportResponse.PotteryInspection potteryInspection = inspectPottery(target.primaryImage());
+            return completePotteryInspection(artifactId, assessmentRunId, potteryInspection);
+        } catch (RuntimeException exception) {
+            return failPotteryInspection(artifactId, assessmentRunId, exception);
+        }
+    }
+
+    private synchronized PotteryInspectionTarget preparePotteryInspection(
+            String artifactId,
+            String assessmentRunId,
+            PotteryInspectionRequest request
+    ) {
+        ArtifactState artifact = requireArtifact(artifactId);
+        RunState run = requireRun(artifact, assessmentRunId);
+        syncRunWithAi(artifact, run);
+        if (!"COMPLETED".equals(run.status)) {
+            throw new VcaApiException(
+                    HttpStatus.CONFLICT,
+                    "NOT_READY",
+                    "The assessment report must be completed before pottery inspection."
+            );
+        }
+        ensureReportReady(artifact, run);
+        String material = potteryMaterial(request, run);
+        boolean applicable = isPotteryMaterial(material) && potteryInspectionAiClient.isPresent();
+        ImageState primaryImage = run.uploadedImages.get(0);
+        return new PotteryInspectionTarget(applicable, primaryImage);
+    }
+
+    private synchronized ReportResponse markPotteryInspectionNotApplicable(
+            String artifactId,
+            String assessmentRunId
+    ) {
+        ArtifactState artifact = requireArtifact(artifactId);
+        RunState run = requireRun(artifact, assessmentRunId);
+        run.potteryInspectionStatus = new ReportResponse.PotteryInspectionStatus(
+                false,
+                POTTERY_STATUS_NOT_STARTED,
+                false,
+                null,
+                null
+        );
+        run.report = withPotteryInspectionState(run.report, run);
+        artifact.updatedAt = Instant.now();
+        return run.report;
+    }
+
+    private synchronized ReportResponse completePotteryInspection(
+            String artifactId,
+            String assessmentRunId,
+            ReportResponse.PotteryInspection potteryInspection
+    ) {
+        ArtifactState artifact = requireArtifact(artifactId);
+        RunState run = requireRun(artifact, assessmentRunId);
+        run.potteryInspection = potteryInspection;
+        run.potteryInspectionStatus = new ReportResponse.PotteryInspectionStatus(
+                true,
+                POTTERY_STATUS_COMPLETED,
+                true,
+                null,
+                Instant.now()
+        );
+        run.report = withPotteryInspectionState(run.report, run);
+        artifact.updatedAt = Instant.now();
+        return run.report;
+    }
+
+    private synchronized ReportResponse failPotteryInspection(
+            String artifactId,
+            String assessmentRunId,
+            RuntimeException exception
+    ) {
+        ArtifactState artifact = requireArtifact(artifactId);
+        RunState run = requireRun(artifact, assessmentRunId);
+        run.potteryInspectionStatus = new ReportResponse.PotteryInspectionStatus(
+                true,
+                POTTERY_STATUS_FAILED,
+                true,
+                exception.getMessage(),
+                Instant.now()
+        );
+        run.report = withPotteryInspectionState(run.report, run);
+        artifact.updatedAt = Instant.now();
+        log.warn("VCA pottery inspection failed artifactId={} assessmentRunId={}", artifactId, assessmentRunId, exception);
+        return run.report;
     }
 
     private synchronized void cancelRunReservation(String artifactId, String assessmentRunId) {
@@ -743,7 +891,127 @@ public class VcaService {
                         RECOMMENDATION_TITLE,
                         RECOMMENDATION_DESCRIPTION
                 )),
-                reportImages
+                reportImages,
+                run.potteryInspection,
+                run.potteryInspectionStatus
+        );
+    }
+
+    private ReportResponse.PotteryInspection inspectPottery(ImageState primaryImage) {
+        PotteryInspectionResponseDto response = potteryInspectionAiClient.get().inspect(
+                toMultipartFile(primaryImage),
+                POTTERY_INSPECTION_CALLS,
+                true
+        );
+        return toPotteryInspection(response);
+    }
+
+    private static boolean isPotteryMaterial(String material) {
+        if (material == null) {
+            return false;
+        }
+        String normalized = material.toLowerCase(Locale.ROOT);
+        return normalized.contains("도자")
+                || normalized.contains("pottery")
+                || normalized.contains("ceramic");
+    }
+
+    private MultipartFile toMultipartFile(ImageState image) {
+        try {
+            byte[] bytes;
+            if (image.objectKey != null && imageStorage.isPresent()) {
+                bytes = imageStorage.get().read(image.objectKey, image.fileName, image.contentType).bytes();
+            } else if (image.localPath != null) {
+                bytes = Files.readAllBytes(image.localPath);
+            } else {
+                throw new VcaApiException(
+                        HttpStatus.CONFLICT,
+                        "NOT_READY",
+                        "Uploaded image bytes are required before pottery inspection."
+                );
+            }
+            return new StoredImageMultipartFile(image.fileName, image.contentType, bytes);
+        } catch (IOException exception) {
+            throw new VcaApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "UPLOAD_STORAGE_READ_FAILED",
+                    "Failed to read the stored VCA image."
+            );
+        }
+    }
+
+    private static ReportResponse.PotteryInspection toPotteryInspection(
+            PotteryInspectionResponseDto response
+    ) {
+        return new ReportResponse.PotteryInspection(
+                response.moduleVersion(),
+                response.inspectionText(),
+                response.summary(),
+                response.humanReviewRecommended(),
+                response.detail()
+        );
+    }
+
+    private static String potteryMaterial(PotteryInspectionRequest request, RunState run) {
+        if (request != null && request.material() != null && !request.material().isBlank()) {
+            run.material = request.material();
+        }
+        return run.material;
+    }
+
+    private static ReportResponse.PotteryInspectionStatus initialPotteryInspectionStatus(String material) {
+        if (!isPotteryMaterial(material)) {
+            return null;
+        }
+        return new ReportResponse.PotteryInspectionStatus(
+                true,
+                POTTERY_STATUS_NOT_STARTED,
+                true,
+                null,
+                null
+        );
+    }
+
+    private void ensureReportReady(ArtifactState artifact, RunState run) {
+        if (run.report != null) {
+            return;
+        }
+        if (vcaAiGateway.isPresent()) {
+            VcaAiAssessmentReport aiReport = vcaAiGateway.get().getAssessmentReport(run.aiRunId);
+            run.report = toReport(artifact, run, aiReport);
+        } else {
+            List<ReportResponse.Image> reportImages = run.uploadedImages.stream()
+                    .map(image -> new ReportResponse.Image(
+                            image.imageId,
+                            image.fileName,
+                            fileGatewayUrl(artifact.artifactId, image.sha256)
+                    ))
+                    .toList();
+            run.report = VcaDemoReportFactory.create(
+                    artifact.artifactId,
+                    run.assessmentRunId,
+                    run.createdAt,
+                    reportImages
+            );
+        }
+        run.report = withPotteryInspectionState(run.report, run);
+    }
+
+    private static ReportResponse withPotteryInspectionState(
+            ReportResponse report,
+            RunState run
+    ) {
+        return new ReportResponse(
+                report.assessmentRunId(),
+                report.artifactId(),
+                report.status(),
+                report.generatedAt(),
+                report.summary(),
+                report.findings(),
+                report.recommendations(),
+                report.images(),
+                run.potteryInspection,
+                run.potteryInspectionStatus
         );
     }
 
@@ -977,10 +1245,14 @@ public class VcaService {
         private final String assessmentRunId;
         private final int imageCount;
         private final Instant createdAt;
+        private final List<ImageState> uploadedImages;
         private String aiRunId;
         private String status;
         private Instant completedAt;
+        private String material;
         private ReportResponse report;
+        private ReportResponse.PotteryInspection potteryInspection;
+        private ReportResponse.PotteryInspectionStatus potteryInspectionStatus;
 
         private RunState(
                 String assessmentRunId,
@@ -989,7 +1261,8 @@ public class VcaService {
                 Instant createdAt,
                 Instant completedAt,
                 String aiRunId,
-                ReportResponse report
+                ReportResponse report,
+                List<ImageState> uploadedImages
         ) {
             this.assessmentRunId = assessmentRunId;
             this.status = status;
@@ -998,6 +1271,60 @@ public class VcaService {
             this.completedAt = completedAt;
             this.aiRunId = aiRunId;
             this.report = report;
+            this.uploadedImages = List.copyOf(uploadedImages);
+        }
+    }
+
+    private record PotteryInspectionTarget(
+            boolean applicable,
+            ImageState primaryImage
+    ) {
+    }
+
+    private record StoredImageMultipartFile(
+            String originalFilename,
+            String contentType,
+            byte[] bytes
+    ) implements MultipartFile {
+
+        @Override
+        public String getName() {
+            return "image";
+        }
+
+        @Override
+        public String getOriginalFilename() {
+            return originalFilename;
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return bytes.length == 0;
+        }
+
+        @Override
+        public long getSize() {
+            return bytes.length;
+        }
+
+        @Override
+        public byte[] getBytes() {
+            return bytes.clone();
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new java.io.ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public void transferTo(java.io.File dest) throws IOException {
+            Files.write(dest.toPath(), bytes);
         }
     }
 

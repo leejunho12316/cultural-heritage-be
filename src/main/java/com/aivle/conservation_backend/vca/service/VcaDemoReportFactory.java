@@ -64,7 +64,9 @@ final class VcaDemoReportFactory {
                 summary,
                 findings,
                 recommendations,
-                List.copyOf(images)
+                List.copyOf(images),
+                null,
+                null
         );
     }
 }
