@@ -5,6 +5,8 @@ services:
       POSTGRES_DB: conservation
       POSTGRES_USER: conservation
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -102,7 +104,6 @@ services:
       UV_FROZEN: "true"
     volumes:
       - ./shared:/shared
-      - ../vca_v2:/vca_v2:ro
       - ./shared/vca/engine-output:/vca_v2/output
       - ./shared/vca/input-store:/vca_v2/output/input
       - ${VCA_HOST_DOCUMENT_CORPUS:-./shared/vca/document-corpus}:/opt/vca-data/document:ro
@@ -138,6 +139,7 @@ services:
       VCA_SHARED_STORAGE_ROOT: /shared/vca/input-store
       VCA_SHARED_STORAGE_CONTAINER_ROOT: /vca_v2/output/input
       VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
+      VCA_DOCUMENT_CORPUS_ROOT: /shared/vca/document-corpus
       POTTERY_INSPECTION_AI_BASE_URL: http://pottery-inspection-ai:8000
       AWS_REGION: ${AWS_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}

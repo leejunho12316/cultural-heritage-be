@@ -12,6 +12,8 @@ import com.aivle.conservation_backend.vca.dto.PresignImageRequest;
 import com.aivle.conservation_backend.vca.dto.PresignImageResponse;
 import com.aivle.conservation_backend.vca.dto.ReportResponse;
 import com.aivle.conservation_backend.vca.dto.RunResponse;
+import com.aivle.conservation_backend.vca.dto.VcaCorpusPdfCollectionResponse;
+import com.aivle.conservation_backend.vca.dto.VcaCorpusPdfResponse;
 import com.aivle.conservation_backend.vca.exception.VcaApiException;
 import com.aivle.conservation_backend.vca.service.VcaService;
 import jakarta.validation.Valid;
@@ -43,6 +45,27 @@ public class VcaController {
     @GetMapping
     public ArtifactCollectionResponse getArtifacts() {
         return vcaService.getArtifacts();
+    }
+
+    @GetMapping("/corpus/pdfs")
+    public VcaCorpusPdfCollectionResponse getCorpusPdfs() {
+        return vcaService.getCorpusPdfs();
+    }
+
+    @PostMapping(
+            path = "/corpus/pdfs",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<VcaCorpusPdfResponse> uploadCorpusPdf(
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(vcaService.uploadCorpusPdf(file));
+    }
+
+    @DeleteMapping("/corpus/pdfs/{fileName}")
+    public ResponseEntity<Void> deleteCorpusPdf(@PathVariable String fileName) {
+        vcaService.deleteCorpusPdf(fileName);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{artifactId}")

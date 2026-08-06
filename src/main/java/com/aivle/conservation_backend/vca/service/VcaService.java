@@ -15,6 +15,8 @@ import com.aivle.conservation_backend.vca.dto.PresignImageRequest;
 import com.aivle.conservation_backend.vca.dto.PresignImageResponse;
 import com.aivle.conservation_backend.vca.dto.ReportResponse;
 import com.aivle.conservation_backend.vca.dto.RunResponse;
+import com.aivle.conservation_backend.vca.dto.VcaCorpusPdfCollectionResponse;
+import com.aivle.conservation_backend.vca.dto.VcaCorpusPdfResponse;
 import com.aivle.conservation_backend.vca.exception.VcaApiException;
 
 import org.slf4j.Logger;
@@ -74,6 +76,7 @@ public class VcaService {
     private final Optional<VcaImageStorage> imageStorage;
     private final Optional<VcaIntermediateResultStorage> intermediateResultStorage;
     private final Optional<PotteryInspectionAiClient> potteryInspectionAiClient;
+    private final Optional<VcaCorpusStorage> corpusStorage;
 
     @Autowired
     public VcaService(
@@ -82,7 +85,8 @@ public class VcaService {
             VcaSharedStorage sharedStorage,
             VcaImageStorage imageStorage,
             VcaIntermediateResultStorage intermediateResultStorage,
-            PotteryInspectionAiClient potteryInspectionAiClient
+            PotteryInspectionAiClient potteryInspectionAiClient,
+            VcaCorpusStorage corpusStorage
     ) {
         this(
                 localDirectCompleteEnabled,
@@ -90,13 +94,15 @@ public class VcaService {
                 Optional.of(sharedStorage),
                 Optional.of(imageStorage),
                 Optional.of(intermediateResultStorage),
-                Optional.of(potteryInspectionAiClient)
+                Optional.of(potteryInspectionAiClient),
+                Optional.of(corpusStorage)
         );
     }
 
     VcaService(boolean localDirectCompleteEnabled) {
         this(
                 localDirectCompleteEnabled,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
@@ -109,6 +115,7 @@ public class VcaService {
         this(
                 localDirectCompleteEnabled,
                 Optional.of(vcaAiGateway),
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
@@ -127,6 +134,7 @@ public class VcaService {
                 Optional.of(sharedStorage),
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty()
         );
     }
@@ -142,6 +150,7 @@ public class VcaService {
                 Optional.of(vcaAiGateway),
                 Optional.of(sharedStorage),
                 Optional.of(imageStorage),
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty()
         );
@@ -159,6 +168,7 @@ public class VcaService {
                 Optional.of(sharedStorage),
                 Optional.empty(),
                 Optional.of(intermediateResultStorage),
+                Optional.empty(),
                 Optional.empty()
         );
     }
@@ -175,7 +185,20 @@ public class VcaService {
                 Optional.of(sharedStorage),
                 Optional.empty(),
                 Optional.empty(),
-                Optional.of(potteryInspectionAiClient)
+                Optional.of(potteryInspectionAiClient),
+                Optional.empty()
+        );
+    }
+
+    VcaService(boolean localDirectCompleteEnabled, VcaCorpusStorage corpusStorage) {
+        this(
+                localDirectCompleteEnabled,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(corpusStorage)
         );
     }
 
@@ -185,7 +208,8 @@ public class VcaService {
             Optional<VcaSharedStorage> sharedStorage,
             Optional<VcaImageStorage> imageStorage,
             Optional<VcaIntermediateResultStorage> intermediateResultStorage,
-            Optional<PotteryInspectionAiClient> potteryInspectionAiClient
+            Optional<PotteryInspectionAiClient> potteryInspectionAiClient,
+            Optional<VcaCorpusStorage> corpusStorage
     ) {
         this.localDirectCompleteEnabled = localDirectCompleteEnabled;
         this.vcaAiGateway = vcaAiGateway;
@@ -193,6 +217,7 @@ public class VcaService {
         this.imageStorage = imageStorage;
         this.intermediateResultStorage = intermediateResultStorage;
         this.potteryInspectionAiClient = potteryInspectionAiClient;
+        this.corpusStorage = corpusStorage;
         seedDemoArtifact();
     }
 
@@ -203,6 +228,18 @@ public class VcaService {
                     return toSummary(artifact);
                 }).toList()
         );
+    }
+
+    public VcaCorpusPdfCollectionResponse getCorpusPdfs() {
+        return requireCorpusStorage().listPdfs();
+    }
+
+    public VcaCorpusPdfResponse uploadCorpusPdf(MultipartFile file) {
+        return requireCorpusStorage().storePdf(file);
+    }
+
+    public void deleteCorpusPdf(String fileName) {
+        requireCorpusStorage().deletePdf(fileName);
     }
 
     public synchronized ArtifactDetailResponse getArtifact(String artifactId) {
@@ -840,6 +877,14 @@ public class VcaService {
                 HttpStatus.CONFLICT,
                 "VCA_STORAGE_UNAVAILABLE",
                 "VCA shared storage is not configured."
+        ));
+    }
+
+    private VcaCorpusStorage requireCorpusStorage() {
+        return corpusStorage.orElseThrow(() -> new VcaApiException(
+                HttpStatus.CONFLICT,
+                "VCA_STORAGE_UNAVAILABLE",
+                "VCA PDF corpus storage is not configured."
         ));
     }
 

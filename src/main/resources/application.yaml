@@ -65,6 +65,7 @@ vca:
     local-root: ${VCA_SHARED_STORAGE_ROOT:./shared/vca}
     container-root: ${VCA_SHARED_STORAGE_CONTAINER_ROOT:${VCA_SHARED_STORAGE_ROOT:./shared/vca}}
     engine-output-root: ${VCA_ENGINE_OUTPUT_ROOT:./shared/vca/engine-output}
+    document-corpus-root: ${VCA_DOCUMENT_CORPUS_ROOT:./shared/vca/document-corpus}
   s3:
     object-prefix: ${VCA_S3_OBJECT_PREFIX:vca/images}
   ai:

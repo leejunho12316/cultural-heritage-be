@@ -62,6 +62,7 @@ class VcaControllerTest {
     private static final byte[] PNG_BYTES = new byte[]{
             (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
     };
+    private static final byte[] PDF_BYTES = "%PDF-1.7\nVCA corpus".getBytes(StandardCharsets.UTF_8);
 
     @TempDir
     private Path tempDirectory;
@@ -1203,5 +1204,117 @@ class VcaControllerTest {
                                 """.formatted(SHA256)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("IMAGE_NOT_FOUND"));
+    }
+
+    @Test
+    void managesRootLevelPdfCorpusThroughVcaEndpoints() throws Exception {
+        Path corpusRoot = tempDirectory.resolve("document-corpus");
+        MockMvc corpusMvc = mvc(new VcaService(true, new VcaCorpusStorage(corpusRoot.toString())));
+        Files.createDirectories(corpusRoot.resolve("nested"));
+        Files.write(corpusRoot.resolve("nested").resolve("ignored.pdf"), PDF_BYTES);
+
+        corpusMvc.perform(get("/api/vca/corpus/pdfs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty());
+
+        corpusMvc.perform(multipart("/api/vca/corpus/pdfs").file(
+                        new MockMultipartFile("file", "handbook.pdf", "application/pdf", PDF_BYTES)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.fileName").value("handbook.pdf"))
+                .andExpect(jsonPath("$.contentType").value("application/pdf"))
+                .andExpect(jsonPath("$.sizeBytes").value(PDF_BYTES.length))
+                .andExpect(jsonPath("$.sha256").value(org.hamcrest.Matchers.matchesPattern("[a-f0-9]{64}")))
+                .andExpect(jsonPath("$.updatedAt").isString());
+
+        corpusMvc.perform(get("/api/vca/corpus/pdfs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].fileName").value("handbook.pdf"))
+                .andExpect(jsonPath("$.items[0].contentType").value("application/pdf"))
+                .andExpect(jsonPath("$.items[0].sizeBytes").value(PDF_BYTES.length))
+                .andExpect(jsonPath("$.items[0].sha256").value(org.hamcrest.Matchers.matchesPattern("[a-f0-9]{64}")))
+                .andExpect(jsonPath("$.items[0].updatedAt").isString());
+
+        corpusMvc.perform(delete("/api/vca/corpus/pdfs/{fileName}", "handbook.pdf"))
+                .andExpect(status().isNoContent());
+
+        corpusMvc.perform(get("/api/vca/corpus/pdfs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty());
+        assertThat(corpusRoot.resolve("handbook.pdf")).doesNotExist();
+    }
+
+    @Test
+    void rejectsCorpusUploadWithNonPdfContentType() throws Exception {
+        MockMvc corpusMvc = mvc(new VcaService(
+                true,
+                new VcaCorpusStorage(tempDirectory.resolve("document-corpus").toString())
+        ));
+
+        corpusMvc.perform(multipart("/api/vca/corpus/pdfs").file(
+                        new MockMultipartFile("file", "handbook.pdf", "application/octet-stream", PDF_BYTES)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void rejectsCorpusUploadWhoseBytesAreNotPdf() throws Exception {
+        MockMvc corpusMvc = mvc(new VcaService(
+                true,
+                new VcaCorpusStorage(tempDirectory.resolve("document-corpus").toString())
+        ));
+
+        corpusMvc.perform(multipart("/api/vca/corpus/pdfs").file(
+                        new MockMultipartFile(
+                                "file",
+                                "handbook.pdf",
+                                "application/pdf",
+                                "not a PDF".getBytes(StandardCharsets.UTF_8)
+                        )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void rejectsDuplicateCorpusPdfWithoutOverwritingIt() throws Exception {
+        Path corpusRoot = tempDirectory.resolve("document-corpus");
+        Files.createDirectories(corpusRoot);
+        Files.write(corpusRoot.resolve("handbook.pdf"), PDF_BYTES);
+        MockMvc corpusMvc = mvc(new VcaService(true, new VcaCorpusStorage(corpusRoot.toString())));
+
+        corpusMvc.perform(multipart("/api/vca/corpus/pdfs").file(
+                        new MockMultipartFile(
+                                "file",
+                                "handbook.pdf",
+                                "application/pdf",
+                                "%PDF-1.7\nreplacement".getBytes(StandardCharsets.UTF_8)
+                        )))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("CORPUS_PDF_ALREADY_EXISTS"));
+
+        assertThat(Files.readAllBytes(corpusRoot.resolve("handbook.pdf"))).isEqualTo(PDF_BYTES);
+    }
+
+    @Test
+    void requiresAccessTokenForCorpusPdfEndpoints() throws Exception {
+        MockMvc secured = securedMvc(
+                new VcaService(
+                        true,
+                        new VcaCorpusStorage(tempDirectory.resolve("document-corpus").toString())
+                ),
+                "test-token"
+        );
+
+        secured.perform(get("/api/vca/corpus/pdfs"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("VCA_UNAUTHORIZED"));
+
+        secured.perform(multipart("/api/vca/corpus/pdfs").file(
+                        new MockMultipartFile("file", "handbook.pdf", "application/pdf", PDF_BYTES)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("VCA_UNAUTHORIZED"));
+
+        secured.perform(get("/api/vca/corpus/pdfs").header("X-VCA-Access-Token", "test-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty());
     }
 }
