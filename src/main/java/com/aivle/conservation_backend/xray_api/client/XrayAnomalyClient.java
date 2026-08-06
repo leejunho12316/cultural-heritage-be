@@ -161,6 +161,29 @@ public class XrayAnomalyClient {
                 .body(XrayDetectionResponse.class);
     }
 
+    /**
+     * 서버에 저장된 최종 결합본 Resource를 직접 분석한다.
+     */
+    public XrayDetectionResponse detect(
+            Resource file,
+            AnalysisTarget target,
+            Double confidence
+    ) {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", file);
+        body.add("analysis_target", target.getValue());
+        if (confidence != null) {
+            body.add("confidence", String.valueOf(confidence));
+        }
+
+        return restClient.post()
+                .uri("/detect")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(body)
+                .retrieve()
+                .body(XrayDetectionResponse.class);
+    }
+
     // ------------------------------------------------------------
     // 여러 이미지 일괄 탐지
     // ------------------------------------------------------------
@@ -173,14 +196,31 @@ public class XrayAnomalyClient {
      */
     public XrayDetectionResponse detectBatch(
             List<MultipartFile> files,
+            List<Integer> sourceIndexes,
             AnalysisTarget target,
             Double confidence
     ) {
+        if (files.size() != sourceIndexes.size()) {
+            throw new IllegalArgumentException(
+                    "files and sourceIndexes size mismatch: "
+                            + files.size() + " != " + sourceIndexes.size()
+            );
+        }
+
         MultiValueMap<String, Object> body =
                 new LinkedMultiValueMap<>();
 
-        for (MultipartFile file : files) {
+        for (int i = 0; i < files.size(); i++) {
+            MultipartFile file = files.get(i);
+            Integer sourceIndex = sourceIndexes.get(i);
+
+            System.out.println(
+                    "### ORIGINAL FILENAME = " + file.getOriginalFilename()
+                            + ", SOURCE_INDEX = " + sourceIndex
+            );
+
             body.add("files", toResource(file));
+            body.add("source_indexes", String.valueOf(sourceIndex));
         }
 
         body.add("analysis_target", target.getValue());
@@ -190,6 +230,40 @@ public class XrayAnomalyClient {
                     "confidence",
                     String.valueOf(confidence)
             );
+        }
+
+        return restClient.post()
+                .uri("/detect-batch")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(body)
+                .retrieve()
+                .body(XrayDetectionResponse.class);
+    }
+
+    /**
+     * 결합 job에 저장된 원본 X-ray Resource들을 sourceIndex와 함께 분석한다.
+     */
+    public XrayDetectionResponse detectBatchResources(
+            List<Resource> files,
+            List<Integer> sourceIndexes,
+            AnalysisTarget target,
+            Double confidence
+    ) {
+        if (files.size() != sourceIndexes.size()) {
+            throw new IllegalArgumentException(
+                    "files and sourceIndexes size mismatch: "
+                            + files.size() + " != " + sourceIndexes.size()
+            );
+        }
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        for (int i = 0; i < files.size(); i++) {
+            body.add("files", files.get(i));
+            body.add("source_indexes", String.valueOf(sourceIndexes.get(i)));
+        }
+        body.add("analysis_target", target.getValue());
+        if (confidence != null) {
+            body.add("confidence", String.valueOf(confidence));
         }
 
         return restClient.post()
