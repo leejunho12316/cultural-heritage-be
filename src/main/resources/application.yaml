@@ -60,3 +60,8 @@ app:
 logging:
   level:
     com.aivle.conservation_backend.xray: DEBUG
+
+jwt:
+  issuer : cultural-heritage-backend
+  secret_key: ${JWT_SECRET}
+  expiration-ms: 3600000
