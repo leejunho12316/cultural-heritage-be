@@ -1,0 +1,35 @@
+# 도커 빌드 컨텍스트에서 제외 - 이미지엔 app/ 코드+joblib 모델만 필요.
+.git
+__pycache__/
+*.pyc
+.gradio/
+.env
+
+# 로컬 전용 대용량/외부 자산 - 빌드 컨텍스트에 넣을 필요 없음
+archive/
+# ai_hub/ 전체는 빼되, 이미지에 구워 넣는 시대 판정 모델(pottery_multitask_model_v2)만 예외.
+# 주의: "ai_hub/"처럼 디렉터리 자체를 제외하면 하위 경로를 !로 다시 포함시킬 수 없어서
+# "ai_hub/*"(직계 자식만 제외)로 바꾸고 그중 하나만 다시 포함시키는 방식을 씀.
+ai_hub/*
+!ai_hub/pottery_multitask_model_v2
+sam2_repo/
+grounded_venv/
+grounded_venv_3.9/
+datasets/
+emuseum_pottery/
+emuseum_pottery_all/
+sorted_glaze_v2/
+runs/
+outputs/
+sample_images/
+
+# API 이미지엔 필요 없는 폴더(Gradio 데모/학습/데이터 준비/평가용)
+training/
+data_prep/
+eval/
+data/
+docs/
+
+*.pt
+*.pth
+*.zip

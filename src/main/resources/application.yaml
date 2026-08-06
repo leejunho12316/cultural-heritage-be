@@ -29,6 +29,10 @@ spring:
 conservation-guide-ai:
   base-url: ${CONSERVATION_GUIDE_AI_BASE_URL:http://localhost:8000}
 
+
+pottery-inspection-ai:
+  base-url: ${POTTERY_INSPECTION_AI_BASE_URL:http://localhost:8003}
+
 aws:
   region: ${AWS_REGION}
   access-key-id: ${AWS_ACCESS_KEY_ID}
@@ -47,17 +51,8 @@ xray:
 
   ai:
     base-url: ${XRAY_AI_BASE_URL:http://localhost:8001}
-    # 조각 30장 일괄 처리 1~2분
-    # OpenAI 문안 생성 30초~2분
     timeout-seconds: ${XRAY_AI_TIMEOUT_SECONDS:300}
     config-name: ${XRAY_AI_CONFIG_NAME:config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json}
-
-    # 조각 결합 전용 타임아웃
-    #
-    # 결합은 탐지보다 훨씬 오래 걸린다(수 분~수십 분).
-    # AI 서비스 쪽 상한(XRAY_STITCH_TIMEOUT, 기본 1800초)보다
-    # 커야 한다. 반대면 엔진이 도는 중에 Spring이 먼저
-    # 끊어져 원인 파악이 어려워진다.
     stitch-timeout-seconds: 2100
 
 vca:

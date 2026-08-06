@@ -1,0 +1,12 @@
+{
+  "chunk_count": 585,
+  "material_chunk_counts": {
+    "ceramic": 333,
+    "metal": 29,
+    "stone": 50,
+    "wood": 25,
+    "general": 148
+  },
+  "skipped_pages": [],
+  "extraction_errors": []
+}

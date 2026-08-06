@@ -65,4 +65,12 @@ public class XrayStitchClient {
                 .retrieve()
                 .body(XrayJobStatusResponse.class);
     }
+
+    public void finalizeJob(String jobId) {
+        restClient.post()
+                .uri("/api/jobs/{jobId}/finalize", jobId)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .toBodilessEntity();
+    }
 }

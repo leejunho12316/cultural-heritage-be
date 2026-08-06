@@ -41,6 +41,7 @@ out/
 
 ### cloud-deploy ###
 /.env
+/.env.k8s
 
 ### conservation-guide-ai ###
 ai-services/conservation-guide-ai/.env
@@ -55,6 +56,7 @@ ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs/*
 ai-services/conservation-guide-ai/app/reinforcement_rag/vector_store/*
 ai-services/conservation-guide-ai/app/reinforcement_wetting_data/generated/*
 ai-services/conservation-guide-ai/app/bonding_rag/documents/*
+ai-services/conservation-guide-ai/app/restoration_rag/documents/*
 __pycache__/
 *.pyc
 

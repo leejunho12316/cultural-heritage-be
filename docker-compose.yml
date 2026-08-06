@@ -115,6 +115,19 @@ services:
       timeout: 5s
       retries: 3
 
+  pottery-inspection-ai:
+    build: ./ai-services/pottery-inspection-ai
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8003:8000"
+    volumes:
+      # ai_hub/pottery_multitask_model_v2(시대 CNN 모델)는 용량 때문에 git에
+      # 안 올라가 있음 - 이 폴더 없으면 컨테이너는 정상 기동되지만 시대 판정만
+      # 조용히 비활성화됨. 팀원 로컬에 이 폴더를 먼저 받아둬야 함.
+      - ./ai-services/pottery-inspection-ai/ai_hub:/srv/ai_hub
+      - pottery_hf_cache:/root/.cache/huggingface
+
   conservation-backend:
     build: .
     environment:
@@ -125,6 +138,7 @@ services:
       VCA_SHARED_STORAGE_ROOT: /shared/vca/input-store
       VCA_SHARED_STORAGE_CONTAINER_ROOT: /vca_v2/output/input
       VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
+      POTTERY_INSPECTION_AI_BASE_URL: http://pottery-inspection-ai:8000
       AWS_REGION: ${AWS_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -152,6 +166,8 @@ services:
         condition: service_started
       vca-ai:
         condition: service_started
+      pottery-inspection-ai:
+        condition: service_started
     ports:
       - "8080:8080"
     volumes:
@@ -163,3 +179,4 @@ volumes:
   vca_uv_env:
   vca_uv_cache:
   vca_model_cache:
+  pottery_hf_cache:
