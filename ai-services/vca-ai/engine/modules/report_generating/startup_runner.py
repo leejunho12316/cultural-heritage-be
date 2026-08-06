@@ -1,0 +1,30 @@
+"""Project-stage adapter for report generation without orchestration changes."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Protocol
+
+from modules.report_generating.models import ReportGeneratingRequest
+from modules.report_generating.runner import run_report_generation
+
+if TYPE_CHECKING:
+    from modules.orchestration.stage_paths import StagePathMap
+
+
+class _ProjectStageRequest(Protocol):
+    @property
+    def paths(self) -> StagePathMap: ...
+
+
+def run_report_generating_stage(request: _ProjectStageRequest) -> int:
+    """Run report generation from the anomaly grouping trace source sidecar."""
+    workspace_root = request.paths.report_generating.parents[2]
+    trace_source_path = request.paths.anomaly_grouping / "report_trace_source.json"
+    result = run_report_generation(
+        ReportGeneratingRequest(
+            workspace_root,
+            request.paths.report_generating,
+            trace_source_path,
+        )
+    )
+    return 0 if result["verification_status"] == "pass" else 2

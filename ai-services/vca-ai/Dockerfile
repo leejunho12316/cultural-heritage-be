@@ -6,6 +6,7 @@ COPY app/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir uv && pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
+COPY engine/ /vca_v2/
 COPY vca-entrypoint.sh ./vca-entrypoint.sh
 RUN chmod +x ./vca-entrypoint.sh
 
