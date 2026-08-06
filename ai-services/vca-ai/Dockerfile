@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir uv && pip install --no-cache-dir -r requirements.
 COPY app/ ./app/
 COPY engine/ /vca_v2/
 COPY vca-entrypoint.sh ./vca-entrypoint.sh
-RUN chmod +x ./vca-entrypoint.sh
+RUN sed -i 's/\r$//' ./vca-entrypoint.sh && chmod +x ./vca-entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1
 
