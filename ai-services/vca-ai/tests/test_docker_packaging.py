@@ -39,6 +39,7 @@ def test_compose_when_started_does_not_require_sibling_vca_checkout() -> None:
     assert "../vca_v2" not in override
     assert "VCA_ENGINE_ROOT: /vca_v2" in compose
     assert "UV_PROJECT_ENVIRONMENT: /opt/vca-uv-env" in compose
+    assert "VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES:" in compose
     assert "vca_uv_env:/opt/vca-uv-env" not in compose
     assert "vca_uv_env:" not in compose
     assert "vca_uv_cache:/opt/vca-uv-cache" in compose
