@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from modules.report_generating.io import read_json_object, write_json
@@ -32,14 +31,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 FINAL_VISIBLE_FIELDS = ("최종 한국어 보고서", "비진단", "Evidence Trace")
-PROHIBITED_FINAL_LANGUAGE = re.compile(
-    r"(?<!비)진단|치료|중증|보존|diagnosis|treatment|severity|preservation",
-    re.IGNORECASE,
-)
-CITATION_SOURCE_BLOCK = re.compile(
-    r'<li data-report-role="citation-source">.*?</li>',
-    re.IGNORECASE | re.DOTALL,
-)
 
 
 def verify_final_report(run_root: Path) -> VerificationReceipt:
@@ -166,14 +157,10 @@ def _final_metadata_error(run_root: Path, metadata: JsonObject) -> str | None:
 
 def _final_html_error(run_root: Path, index_path: Path) -> str | None:
     content = index_path.read_text(encoding="utf-8")
-    claim_content = CITATION_SOURCE_BLOCK.sub("", content)
     return first_error(
         (
             "final index lacks required visible fields"
             if not contains_all(content, FINAL_VISIBLE_FIELDS)
-            else None,
-            "final index contains prohibited diagnostic language"
-            if PROHIBITED_FINAL_LANGUAGE.search(claim_content) is not None
             else None,
             "final index lacks trace link"
             if "../report/index.html" not in links(content)

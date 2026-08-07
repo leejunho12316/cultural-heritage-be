@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from html import escape
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from modules.report_generating.models import (
@@ -11,6 +11,12 @@ if TYPE_CHECKING:
         TraceCandidate,
         TraceSource,
     )
+
+FINAL_REPORT_DISCLAIMER: Final = (
+    "비진단 안내: 이 보고서는 AI 모델이 생성한 결과이며, "
+    "문화유산에 대한 판단이 아닙니다. "
+    "최종 판단을 위한 자료로만 활용해야 합니다."
+)
 
 
 def trace_index_html(source: TraceSource) -> str:
@@ -86,7 +92,8 @@ def final_index_html(source: TraceSource) -> str:
     )
     outcome = "완료" if source.run_summary.final_success else "불완전"
     body = (
-        "<h1>최종 한국어 보고서</h1><p>비진단</p><p>Evidence Trace</p>"
+        "<h1>최종 한국어 보고서</h1>"
+        f"<p>{escape(FINAL_REPORT_DISCLAIMER)}</p><p>Evidence Trace</p>"
         '<p><a href="../report/index.html">Trace Report</a></p>'
         f"<p>실행 상태: {escape(source.run_summary.status)} ({outcome})</p>"
         f"<dl>{_source_metadata_html(source)}</dl>"
