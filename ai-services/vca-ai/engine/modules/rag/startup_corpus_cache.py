@@ -4,54 +4,56 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from modules.rag.corpus.cache import CacheFallback, safe_cache_target
-from modules.rag.corpus.corpus import CorpusMetadataRow, CorpusPageText
 from modules.rag.corpus.document_corpus import (
     DocumentCorpusConfig,
     PdfTextExtractor,
     build_document_corpus,
     corpus_metadata_records,
-    discover_document_pdfs,
-    resolve_extraction_cache_target,
 )
-from modules.shared import ContractValidationError
-from modules.shared.json_object import JsonObject, parse_json_object_for_field
+from modules.shared import (
+    ContractValidationError,
+    ensure_contained_write_path,
+    ensure_no_symlink_leaf,
+    ensure_no_symlink_path_components,
+    ensure_source_document_is_not_write_target,
+)
+
+if TYPE_CHECKING:
+    from modules.rag.corpus.corpus import CorpusMetadataRow
 
 CACHE_ROOT_NAME: Final = "rag"
 CORPUS_CACHE_NAME: Final = "document_corpus_metadata.jsonl"
-EXTRACTION_CACHE_NAME: Final = "document_corpus_extracted_pages.jsonl"
 DOCUMENT_CORPUS_DIR_ENV: Final = "VCA_DOCUMENT_CORPUS_DIR"
 
 
+@dataclass(frozen=True, slots=True)
+class _WriteBoundary:
+    root: Path
+    source_root: Path
+
+
 def startup_corpus_rows(model_cache_root: Path) -> tuple[CorpusMetadataRow, ...]:
-    """Return cached corpus rows or build and cache them outside source documents."""
+    """Build source corpus rows freshly and cache only the new output."""
+    _guard_model_cache_root(model_cache_root)
     config = _document_corpus_config(model_cache_root)
     cache_path = _corpus_cache_path(model_cache_root, config)
-    cached_rows = _read_corpus_cache(cache_path)
-    if cached_rows is not None and _cache_matches_source(
-        cache_path,
-        config,
-        cached_rows,
-    ):
-        return cached_rows
-    _remove_extraction_cache(config)
     rows = build_document_corpus(config, PdfTextExtractor())
-    _write_corpus_cache(cache_path, rows)
+    boundary = _WriteBoundary(model_cache_root, config.source_root)
+    _write_corpus_cache(cache_path, rows, boundary)
     return rows
 
 
 def _document_corpus_config(model_cache_root: Path) -> DocumentCorpusConfig:
+    _ = model_cache_root
     source_root = _document_source_root()
     return DocumentCorpusConfig(
         source_root=source_root,
-        extraction_cache=CacheFallback(
-            allowed_root=model_cache_root,
-            root=model_cache_root / CACHE_ROOT_NAME,
-            relative_path=PurePath(EXTRACTION_CACHE_NAME),
-        )
+        extraction_cache=None,
     )
 
 
@@ -64,43 +66,9 @@ def _corpus_cache_path(model_cache_root: Path, config: DocumentCorpusConfig) -> 
     return safe_cache_target(config.source_root, fallback)
 
 
-def _read_corpus_cache(path: Path) -> tuple[CorpusMetadataRow, ...] | None:
-    if not path.is_file():
-        return None
-    lines = tuple(
-        line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
-    )
-    if not lines:
-        return None
-    return tuple(
-        _metadata_row(parse_json_object_for_field(line, "document_corpus_metadata"))
-        for line in lines
-    )
-
-
-def _cache_matches_source(
-    cache_path: Path,
-    config: DocumentCorpusConfig,
-    cached_rows: tuple[CorpusMetadataRow, ...],
-) -> bool:
-    source_paths = discover_document_pdfs(config.source_root)
-    cached_paths = tuple(row.relative_path for row in cached_rows)
-    if cached_paths != tuple(str(path) for path in source_paths):
-        return False
-    cache_modified_ns = cache_path.stat().st_mtime_ns
-    return all(
-        (config.source_root / relative_path).stat().st_mtime_ns <= cache_modified_ns
-        for relative_path in source_paths
-    )
-
-
-def _remove_extraction_cache(config: DocumentCorpusConfig) -> None:
-    extraction_cache_path = resolve_extraction_cache_target(config)
-    if extraction_cache_path is not None:
-        extraction_cache_path.unlink(missing_ok=True)
-
-
-def _write_corpus_cache(path: Path, rows: tuple[CorpusMetadataRow, ...]) -> None:
+def _write_corpus_cache(
+    path: Path, rows: tuple[CorpusMetadataRow, ...], boundary: _WriteBoundary
+) -> None:
     if not rows:
         field = "document_corpus"
         reason = "source corpus produced no metadata rows"
@@ -109,57 +77,16 @@ def _write_corpus_cache(path: Path, rows: tuple[CorpusMetadataRow, ...]) -> None
         json.dumps(row, sort_keys=True, separators=(",", ":"))
         for row in corpus_metadata_records(rows)
     ) + "\n"
+    _guard_write_directory(path.parent, boundary)
     path.parent.mkdir(parents=True, exist_ok=True)
-    _write_text_atomic(path, payload)
+    _write_text_atomic(path, payload, boundary)
 
 
-def _metadata_row(record: JsonObject) -> CorpusMetadataRow:
-    return CorpusMetadataRow(
-        document_id=_string(record, "document_id"),
-        relative_path=_string(record, "relative_path"),
-        status=_string(record, "status"),
-        text=_optional_string(record, "text"),
-        pages=_page_rows(record),
-    )
-
-
-def _page_rows(record: JsonObject) -> tuple[CorpusPageText, ...]:
-    value = record.get("pages")
-    if not isinstance(value, list):
-        field = "pages"
-        reason = "must be an array"
-        raise ContractValidationError(field, reason)
-    return tuple(_page_row(page) for page in value if isinstance(page, dict))
-
-
-def _page_row(record: JsonObject) -> CorpusPageText:
-    page_number = record.get("page_number")
-    if not isinstance(page_number, int) or isinstance(page_number, bool):
-        field = "page_number"
-        reason = "must be an integer"
-        raise ContractValidationError(field, reason)
-    return CorpusPageText(page_number=page_number, text=_string(record, "text"))
-
-
-def _string(record: JsonObject, field: str) -> str:
-    value = record.get(field)
-    if not isinstance(value, str) or not value.strip():
-        reason = "must be a non-blank string"
-        raise ContractValidationError(field, reason)
-    return value
-
-
-def _optional_string(record: JsonObject, field: str) -> str | None:
-    value = record.get(field)
-    if value is None or isinstance(value, str):
-        return value
-    reason = "must be a string or null"
-    raise ContractValidationError(field, reason)
-
-
-def _write_text_atomic(path: Path, payload: str) -> None:
+def _write_text_atomic(path: Path, payload: str, boundary: _WriteBoundary) -> None:
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
+        _guard_write_path(path, boundary)
+        _guard_write_path(temporary, boundary)
         _ = temporary.write_text(payload, encoding="utf-8")
         _ = temporary.replace(path)
     except OSError:
@@ -167,7 +94,26 @@ def _write_text_atomic(path: Path, payload: str) -> None:
         raise
 
 
-def _document_source_root() -> Path:
+def _guard_write_path(path: Path, boundary: _WriteBoundary) -> None:
+    reason = "startup corpus cache path escapes or uses symlinks"
+    _ = ensure_contained_write_path(boundary.root, path, reason)
+    _ = ensure_no_symlink_leaf(path, reason)
+    _ = ensure_source_document_is_not_write_target(boundary.source_root, path)
+
+
+def _guard_write_directory(path: Path, boundary: _WriteBoundary) -> None:
+    reason = "startup corpus cache directory escapes or uses symlinks"
+    _ = ensure_no_symlink_path_components(path, reason)
+    _ = ensure_source_document_is_not_write_target(boundary.source_root, path)
+
+
+def _guard_model_cache_root(path: Path) -> None:
+    reason = "startup corpus cache root escapes or uses symlinks"
+    _ = ensure_no_symlink_path_components(path, reason)
+
+
+def startup_document_source_root() -> Path:
+    """Return the configured source document root for startup RAG."""
     raw_source_root = os.environ.get(DOCUMENT_CORPUS_DIR_ENV)
     if raw_source_root is None:
         return DocumentCorpusConfig().source_root
@@ -176,3 +122,7 @@ def _document_source_root() -> Path:
         reason = "must not be blank"
         raise ContractValidationError(field, reason)
     return Path(raw_source_root)
+
+
+def _document_source_root() -> Path:
+    return startup_document_source_root()

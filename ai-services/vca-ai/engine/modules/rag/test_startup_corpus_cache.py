@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from modules.rag.corpus.corpus import CorpusMetadataRow, CorpusPageText
 from modules.rag.startup_corpus_cache import startup_corpus_rows
+from modules.shared import PathSafetyError
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
     from modules.rag.corpus.document_corpus import DocumentCorpusConfig
 
@@ -49,7 +50,7 @@ def test_startup_corpus_rows_rebuilds_when_pdf_set_changes(
         "first.pdf",
         "second.pdf",
     )
-    assert calls == [("first.pdf",), ("first.pdf", "second.pdf")]
+    assert calls == [("first.pdf",), ("first.pdf",), ("first.pdf", "second.pdf")]
 
 
 def test_startup_corpus_rows_drops_extraction_cache_when_source_is_stale(
@@ -88,6 +89,63 @@ def test_startup_corpus_rows_drops_extraction_cache_when_source_is_stale(
     assert first_rows[0].text == "version 1"
     assert second_rows[0].text == "version 2"
     assert calls == 2
+
+
+def test_startup_corpus_rows_rejects_symlinked_metadata_temp_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: the metadata cache temp leaf is a symlink to an external file.
+    model_cache_root = tmp_path / "models"
+    temp_path = model_cache_root / "rag" / "document_corpus_metadata.jsonl.tmp"
+    temp_path.parent.mkdir(parents=True)
+    external_file = tmp_path / "external-metadata.jsonl"
+    _ = external_file.write_text("sentinel\n", encoding="utf-8")
+    temp_path.symlink_to(external_file)
+
+    def build_rows(
+        _config: DocumentCorpusConfig,
+        _extractor: object,
+    ) -> tuple[CorpusMetadataRow, ...]:
+        return (_row("first.pdf"),)
+
+    monkeypatch.setattr(
+        "modules.rag.startup_corpus_cache.build_document_corpus",
+        build_rows,
+    )
+
+    # When/Then: startup refuses to follow the symlinked temp leaf.
+    with pytest.raises(PathSafetyError):
+        _ = startup_corpus_rows(model_cache_root)
+    assert external_file.read_text(encoding="utf-8") == "sentinel\n"
+
+
+def test_startup_corpus_rows_rejects_symlinked_model_parent_before_mkdir(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: the model cache parent is a symlink to an external directory.
+    linked_parent = tmp_path / "linked-models"
+    external_parent = tmp_path / "external-models"
+    external_parent.mkdir()
+    linked_parent.symlink_to(external_parent, target_is_directory=True)
+    model_cache_root = linked_parent / "models"
+
+    def build_rows(
+        _config: DocumentCorpusConfig,
+        _extractor: object,
+    ) -> tuple[CorpusMetadataRow, ...]:
+        return (_row("first.pdf"),)
+
+    monkeypatch.setattr(
+        "modules.rag.startup_corpus_cache.build_document_corpus",
+        build_rows,
+    )
+
+    # When/Then: startup refuses before creating cache dirs through the symlink.
+    with pytest.raises(PathSafetyError):
+        _ = startup_corpus_rows(model_cache_root)
+    assert not (external_parent / "models").exists()
 
 
 def _row(relative_path: str, text: str = "text") -> CorpusMetadataRow:
