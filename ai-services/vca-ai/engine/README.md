@@ -76,7 +76,7 @@ uv run python -m modules.report_generating.browser_qa --help
 
 Shared heavyweight model metadata lives under `models/inventory/model_inventory.json`. Model weights and snapshots remain local and are not committed. With the default model cache root, local path overrides are resolved from:
 
-1. Process environment variables such as `VCA_MODEL_QWEN2_5_VL_VISUAL_PATH`.
+1. Process environment variables such as `VCA_MODEL_QWEN2_5_VL_VISUAL_PATH` and `VCA_MODEL_RAG_TEXT_EMBEDDING_PATH`.
 2. Project-root `.models` entries.
 3. `local_dir` values in `models/inventory/model_inventory.json`.
 
@@ -89,6 +89,11 @@ When the pipeline runs through Docker `vca-ai`, Spring passes
 `VCA_BOOTSTRAP_MODELS=true`, container startup also downloads Hugging Face
 snapshots into that cache before serving requests; otherwise only dry-run and
 already-cached real runs are expected to work.
+
+The RAG stage uses the `rag.text_embedding` inventory entry for local/offline
+vector retrieval. The expected default snapshot is
+`intfloat/multilingual-e5-small` at revision
+`fd1525a9fd15316a2d503bf26ab031a61d056e98`.
 
 ## Development Checks
 
