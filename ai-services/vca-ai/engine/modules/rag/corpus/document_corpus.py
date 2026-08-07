@@ -18,6 +18,7 @@ from modules.rag.corpus.extraction_cache import (
     append_extraction_cache,
     read_extraction_cache,
 )
+from modules.shared import PathSafetyError
 
 DOCUMENT_CORPUS_ID = "document_sweep_260pdf_253text"
 SOURCE_DOCUMENT_ROOT = Path("/Users/csc9211/Downloads/dataset/document")
@@ -75,7 +76,10 @@ class DocumentCorpusConfig:
 def discover_document_pdfs(source_root: Path) -> tuple[Path, ...]:
     """Return source PDFs in stable relative-path order."""
     return tuple(
-        sorted(path.relative_to(source_root) for path in source_root.glob("*.pdf"))
+        sorted(
+            _safe_pdf_relative_path(source_root, path)
+            for path in source_root.glob("*.pdf")
+        )
     )
 
 
@@ -162,6 +166,22 @@ def corpus_metadata_records(
 
 def _document_id(relative_path: PurePath) -> str:
     return relative_path.stem
+
+
+def _safe_pdf_relative_path(source_root: Path, path: Path) -> Path:
+    resolved_root = source_root.expanduser().resolve()
+    if path.is_symlink():
+        reason = "source PDF symlinks are forbidden"
+        raise PathSafetyError(str(path), reason)
+    resolved_pdf = path.expanduser().resolve()
+    if not _is_contained(resolved_pdf, resolved_root):
+        reason = "source PDF escapes source document root"
+        raise PathSafetyError(str(path), reason)
+    return path.relative_to(source_root)
+
+
+def _is_contained(candidate: Path, root: Path) -> bool:
+    return candidate == root or candidate.is_relative_to(root)
 
 
 def _normalize_text(text: str) -> str:

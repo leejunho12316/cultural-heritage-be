@@ -1,4 +1,4 @@
-"""Deterministic cited lexical index for extracted document corpus text."""
+"""Deterministic cited chunks for extracted document corpus text."""
 
 from dataclasses import dataclass
 from pathlib import PurePath
@@ -12,6 +12,10 @@ from modules.rag.corpus.corpus import (
     CorpusRecord,
     LexicalDocumentInput,
 )
+from modules.rag.corpus.document_chunking import (
+    DEFAULT_OVERLAP_SENTENCES,
+    chunk_page_text,
+)
 from modules.rag.corpus.document_corpus import DOCUMENT_CORPUS_ID
 from modules.rag.evidence.citations import ChunkId, CitationId, CorpusCitation
 from modules.rag.retrieval.retrieval import RetrievalSnippet
@@ -19,20 +23,6 @@ from modules.rag.retrieval.terms import QueryTerms
 from modules.shared import ContractValidationError
 
 MIN_SNIPPET_CHARS = 20
-VISUAL_INDEX_TERMS = (
-    "deposit",
-    "powder",
-    "crust",
-    "crack",
-    "flaking",
-    "stain",
-    "surface",
-    "edge",
-    "corrosion",
-    "loss",
-    "pit",
-    "hole",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +40,7 @@ class DocumentChunk:
 
 @dataclass(frozen=True, slots=True)
 class DocumentIndex:
-    """Cited lexical chunks for the canonical document corpus."""
+    """Cited chunks for lexical compatibility and vector indexing."""
 
     corpus_id: str
     chunks: tuple[DocumentChunk, ...]
@@ -74,7 +64,7 @@ class DocumentIndexJsonRecord(TypedDict):
 
 
 def build_document_index(corpus: Corpus, max_snippet_chars: int) -> DocumentIndex:
-    """Build deterministic cited chunks from existing corpus lexical inputs."""
+    """Build deterministic cited chunks from existing corpus records."""
     if max_snippet_chars < MIN_SNIPPET_CHARS:
         field = "max_snippet_chars"
         reason = "must be at least 20"
@@ -237,23 +227,12 @@ def _retrieval_snippet(
 
 
 def _snippets(text: str, max_snippet_chars: int) -> tuple[str, ...]:
-    sentences = tuple(part.strip() for part in text.split(".") if part.strip())
-    visual_sentences = tuple(
-        sentence for sentence in sentences if _has_visual_index_term(sentence)
+    return chunk_page_text(
+        text,
+        target_chars=max_snippet_chars,
+        max_chars=max_snippet_chars,
+        overlap_sentences=DEFAULT_OVERLAP_SENTENCES,
     )
-    selected = visual_sentences or sentences
-    return tuple(_trim_snippet(sentence, max_snippet_chars) for sentence in selected)
-
-
-def _has_visual_index_term(sentence: str) -> bool:
-    normalized = sentence.casefold()
-    return any(term in normalized for term in VISUAL_INDEX_TERMS)
-
-
-def _trim_snippet(text: str, max_snippet_chars: int) -> str:
-    if len(text) <= max_snippet_chars:
-        return text
-    return text[:max_snippet_chars].rsplit(" ", maxsplit=1)[0]
 
 
 def _retrieval_key(snippet: RetrievalSnippet) -> tuple[float, str, str]:
