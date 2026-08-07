@@ -1,6 +1,6 @@
 # Shared Model Cache
 
-This directory is the workspace-local cache for heavyweight vision models shared by pipeline modules.
+This directory is the workspace-local cache for heavyweight local models shared by pipeline modules.
 
 Weights and downloaded snapshots are intentionally ignored by git. Keep only small inventory files under `models/inventory/` so every module can agree on model IDs, revisions, and local paths without committing model binaries.
 
@@ -14,7 +14,10 @@ models/
     model_inventory.json
 ```
 
-Preprocessing owns detector/SAM2 execution in this workspace variant. Other modules should consume the inventory and generated artifacts rather than downloading their own model copies.
+Preprocessing owns detector/SAM2 execution in this workspace variant. RAG owns
+the local text-embedding model for vector retrieval. Other modules should
+consume the inventory and generated artifacts rather than downloading their own
+model copies.
 
 ## Local Path Overrides
 
@@ -30,7 +33,7 @@ repository root.
 
 For each inventory model key, resolution is:
 
-1. Process environment variable, such as `VCA_MODEL_QWEN2_5_VL_VISUAL_PATH`.
+1. Process environment variable, such as `VCA_MODEL_QWEN2_5_VL_VISUAL_PATH` or `VCA_MODEL_RAG_TEXT_EMBEDDING_PATH`.
 2. Matching entry in the project-root `.models` file.
 3. `local_dir` from `models/inventory/model_inventory.json`.
 
