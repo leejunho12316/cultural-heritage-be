@@ -33,6 +33,9 @@ conservation-guide-ai:
 pottery-inspection-ai:
   base-url: ${POTTERY_INSPECTION_AI_BASE_URL:http://localhost:8003}
 
+report-ai:
+  base-url: ${REPORT_AI_BASE_URL:http://localhost:8002}
+
 aws:
   region: ${AWS_REGION}
   access-key-id: ${AWS_ACCESS_KEY_ID}
