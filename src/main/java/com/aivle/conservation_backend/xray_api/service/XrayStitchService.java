@@ -1,6 +1,7 @@
 package com.aivle.conservation_backend.xray_api.service;
 
 import com.aivle.conservation_backend.xray_api.client.XrayStitchClient;
+import com.aivle.conservation_backend.xray_api.domain.S3FileRecord;
 import com.aivle.conservation_backend.xray_api.domain.XrayJob;
 import com.aivle.conservation_backend.xray_api.domain.XrayJobStatus;
 import com.aivle.conservation_backend.xray_api.dto.XrayAiFinalizationRequest;
@@ -13,6 +14,7 @@ import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.PrepareRequest
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.PrepareResponse;
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.ReconcileResponse;
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.UploadTarget;
+import com.aivle.conservation_backend.xray_api.repository.S3FileRecordRepository;
 import com.aivle.conservation_backend.xray_api.repository.XrayJobRepository;
 import com.aivle.conservation_backend.xray_api.storage.XrayS3Keys;
 import com.aivle.conservation_backend.xray_api.storage.XrayS3Service;
@@ -27,6 +29,8 @@ import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -49,6 +53,7 @@ public class XrayStitchService {
     private final XrayStitchClient xrayStitchClient;
     private final XrayS3Service s3Service;
     private final XrayJobRepository jobRepository;
+    private final S3FileRecordRepository s3FileRepository;
     private final ObjectMapper objectMapper;
     private final String configName;
     private final String callbackUrl;
@@ -59,6 +64,7 @@ public class XrayStitchService {
             XrayStitchClient xrayStitchClient,
             XrayS3Service s3Service,
             XrayJobRepository jobRepository,
+            S3FileRecordRepository s3FileRepository,
             ObjectMapper objectMapper,
             @Value("${xray.ai.config-name}") String configName,
             @Value("${xray.stitch.callback-url:http://localhost:8080/api/xray/stitch/callback}") String callbackUrl,
@@ -68,6 +74,7 @@ public class XrayStitchService {
         this.xrayStitchClient = xrayStitchClient;
         this.s3Service = s3Service;
         this.jobRepository = jobRepository;
+        this.s3FileRepository = s3FileRepository;
         this.objectMapper = objectMapper;
         this.configName = configName;
         this.callbackUrl = callbackUrl;
@@ -83,39 +90,67 @@ public class XrayStitchService {
     public PrepareResponse prepare(PrepareRequest request) {
         validatePrepare(request);
         UUID artifactId = parseUuid(request.artifactId(), "artifactId");
-        UUID jobId = UUID.randomUUID();
 
         List<String> xrayNames = request.xrayFileNames().stream()
                 .map(this::safeName)
                 .toList();
         String colorName = safeName(request.colorFileName());
 
-        XrayJob job = XrayJob.create(jobId, artifactId);
-        job.rememberInputs(colorName, xrayNames);
+        XrayJob job = jobRepository.findByArtifactId(artifactId)
+                .map(existing -> {
+                    if (existing.getStatus() != XrayJobStatus.PREPARED
+                            && existing.getStatus() != XrayJobStatus.UPLOADING
+                            && existing.getStatus() != XrayJobStatus.FAILED) {
+                        throw new ResponseStatusException(
+                                HttpStatus.CONFLICT,
+                                "This artifact already has an active or completed X-ray job: "
+                                        + existing.getStatus()
+                        );
+                    }
+                    existing.prepareAgain(1, xrayNames.size());
+                    return existing;
+                })
+                .orElseGet(() -> XrayJob.create(
+                        UUID.randomUUID(), artifactId, null, 1, xrayNames.size()
+                ));
         jobRepository.save(job);
 
         String artifact = artifactId.toString();
         String colorKey = XrayS3Keys.colorInput(artifact, colorName);
+        Map<String, String> colorMetadata = Map.of(
+                "usage", "color_reference",
+                "original_name", metadataFileName(colorName)
+        );
+        XrayS3Service.PresignedPut colorPut =
+                s3Service.presignInputPut(colorKey, null, colorMetadata);
         UploadTarget color = new UploadTarget(
                 request.colorFileName(),
                 colorKey,
-                // No Content-Type is signed. Browser-selected MIME values then cannot
-                // cause a signature mismatch (the prior 403 issue).
-                s3Service.presignInputPut(colorKey, null)
+                colorPut.url(),
+                colorPut.requiredHeaders()
         );
 
         List<UploadTarget> xrays = new ArrayList<>();
         for (int i = 0; i < xrayNames.size(); i++) {
-            String key = XrayS3Keys.xrayInput(artifact, xrayNames.get(i));
+            String name = xrayNames.get(i);
+            String key = XrayS3Keys.xrayInput(artifact, name);
+            Map<String, String> metadata = Map.of(
+                    "usage", "xray_original",
+                    "source_order", String.valueOf(i),
+                    "original_name", metadataFileName(name)
+            );
+            XrayS3Service.PresignedPut put =
+                    s3Service.presignInputPut(key, null, metadata);
             xrays.add(new UploadTarget(
                     request.xrayFileNames().get(i),
                     key,
-                    s3Service.presignInputPut(key, null)
+                    put.url(),
+                    put.requiredHeaders()
             ));
         }
 
         return new PrepareResponse(
-                jobId.toString(), artifact, job.getStatus().name(), color, xrays
+                job.getId().toString(), artifact, job.getStatus().name(), color, xrays
         );
     }
 
@@ -149,24 +184,34 @@ public class XrayStitchService {
             s3Service.putBytes(
                     prepared.color().s3Key(),
                     colorFiles.get(0).getBytes(),
-                    blankToNull(colorFiles.get(0).getContentType())
+                    blankToNull(colorFiles.get(0).getContentType()),
+                    Map.of(
+                            "usage", "color_reference",
+                            "original_name", metadataFileName(colorName)
+                    )
             );
             for (int i = 0; i < xrayFiles.size(); i++) {
                 MultipartFile file = xrayFiles.get(i);
+                String name = xrayNames.get(i);
                 s3Service.putBytes(
                         prepared.xrays().get(i).s3Key(),
                         file.getBytes(),
-                        blankToNull(file.getContentType())
+                        blankToNull(file.getContentType()),
+                        Map.of(
+                                "usage", "xray_original",
+                                "source_order", String.valueOf(i),
+                                "original_name", metadataFileName(name)
+                        )
                 );
             }
         } catch (IOException e) {
-            markFailed(UUID.fromString(prepared.jobId()), "S3 upload failed.", e.getMessage());
+            markFailed(UUID.fromString(prepared.jobId()), "S3 upload failed: " + e.getMessage());
             throw new IllegalStateException("Failed to upload X-ray inputs to S3.", e);
         }
 
         start(prepared.jobId(), colorName, xrayNames);
         return new XrayJobResponse(
-                prepared.jobId(), prepared.artifactId(), "RUNNING", "X-ray stitching is running."
+                prepared.jobId(), prepared.artifactId(), "STITCHING", "X-ray stitching is running."
         );
     }
 
@@ -180,29 +225,56 @@ public class XrayStitchService {
     ) {
         UUID jobId = parseUuid(jobIdValue, "jobId");
         XrayJob job = requireJob(jobId);
-        if (job.getStatus() == XrayJobStatus.RUNNING) {
+        if (job.getStatus() == XrayJobStatus.STITCHING) {
             return toStatusResponse(job);
         }
-        if (job.getStatus() == XrayJobStatus.FINALIZING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Final rendering is already running.");
+        if (job.getStatus() != XrayJobStatus.PREPARED
+                && job.getStatus() != XrayJobStatus.UPLOADING
+                && job.getStatus() != XrayJobStatus.FAILED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "X-ray stitching cannot start from status: " + job.getStatus()
+            );
         }
 
-        String colorName = safeName(
-                colorFileName == null || colorFileName.isBlank()
-                        ? job.getColorFileName()
-                        : colorFileName
-        );
-        List<String> xrayNames = xrayFileNames == null || xrayFileNames.isEmpty()
-                ? safeStoredNames(job.getXrayFileNames())
+        String colorName = safeName(colorFileName);
+        List<String> xrayNames = xrayFileNames == null
+                ? List.of()
                 : xrayFileNames.stream().map(this::safeName).toList();
         if (xrayNames.size() < 2) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least two X-ray file names are required.");
+        }
+        if (xrayNames.size() != job.getExpectedXrayCount()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Uploaded X-ray count does not match the prepared count. expected="
+                            + job.getExpectedXrayCount() + ", actual=" + xrayNames.size()
+            );
         }
 
         String artifactId = job.getArtifactId().toString();
         requireObject(XrayS3Keys.colorInput(artifactId, colorName), "color reference");
         for (String name : xrayNames) {
             requireObject(XrayS3Keys.xrayInput(artifactId, name), "X-ray fragment " + name);
+        }
+
+        // Lambda와 Spring이 같은 RDS를 바라보는 환경에서는 S3_FILE을 함께 검증한다.
+        // 로컬 테스트처럼 DB가 분리된 경우에는 S3 객체 존재 검사를 정본 fallback으로 사용한다.
+        List<S3FileRecord> inputRecords = xrayInputRecords(job);
+        if (!inputRecords.isEmpty() && inputRecords.size() != job.getExpectedXrayCount()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "S3_FILE X-ray count does not match the prepared count. expected="
+                            + job.getExpectedXrayCount() + ", actual=" + inputRecords.size()
+            );
+        }
+        List<S3FileRecord> colorRecords = colorInputRecords(job);
+        if (!colorRecords.isEmpty() && colorRecords.size() != job.getExpectedColorCount()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "S3_FILE color count does not match the prepared count. expected="
+                            + job.getExpectedColorCount() + ", actual=" + colorRecords.size()
+            );
         }
 
         XrayAiStitchRequest request = new XrayAiStitchRequest(
@@ -223,20 +295,19 @@ public class XrayStitchService {
                         s3Service.presignOutputPut(XrayS3Keys.assembled(artifactId), "image/png"),
                         s3Service.presignOutputPut(XrayS3Keys.layout(artifactId), "application/json"),
                         s3Service.presignOutputPut(XrayS3Keys.report(artifactId), "application/json"),
-                        s3Service.presignOutputPut(XrayS3Keys.finalizationBundle(artifactId), "application/zip")
+                        s3Service.presignOutputPut(XrayS3Keys.layoutFragmentMasks(artifactId), "application/zip")
                 ),
                 callbackUrl,
                 callbackToken
         );
 
-        job.rememberInputs(colorName, xrayNames);
-        job.markRunning();
+        job.markStitching();
         jobRepository.save(job);
 
         try {
             xrayStitchClient.startStitch(request);
         } catch (RuntimeException e) {
-            job.markFailed("FastAPI did not accept the X-ray job.", e.getMessage());
+            job.markFailed("FastAPI did not accept the X-ray job: " + e.getMessage());
             jobRepository.save(job);
             throw e;
         }
@@ -261,16 +332,22 @@ public class XrayStitchService {
 
         String status = request.status().trim().toUpperCase(Locale.ROOT);
         switch (status) {
+            // FastAPI의 COMPLETED는 X-ray 전체 완료가 아니라 자동 결합 완료를 뜻한다.
             case "COMPLETED" -> {
                 requireBaseOutputs(job.getArtifactId().toString());
-                job.markCompleted(request.message());
+                job.markStitched();
             }
+            // Finalizer 완료 후에도 다음 단계는 결함 분석이므로 전체 상태는 STITCHED로 유지한다.
             case "FINALIZED" -> {
                 requireFinalOutputs(job.getArtifactId().toString());
-                job.markFinalized(request.message());
+                job.markStitched();
             }
-            case "FAILED" -> job.markFailed(request.message(), request.errorMessage());
-            case "RUNNING" -> job.markRunning();
+            case "FAILED" -> job.markFailed(
+                    request.errorMessage() == null || request.errorMessage().isBlank()
+                            ? request.message()
+                            : request.errorMessage()
+            );
+            case "RUNNING" -> job.markStitching();
             default -> throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Unsupported callback status: " + status
@@ -290,15 +367,20 @@ public class XrayStitchService {
         String previous = job.getStatus().name();
         String artifactId = job.getArtifactId().toString();
 
-        if (hasFinalOutputs(artifactId)) {
-            job.markFinalized("Recovered FINALIZED state from S3 outputs.");
-        } else if (hasBaseOutputs(artifactId)) {
-            job.markCompleted("Recovered COMPLETED state from S3 outputs.");
+        if (hasFinalOutputs(artifactId) || hasBaseOutputs(artifactId)) {
+            if (job.getStatus() != XrayJobStatus.REVIEW_READY
+                    && job.getStatus() != XrayJobStatus.COMPLETED) {
+                job.markStitched();
+            }
         }
         jobRepository.save(job);
         String current = job.getStatus().name();
         return new ReconcileResponse(
-                job.getId().toString(), previous, current, !previous.equals(current), job.getMessage()
+                job.getId().toString(),
+                previous,
+                current,
+                !previous.equals(current),
+                statusMessage(job)
         );
     }
 
@@ -370,77 +452,82 @@ public class XrayStitchService {
     // ---------------------------------------------------------------------
 
     public String saveFinalLayout(String jobIdValue, XrayFinalLayoutRequest request) {
-        XrayJob job = requireCompletedJob(jobIdValue);
+        XrayJob job = requireStitchedJobForFinalLayout(jobIdValue);
         validateFinalLayoutRequest(request);
         String artifactId = job.getArtifactId().toString();
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> layout = objectMapper.readValue(
-                    s3Service.getString(XrayS3Keys.layout(artifactId)),
-                    Map.class
-            );
-            List<Map<String, Object>> layoutFragments = getLayoutFragments(layout);
-            Map<Integer, XrayFinalLayoutRequest.FragmentTransform> transforms =
-                    indexFinalTransforms(request.fragments());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> layout = objectMapper.readValue(
+                s3Service.getString(XrayS3Keys.layout(artifactId)),
+                Map.class
+        );
+        List<Map<String, Object>> layoutFragments = getLayoutFragments(layout);
+        Map<Integer, XrayFinalLayoutRequest.FragmentTransform> transforms =
+                indexFinalTransforms(request.fragments());
 
-            if (transforms.size() != layoutFragments.size()) {
-                throw new IllegalArgumentException(
-                        "Final layout must contain every fragment. expected="
-                                + layoutFragments.size() + ", actual=" + transforms.size()
-                );
+        if (transforms.size() != layoutFragments.size()) {
+            throw new IllegalArgumentException(
+                    "Final layout must contain every fragment. expected="
+                            + layoutFragments.size() + ", actual=" + transforms.size()
+            );
+        }
+        for (Map<String, Object> fragment : layoutFragments) {
+            int index = requireInt(fragment, "index");
+            XrayFinalLayoutRequest.FragmentTransform transform = transforms.get(index);
+            if (transform == null) {
+                throw new IllegalArgumentException("Missing final transform for fragment index: " + index);
             }
-            for (Map<String, Object> fragment : layoutFragments) {
-                int index = requireInt(fragment, "index");
-                XrayFinalLayoutRequest.FragmentTransform transform = transforms.get(index);
-                if (transform == null) {
-                    throw new IllegalArgumentException("Missing final transform for fragment index: " + index);
-                }
-                validateFragmentIdentity(fragment, transform);
-                applyFinalTransform(fragment, transform);
-            }
-            layout.put("layoutStage", "FINAL");
-            layout.put("baseLayoutFile", "layout.json");
-            layout.put("finalizedAt", Instant.now().toString());
+            validateFragmentIdentity(fragment, transform);
+            applyFinalTransform(fragment, transform);
+        }
+        layout.put("layoutStage", "FINAL");
+        layout.put("baseLayoutFile", "layout.json");
+        layout.put("finalizedAt", Instant.now().toString());
 
-            String finalLayoutJson = objectMapper
-                    .writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(layout);
-            s3Service.putString(
-                    XrayS3Keys.finalLayout(artifactId),
-                    finalLayoutJson,
-                    "application/json"
-            );
+        String finalLayoutJson = objectMapper
+                .writerWithDefaultPrettyPrinter()
+                .writeValueAsString(layout);
+        s3Service.putString(
+                XrayS3Keys.finalLayout(artifactId),
+                finalLayoutJson,
+                "application/json"
+        );
 
-            XrayAiFinalizationRequest aiRequest = new XrayAiFinalizationRequest(
-                    job.getId().toString(),
-                    artifactId,
-                    s3Service.presignGet(XrayS3Keys.finalizationBundle(artifactId)),
-                    s3Service.presignGet(XrayS3Keys.finalLayout(artifactId)),
-                    new XrayAiFinalizationRequest.OutputPutUrls(
-                            s3Service.presignOutputPut(XrayS3Keys.finalAssembled(artifactId), "image/png"),
-                            s3Service.presignOutputPut(XrayS3Keys.sourceOwner(artifactId), "image/png"),
-                            s3Service.presignOutputPut(XrayS3Keys.fragmentOwner(artifactId), "image/png"),
-                            s3Service.presignOutputPut(XrayS3Keys.seamZone(artifactId), "image/png"),
-                            s3Service.presignOutputPut(XrayS3Keys.overlapMask(artifactId), "image/png"),
-                            s3Service.presignOutputPut(XrayS3Keys.provenance(artifactId), "application/json")
-                    ),
-                    callbackUrl,
-                    callbackToken
-            );
+        List<String> sourceNames = getOrderedXraySourceFileNames(jobIdValue);
+        XrayAiFinalizationRequest aiRequest = new XrayAiFinalizationRequest(
+                job.getId().toString(),
+                artifactId,
+                sourceNames.stream()
+                        .map(name -> new XrayAiFinalizationRequest.RemoteInput(
+                                name,
+                                s3Service.presignGet(XrayS3Keys.xrayInput(artifactId, name))
+                        ))
+                        .toList(),
+                s3Service.presignGet(XrayS3Keys.layoutFragmentMasks(artifactId)),
+                s3Service.presignGet(XrayS3Keys.finalLayout(artifactId)),
+                new XrayAiFinalizationRequest.OutputPutUrls(
+                        s3Service.presignOutputPut(XrayS3Keys.finalAssembled(artifactId), "image/png"),
+                        s3Service.presignOutputPut(XrayS3Keys.sourceOwner(artifactId), "image/png"),
+                        s3Service.presignOutputPut(XrayS3Keys.fragmentOwner(artifactId), "image/png"),
+                        s3Service.presignOutputPut(XrayS3Keys.seamZone(artifactId), "image/png"),
+                        s3Service.presignOutputPut(XrayS3Keys.overlapMask(artifactId), "image/png"),
+                        s3Service.presignOutputPut(XrayS3Keys.provenance(artifactId), "application/json")
+                ),
+                callbackUrl,
+                callbackToken
+        );
 
-            job.markFinalizing();
+        try {
+            xrayStitchClient.startFinalization(aiRequest);
+        } catch (RuntimeException e) {
+            job.markFailed("FastAPI did not accept final rendering: " + e.getMessage());
             jobRepository.save(job);
-            try {
-                xrayStitchClient.startFinalization(aiRequest);
-            } catch (RuntimeException e) {
-                job.markFailed("FastAPI did not accept final rendering.", e.getMessage());
-                jobRepository.save(job);
-                throw e;
-            }
+            throw e;
+        }
 
-            // Current main waited for server-side re-rendering before returning
-            // from PUT layout/final. Preserve that FE contract while the actual
-            // renderer runs asynchronously and stores its outputs in S3.
+        // Current main waited for server-side re-rendering before returning
+        // from PUT layout/final. Preserve that FE contract while the actual
+        // renderer runs asynchronously and stores its outputs in S3.
         waitForFinalization(job.getId(), artifactId);
         return finalLayoutJson;
     }
@@ -464,14 +551,20 @@ public class XrayStitchService {
 
     public List<String> getOrderedXraySourceFileNames(String jobId) {
         XrayJob job = requireCompletedJob(jobId);
-        List<String> names = safeStoredNames(job.getXrayFileNames());
-        if (names.isEmpty()) {
-            String prefix = XrayS3Keys.xrayPrefix(job.getArtifactId().toString());
-            names = s3Service.listKeys(prefix).stream()
-                    .map(key -> key.substring(prefix.length()))
-                    .filter(this::isSupportedXrayImage)
+        List<S3FileRecord> records = xrayInputRecords(job);
+        if (!records.isEmpty()) {
+            return records.stream()
+                    .map(record -> record.getOriginalName() == null || record.getOriginalName().isBlank()
+                            ? fileNameFromKey(record.getS3Key())
+                            : safeName(record.getOriginalName()))
                     .toList();
         }
+
+        String prefix = XrayS3Keys.xrayPrefix(job.getArtifactId().toString());
+        List<String> names = s3Service.listKeys(prefix).stream()
+                .map(key -> key.substring(prefix.length()))
+                .filter(this::isSupportedXrayImage)
+                .toList();
         return names.stream().sorted(this::compareNaturalFileNames).toList();
     }
 
@@ -494,6 +587,58 @@ public class XrayStitchService {
                 .toList();
     }
 
+    public Resource getColorReferenceResource(String jobId) {
+        XrayJob job = requireCompletedJob(jobId);
+        List<S3FileRecord> records = colorInputRecords(job);
+        if (records.size() == 1) {
+            S3FileRecord record = records.get(0);
+            String name = record.getOriginalName() == null || record.getOriginalName().isBlank()
+                    ? fileNameFromKey(record.getS3Key())
+                    : record.getOriginalName();
+            return namedResource(s3Service.getBytes(record.getS3Key()), name);
+        }
+
+        String prefix = XrayS3Keys.colorPrefix(job.getArtifactId().toString());
+        List<String> keys = s3Service.listKeys(prefix).stream()
+                .filter(key -> !key.endsWith("/"))
+                .toList();
+        if (keys.size() != 1) {
+            throw new IllegalStateException(
+                    "Exactly one color reference is required. actual=" + keys.size()
+            );
+        }
+        String key = keys.get(0);
+        String name = key.substring(prefix.length());
+        return namedResource(s3Service.getBytes(key), name);
+    }
+
+    @Transactional(readOnly = true)
+    public XrayJob getJobEntity(String jobId) {
+        return requireJob(parseUuid(jobId, "jobId"));
+    }
+
+    @Transactional
+    public void markDetecting(String jobId) {
+        XrayJob job = requireJob(parseUuid(jobId, "jobId"));
+        requireFinalOutputs(job.getArtifactId().toString());
+        job.markDetecting();
+        jobRepository.save(job);
+    }
+
+    @Transactional
+    public void markReviewReady(String jobId) {
+        XrayJob job = requireJob(parseUuid(jobId, "jobId"));
+        job.markReviewReady();
+        jobRepository.save(job);
+    }
+
+    @Transactional
+    public void markWorkflowFailed(String jobId, String errorMessage) {
+        XrayJob job = requireJob(parseUuid(jobId, "jobId"));
+        job.markFailed(errorMessage);
+        jobRepository.save(job);
+    }
+
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
@@ -506,36 +651,69 @@ public class XrayStitchService {
 
     private XrayJob requireCompletedJob(String jobId) {
         XrayJob job = requireJob(parseUuid(jobId, "jobId"));
-        if (job.getStatus() != XrayJobStatus.COMPLETED
-                && job.getStatus() != XrayJobStatus.FINALIZING
-                && job.getStatus() != XrayJobStatus.FINALIZED) {
+        if (job.getStatus() != XrayJobStatus.STITCHED
+                && job.getStatus() != XrayJobStatus.DETECTING
+                && job.getStatus() != XrayJobStatus.REVIEW_READY
+                && job.getStatus() != XrayJobStatus.COMPLETED) {
             throw new IllegalStateException("X-ray stitching result is not ready: " + job.getStatus());
         }
+        requireBaseOutputs(job.getArtifactId().toString());
+        return job;
+    }
+
+    private XrayJob requireStitchedJobForFinalLayout(String jobId) {
+        XrayJob job = requireJob(parseUuid(jobId, "jobId"));
+        if (job.getStatus() != XrayJobStatus.STITCHED
+                && job.getStatus() != XrayJobStatus.FAILED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Final layout cannot be saved from status: " + job.getStatus()
+            );
+        }
+        requireBaseOutputs(job.getArtifactId().toString());
         return job;
     }
 
     private XrayJob requireFinalizedJobEntity(String jobId) {
-        XrayJob job = requireJob(parseUuid(jobId, "jobId"));
-        if (job.getStatus() != XrayJobStatus.FINALIZED) {
-            throw new IllegalStateException("Final X-ray result is not ready: " + job.getStatus());
-        }
+        XrayJob job = requireCompletedJob(jobId);
+        requireFinalOutputs(job.getArtifactId().toString());
         return job;
     }
 
     private XrayJobStatusResponse toStatusResponse(XrayJob job) {
-        String resultUrl = switch (job.getStatus()) {
-            case COMPLETED, FINALIZING -> "/api/xray/stitch/jobs/" + job.getId() + "/result";
-            case FINALIZED -> "/api/xray/stitch/jobs/" + job.getId() + "/result/final";
-            default -> null;
-        };
+        String artifactId = job.getArtifactId().toString();
+        String resultUrl = null;
+        if (hasFinalOutputs(artifactId)) {
+            resultUrl = "/api/xray/stitch/jobs/" + job.getId() + "/result/final";
+        } else if (hasBaseOutputs(artifactId)) {
+            resultUrl = "/api/xray/stitch/jobs/" + job.getId() + "/result";
+        }
         return new XrayJobStatusResponse(
                 job.getId().toString(),
-                job.getArtifactId().toString(),
+                artifactId,
                 job.getStatus().name(),
-                job.getMessage(),
+                statusMessage(job),
                 resultUrl,
                 job.getErrorMessage()
         );
+    }
+
+    private String statusMessage(XrayJob job) {
+        if (job.getStatus() == XrayJobStatus.FAILED) {
+            return "X-ray processing failed.";
+        }
+        return switch (job.getStatus()) {
+            case PREPARED -> "Waiting for S3 input uploads.";
+            case UPLOADING -> "X-ray inputs are uploading.";
+            case STITCHING -> "X-ray automatic stitching is running.";
+            case STITCHED -> hasFinalOutputs(job.getArtifactId().toString())
+                    ? "Final X-ray layout is ready for defect analysis."
+                    : "Automatic X-ray stitching is complete.";
+            case DETECTING -> "X-ray defect detection and mapping are running.";
+            case REVIEW_READY -> "X-ray defects are ready for expert review.";
+            case COMPLETED -> "X-ray inspection is complete.";
+            case FAILED -> "X-ray processing failed.";
+        };
     }
 
     private void validatePrepare(PrepareRequest request) {
@@ -583,11 +761,26 @@ public class XrayStitchService {
         return safeName(name == null || name.isBlank() ? "upload.bin" : name);
     }
 
-    private List<String> safeStoredNames(List<String> names) {
-        if (names == null) {
-            return List.of();
+    private List<S3FileRecord> xrayInputRecords(XrayJob job) {
+        return s3FileRepository
+                .findAllByArtifactIdAndModuleTypeAndUsageNameOrderBySourceOrderAsc(
+                        job.getArtifactId(), "XRAY", "xray_original"
+                );
+    }
+
+    private List<S3FileRecord> colorInputRecords(XrayJob job) {
+        return s3FileRepository
+                .findAllByArtifactIdAndModuleTypeAndUsageNameOrderBySourceOrderAsc(
+                        job.getArtifactId(), "XRAY", "color_reference"
+                );
+    }
+
+    private String fileNameFromKey(String key) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalStateException("S3_FILE s3_key is missing.");
         }
-        return names.stream().filter(name -> name != null && !name.isBlank()).map(this::safeName).toList();
+        int slash = key.lastIndexOf('/');
+        return safeName(slash >= 0 ? key.substring(slash + 1) : key);
     }
 
     private void requireObject(String key, String label) {
@@ -608,8 +801,7 @@ public class XrayStitchService {
     private boolean hasBaseOutputs(String artifactId) {
         return s3Service.objectExists(XrayS3Keys.assembled(artifactId))
                 && s3Service.objectExists(XrayS3Keys.layout(artifactId))
-                && s3Service.objectExists(XrayS3Keys.report(artifactId))
-                && s3Service.objectExists(XrayS3Keys.finalizationBundle(artifactId));
+                && s3Service.objectExists(XrayS3Keys.layoutFragmentMasks(artifactId));
     }
 
     private void requireFinalOutputs(String artifactId) {
@@ -637,8 +829,9 @@ public class XrayStitchService {
         while (System.nanoTime() < deadline) {
             if (hasFinalOutputs(artifactId)) {
                 XrayJob current = requireJob(jobId);
-                if (current.getStatus() != XrayJobStatus.FINALIZED) {
-                    current.markFinalized("Final X-ray rendering completed.");
+                if (current.getStatus() != XrayJobStatus.REVIEW_READY
+                        && current.getStatus() != XrayJobStatus.COMPLETED) {
+                    current.markStitched();
                     jobRepository.save(current);
                 }
                 return;
@@ -671,9 +864,9 @@ public class XrayStitchService {
         }
     }
 
-    private void markFailed(UUID jobId, String message, String error) {
+    private void markFailed(UUID jobId, String error) {
         jobRepository.findById(jobId).ifPresent(job -> {
-            job.markFailed(message, error);
+            job.markFailed(error);
             jobRepository.save(job);
         });
     }
@@ -685,6 +878,10 @@ public class XrayStitchService {
                 return fileName;
             }
         };
+    }
+
+    private String metadataFileName(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private String blankToNull(String value) {

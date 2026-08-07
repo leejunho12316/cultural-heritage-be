@@ -7,5 +7,5 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface XrayJobRepository extends JpaRepository<XrayJob, UUID> {
-    Optional<XrayJob> findTopByArtifactIdOrderByCreatedAtDesc(UUID artifactId);
+    Optional<XrayJob> findByArtifactId(UUID artifactId);
 }

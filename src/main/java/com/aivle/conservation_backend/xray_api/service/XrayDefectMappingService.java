@@ -50,8 +50,9 @@ public class XrayDefectMappingService {
     ) {
         validateRequest(request);
 
-        // Provenance maps are created only after the remote finalization step.
-        // FINALIZED is therefore the only valid mapping source state.
+        // Provenance maps are created only after the remote Finalizer step.
+        // Spring의 전체 업무 상태는 STITCHED를 유지하고, 실제 final S3 outputs
+        // 존재 여부를 아래 service가 검증한다.
         XrayJobStatusResponse jobStatus = xrayStitchService.requireFinalizedJob(jobId);
 
         Map<String, Object> layout = readFinalLayout(jobId);

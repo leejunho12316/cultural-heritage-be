@@ -19,8 +19,16 @@ class XrayS3KeysTest {
                 XrayS3Keys.finalAssembled(artifactId)
         );
         assertEquals(
+                "xray/" + artifactId + "/outputs/layout_fragment_masks.zip",
+                XrayS3Keys.layoutFragmentMasks(artifactId)
+        );
+        assertEquals(
                 "xray/" + artifactId + "/outputs/provenance.final.json",
                 XrayS3Keys.provenance(artifactId)
+        );
+        assertEquals(
+                "xray/" + artifactId + "/outputs/defect_result.png",
+                XrayS3Keys.defectResult(artifactId)
         );
     }
 }

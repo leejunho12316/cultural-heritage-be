@@ -37,8 +37,13 @@ public final class XrayS3Keys {
         return root(artifactId) + "/outputs/report.json";
     }
 
+    public static String layoutFragmentMasks(String artifactId) {
+        return root(artifactId) + "/outputs/layout_fragment_masks.zip";
+    }
+
+    /** Transitional alias for older code/tests. */
     public static String finalizationBundle(String artifactId) {
-        return root(artifactId) + "/outputs/finalization_bundle.zip";
+        return layoutFragmentMasks(artifactId);
     }
 
     public static String finalLayout(String artifactId) {
@@ -67,5 +72,9 @@ public final class XrayS3Keys {
 
     public static String provenance(String artifactId) {
         return root(artifactId) + "/outputs/provenance.final.json";
+    }
+
+    public static String defectResult(String artifactId) {
+        return root(artifactId) + "/outputs/defect_result.png";
     }
 }

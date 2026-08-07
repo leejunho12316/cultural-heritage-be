@@ -22,7 +22,7 @@ public record XrayAiStitchRequest(
             String assembled,
             String layout,
             String report,
-            String finalizationBundle
+            String layoutFragmentMasks
     ) {
     }
 }

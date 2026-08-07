@@ -23,10 +23,16 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class XrayS3Service {
+
+    public record PresignedPut(String url, Map<String, String> requiredHeaders) {
+    }
 
     private final S3Client s3Client;
     private final S3Presigner presigner;
@@ -52,11 +58,19 @@ public class XrayS3Service {
     }
 
     public String presignInputPut(String key, String contentType) {
-        return presignPut(key, contentType, inputPutDuration);
+        return presignPut(key, contentType, Map.of(), inputPutDuration).url();
+    }
+
+    public PresignedPut presignInputPut(
+            String key,
+            String contentType,
+            Map<String, String> metadata
+    ) {
+        return presignPut(key, contentType, metadata, inputPutDuration);
     }
 
     public String presignOutputPut(String key, String contentType) {
-        return presignPut(key, contentType, outputPutDuration);
+        return presignPut(key, contentType, Map.of(), outputPutDuration).url();
     }
 
     public String presignGet(String key) {
@@ -75,10 +89,20 @@ public class XrayS3Service {
     }
 
     public void putBytes(String key, byte[] bytes, String contentType) {
+        putBytes(key, bytes, contentType, Map.of());
+    }
+
+    public void putBytes(
+            String key,
+            byte[] bytes,
+            String contentType,
+            Map<String, String> metadata
+    ) {
         requireBucket();
         PutObjectRequest.Builder builder = PutObjectRequest.builder()
                 .bucket(bucket)
-                .key(key);
+                .key(key)
+                .metadata(normalizeMetadata(metadata));
         if (contentType != null && !contentType.isBlank()) {
             builder.contentType(contentType);
         }
@@ -144,11 +168,18 @@ public class XrayS3Service {
         return bucket;
     }
 
-    private String presignPut(String key, String contentType, Duration duration) {
+    private PresignedPut presignPut(
+            String key,
+            String contentType,
+            Map<String, String> metadata,
+            Duration duration
+    ) {
         requireBucket();
+        Map<String, String> normalizedMetadata = normalizeMetadata(metadata);
         PutObjectRequest.Builder objectBuilder = PutObjectRequest.builder()
                 .bucket(bucket)
-                .key(key);
+                .key(key)
+                .metadata(normalizedMetadata);
         if (contentType != null && !contentType.isBlank()) {
             objectBuilder.contentType(contentType);
         }
@@ -158,7 +189,28 @@ public class XrayS3Service {
                         .putObjectRequest(objectBuilder.build())
                         .build()
         );
-        return request.url().toString();
+
+        Map<String, String> headers = new LinkedHashMap<>();
+        normalizedMetadata.forEach((name, value) ->
+                headers.put("x-amz-meta-" + name, value)
+        );
+        if (contentType != null && !contentType.isBlank()) {
+            headers.put("Content-Type", contentType);
+        }
+        return new PresignedPut(request.url().toString(), Map.copyOf(headers));
+    }
+
+    private Map<String, String> normalizeMetadata(Map<String, String> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (key != null && !key.isBlank() && value != null) {
+                result.put(key.trim().toLowerCase(Locale.ROOT), value);
+            }
+        });
+        return Map.copyOf(result);
     }
 
     private void requireBucket() {

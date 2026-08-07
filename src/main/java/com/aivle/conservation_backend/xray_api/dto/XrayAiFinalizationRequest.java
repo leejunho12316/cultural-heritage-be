@@ -1,14 +1,23 @@
 package com.aivle.conservation_backend.xray_api.dto;
 
+import java.util.List;
+
 public record XrayAiFinalizationRequest(
         String jobId,
         String artifactId,
-        String bundleDownloadUrl,
+        List<RemoteInput> xrayInputs,
+        String layoutFragmentMasksDownloadUrl,
         String finalLayoutDownloadUrl,
         OutputPutUrls outputPutUrls,
         String callbackUrl,
         String callbackToken
 ) {
+    public record RemoteInput(
+            String fileName,
+            String downloadUrl
+    ) {
+    }
+
     public record OutputPutUrls(
             String assembledFinal,
             String sourceOwner,
