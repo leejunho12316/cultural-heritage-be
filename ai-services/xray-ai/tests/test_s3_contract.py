@@ -20,45 +20,73 @@ class S3ContractTest(unittest.TestCase):
         self.base = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/object"
 
     def test_stitch_request_accepts_internal_callback_host(self) -> None:
-        request = StitchJobRequest.model_validate({
-            "jobId": self.job_id,
-            "artifactId": self.artifact_id,
-            "configName": "config.json",
-            "colorInput": {"fileName": "color.png", "downloadUrl": self.base},
-            "xrayInputs": [
-                {"fileName": "piece-1.png", "downloadUrl": self.base + "1"},
-                {"fileName": "piece-2.png", "downloadUrl": self.base + "2"},
-            ],
-            "outputPutUrls": {
-                "assembled": self.base + "a",
-                "layout": self.base + "l",
-                "report": self.base + "r",
-                "finalizationBundle": self.base + "b",
-            },
-            "callbackUrl": "http://conservation-backend:8080/api/xray/stitch/callback",
-            "callbackToken": "token",
-        })
+        request = StitchJobRequest.model_validate(
+            {
+                "jobId": self.job_id,
+                "artifactId": self.artifact_id,
+                "configName": "config.json",
+                "colorInput": {"fileName": "color.png", "downloadUrl": self.base},
+                "xrayInputs": [
+                    {"fileName": "piece-1.png", "downloadUrl": self.base + "1"},
+                    {"fileName": "piece-2.png", "downloadUrl": self.base + "2"},
+                ],
+                "outputPutUrls": {
+                    "assembled": self.base + "a",
+                    "layout": self.base + "l",
+                    "report": self.base + "r",
+                    "layoutFragmentMasks": self.base + "b",
+                },
+                "callbackUrl": "http://conservation-backend:8080/api/xray/stitch/callback",
+                "callbackToken": "token",
+            }
+        )
         self.assertEqual(self.job_id, request.jobId)
         self.assertEqual(2, len(request.xrayInputs))
 
-    def test_finalization_request_contract(self) -> None:
-        request = FinalizationJobRequest.model_validate({
-            "jobId": self.job_id,
-            "artifactId": self.artifact_id,
-            "bundleDownloadUrl": self.base + "bundle",
-            "finalLayoutDownloadUrl": self.base + "layout",
-            "outputPutUrls": {
-                "assembledFinal": self.base + "final",
-                "sourceOwner": self.base + "source",
-                "fragmentOwner": self.base + "fragment",
-                "seamZone": self.base + "seam",
-                "overlapMask": self.base + "overlap",
-                "provenance": self.base + "provenance",
-            },
-            "callbackUrl": "http://conservation-backend:8080/api/xray/stitch/callback",
-        })
-        self.assertEqual(self.artifact_id, request.artifactId)
+    def test_stitch_request_allows_optional_report_output(self) -> None:
+        request = StitchJobRequest.model_validate(
+            {
+                "jobId": self.job_id,
+                "artifactId": self.artifact_id,
+                "configName": "config.json",
+                "colorInput": {"fileName": "color.png", "downloadUrl": self.base},
+                "xrayInputs": [
+                    {"fileName": "piece-1.png", "downloadUrl": self.base + "1"},
+                    {"fileName": "piece-2.png", "downloadUrl": self.base + "2"},
+                ],
+                "outputPutUrls": {
+                    "assembled": self.base + "a",
+                    "layout": self.base + "l",
+                    "layoutFragmentMasks": self.base + "b",
+                },
+                "callbackUrl": "http://conservation-backend:8080/api/xray/stitch/callback",
+            }
+        )
+        self.assertIsNone(request.outputPutUrls.report)
 
+    def test_finalization_request_contract(self) -> None:
+        request = FinalizationJobRequest.model_validate(
+            {
+                "jobId": self.job_id,
+                "artifactId": self.artifact_id,
+                "xrayInputs": [
+                    {"fileName": "piece-1.png", "downloadUrl": self.base + "1"},
+                    {"fileName": "piece-2.png", "downloadUrl": self.base + "2"},
+                ],
+                "layoutFragmentMasksDownloadUrl": self.base + "masks",
+                "finalLayoutDownloadUrl": self.base + "layout",
+                "outputPutUrls": {
+                    "assembledFinal": self.base + "final",
+                    "sourceOwner": self.base + "source",
+                    "fragmentOwner": self.base + "fragment",
+                    "seamZone": self.base + "seam",
+                    "overlapMask": self.base + "overlap",
+                    "provenance": self.base + "provenance",
+                },
+                "callbackUrl": "http://conservation-backend:8080/api/xray/stitch/callback",
+            }
+        )
+        self.assertEqual(self.artifact_id, request.artifactId)
 
     def test_streaming_upload_and_download(self) -> None:
         payload = b"x" * (2 * 1024 * 1024 + 17)

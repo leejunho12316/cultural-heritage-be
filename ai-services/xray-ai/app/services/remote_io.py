@@ -75,7 +75,7 @@ def upload(url: str, source: Path, content_type: str) -> None:
 
     try:
         size = source.stat().st_size
-        connection.putrequest("PUT", path, skip_accept_encoding=True)
+        connection.putrequest("PUT", path, skip_host=True, skip_accept_encoding=True)
         connection.putheader("Host", parsed.netloc)
         connection.putheader("Content-Type", content_type)
         connection.putheader("Content-Length", str(size))
@@ -87,10 +87,12 @@ def upload(url: str, source: Path, content_type: str) -> None:
                     break
                 connection.send(chunk)
         response = connection.getresponse()
-        response.read()
+        response_body = response.read().decode("utf-8", errors="replace")
         if response.status < 200 or response.status >= 300:
             raise RemoteIoError(
-                f"Upload failed: status={response.status}, file={source.name}"
+                "Upload failed: "
+                f"status={response.status}, file={source.name}, "
+                f"body={response_body[:1000]}"
             )
     except RemoteIoError:
         raise

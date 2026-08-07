@@ -11,8 +11,8 @@ class RemoteInput(BaseModel):
 class StitchOutputPutUrls(BaseModel):
     assembled: HttpUrl
     layout: HttpUrl
-    report: HttpUrl
-    finalizationBundle: HttpUrl
+    report: HttpUrl | None = None
+    layoutFragmentMasks: HttpUrl
 
 
 class StitchJobRequest(BaseModel):
@@ -45,11 +45,19 @@ class FinalizationOutputPutUrls(BaseModel):
 class FinalizationJobRequest(BaseModel):
     jobId: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
     artifactId: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
-    bundleDownloadUrl: HttpUrl
+    xrayInputs: list[RemoteInput] = Field(min_length=2, max_length=300)
+    layoutFragmentMasksDownloadUrl: HttpUrl
     finalLayoutDownloadUrl: HttpUrl
     outputPutUrls: FinalizationOutputPutUrls
     callbackUrl: HttpUrl
     callbackToken: str | None = None
+
+    @model_validator(mode="after")
+    def validate_unique_names(self):
+        names = [item.fileName for item in self.xrayInputs]
+        if len(names) != len(set(names)):
+            raise ValueError("xrayInputs fileName values must be unique")
+        return self
 
 
 class LocalStitchJobRequest(BaseModel):

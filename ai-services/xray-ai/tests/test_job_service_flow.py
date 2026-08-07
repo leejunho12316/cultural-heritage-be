@@ -77,18 +77,20 @@ class JobServiceFlowTest(unittest.TestCase):
         class FakeStitcher:
             def run(self, request):
                 artifact_dir = (
-                    Path(request.outputDirectory)
-                    / "assembly"
-                    / "artifacts"
-                    / request.artifactId
+                    Path(request.outputDirectory) / "assembly" / "artifacts" / request.artifactId
                 )
                 artifact_dir.mkdir(parents=True, exist_ok=True)
                 assembled = artifact_dir / "assembled_xray.png"
                 layout = artifact_dir / "layout.json"
                 report = artifact_dir / "report.json"
                 assembled.write_bytes(b"assembled")
-                layout.write_text(json.dumps({"canvas": {"width": 10, "height": 10}, "fragments": []}))
+                layout.write_text(
+                    json.dumps({"canvas": {"width": 10, "height": 10}, "fragments": []})
+                )
                 report.write_text(json.dumps({"status": "completed"}))
+                masks = artifact_dir / "debug" / "layout_fragment_masks"
+                masks.mkdir(parents=True, exist_ok=True)
+                (masks / "fragment_0000.png").write_bytes(b"mask")
                 return StitchExecutionResult(
                     return_code=0,
                     output_dir=str(artifact_dir.parents[2]),
@@ -105,12 +107,7 @@ class JobServiceFlowTest(unittest.TestCase):
 
             def finalize(self, current_job_id: str):
                 artifact_dir = (
-                    self.root
-                    / current_job_id
-                    / "outputs"
-                    / "assembly"
-                    / "artifacts"
-                    / artifact_id
+                    self.root / current_job_id / "outputs" / "assembly" / "artifacts" / artifact_id
                 )
                 outputs = {
                     "assembled_xray.final.png": b"final",
@@ -131,52 +128,62 @@ class JobServiceFlowTest(unittest.TestCase):
                 finalizer=FakeFinalizer(jobs_root),
                 jobs_root=jobs_root,
             )
-            stitch_request = StitchJobRequest.model_validate({
-                "jobId": job_id,
-                "artifactId": artifact_id,
-                "configName": "config.json",
-                "colorInput": {"fileName": "color.png", "downloadUrl": self.base + "/color"},
-                "xrayInputs": [
-                    {"fileName": "piece-1.png", "downloadUrl": self.base + "/xray/1"},
-                    {"fileName": "piece-2.png", "downloadUrl": self.base + "/xray/2"},
-                ],
-                "outputPutUrls": {
-                    "assembled": self.base + "/put/assembled",
-                    "layout": self.base + "/put/layout",
-                    "report": self.base + "/put/report",
-                    "finalizationBundle": self.base + "/put/bundle",
-                },
-                "callbackUrl": self.base + "/callback",
-            })
+            stitch_request = StitchJobRequest.model_validate(
+                {
+                    "jobId": job_id,
+                    "artifactId": artifact_id,
+                    "configName": "config.json",
+                    "colorInput": {"fileName": "color.png", "downloadUrl": self.base + "/color"},
+                    "xrayInputs": [
+                        {"fileName": "piece-1.png", "downloadUrl": self.base + "/xray/1"},
+                        {"fileName": "piece-2.png", "downloadUrl": self.base + "/xray/2"},
+                    ],
+                    "outputPutUrls": {
+                        "assembled": self.base + "/put/assembled",
+                        "layout": self.base + "/put/layout",
+                        "report": self.base + "/put/report",
+                        "layoutFragmentMasks": self.base + "/put/masks",
+                    },
+                    "callbackUrl": self.base + "/callback",
+                }
+            )
             _, should_run = service.accept_stitch_job(stitch_request)
             self.assertTrue(should_run)
             service.run_stitch_job(stitch_request)
             self.assertEqual("COMPLETED", service.get_status(job_id).status)
             self.assertEqual(b"assembled", self.state.puts["/put/assembled"][1])
-            self.assertIn("/put/bundle", self.state.puts)
+            self.assertIn("/put/masks", self.state.puts)
             self.assertEqual("COMPLETED", self.state.callbacks[-1]["status"])
 
-            self.state.get_payloads["/bundle"] = self.state.puts["/put/bundle"][1]
-            self.state.get_payloads["/layout-final"] = json.dumps({
-                "canvas": {"width": 10, "height": 10},
-                "fragments": [],
-                "layoutStage": "FINAL",
-            }).encode()
-            final_request = FinalizationJobRequest.model_validate({
-                "jobId": job_id,
-                "artifactId": artifact_id,
-                "bundleDownloadUrl": self.base + "/bundle",
-                "finalLayoutDownloadUrl": self.base + "/layout-final",
-                "outputPutUrls": {
-                    "assembledFinal": self.base + "/put/final",
-                    "sourceOwner": self.base + "/put/source",
-                    "fragmentOwner": self.base + "/put/fragment",
-                    "seamZone": self.base + "/put/seam",
-                    "overlapMask": self.base + "/put/overlap",
-                    "provenance": self.base + "/put/provenance",
-                },
-                "callbackUrl": self.base + "/callback",
-            })
+            self.state.get_payloads["/masks"] = self.state.puts["/put/masks"][1]
+            self.state.get_payloads["/layout-final"] = json.dumps(
+                {
+                    "canvas": {"width": 10, "height": 10},
+                    "fragments": [],
+                    "layoutStage": "FINAL",
+                }
+            ).encode()
+            final_request = FinalizationJobRequest.model_validate(
+                {
+                    "jobId": job_id,
+                    "artifactId": artifact_id,
+                    "xrayInputs": [
+                        {"fileName": "piece-1.png", "downloadUrl": self.base + "/xray/1"},
+                        {"fileName": "piece-2.png", "downloadUrl": self.base + "/xray/2"},
+                    ],
+                    "layoutFragmentMasksDownloadUrl": self.base + "/masks",
+                    "finalLayoutDownloadUrl": self.base + "/layout-final",
+                    "outputPutUrls": {
+                        "assembledFinal": self.base + "/put/final",
+                        "sourceOwner": self.base + "/put/source",
+                        "fragmentOwner": self.base + "/put/fragment",
+                        "seamZone": self.base + "/put/seam",
+                        "overlapMask": self.base + "/put/overlap",
+                        "provenance": self.base + "/put/provenance",
+                    },
+                    "callbackUrl": self.base + "/callback",
+                }
+            )
             service.accept_finalization_job(final_request)
             service.run_finalization_job(final_request)
             self.assertEqual("FINALIZED", service.get_status(job_id).status)

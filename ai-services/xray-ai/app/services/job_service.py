@@ -106,13 +106,39 @@ class JobService:
             self._write_completed_job_json(job_dir, request, result)
 
             artifact_dir = Path(result.layout_path).resolve().parent
-            bundle_path = job_dir / "finalization_bundle.zip"
-            self._create_finalization_bundle(job_dir, artifact_dir, bundle_path)
+            masks_zip_path = job_dir / "layout_fragment_masks.zip"
+            self._create_fragment_masks_zip(artifact_dir, masks_zip_path)
 
-            upload(str(request.outputPutUrls.assembled), Path(result.assembled_image_path), "image/png")
-            upload(str(request.outputPutUrls.layout), Path(result.layout_path), "application/json")
-            upload(str(request.outputPutUrls.report), Path(result.report_path), "application/json")
-            upload(str(request.outputPutUrls.finalizationBundle), bundle_path, "application/zip")
+            upload(
+                str(request.outputPutUrls.assembled),
+                Path(result.assembled_image_path),
+                "image/png",
+            )
+
+            upload(
+                str(request.outputPutUrls.layout),
+                Path(result.layout_path),
+                "application/json",
+            )
+
+            upload(
+                str(request.outputPutUrls.layoutFragmentMasks),
+                masks_zip_path,
+                "application/zip",
+            )
+
+            # report.json은 선택 산출물.
+            # 자동 결합 핵심 산출물이 성공했다면 report 업로드 실패만으로
+            # 전체 stitching job을 FAILED 처리하지 않는다.
+            if request.outputPutUrls.report is not None and Path(result.report_path).is_file():
+                try:
+                    upload(
+                        str(request.outputPutUrls.report),
+                        Path(result.report_path),
+                        "application/json",
+                    )
+                except RemoteIoError as exc:
+                    print(f"Optional report.json upload failed: {exc}")
 
             self._set_status(
                 request.jobId,
@@ -159,30 +185,62 @@ class JobService:
         )
 
     def run_finalization_job(self, request: FinalizationJobRequest) -> None:
-        staging = self.jobs_root / f"{request.jobId}.finalizing"
-        staging = staging.resolve()
+        staging = (self.jobs_root / f"{request.jobId}.finalizing").resolve()
         if staging.exists():
             shutil.rmtree(staging)
         staging.mkdir(parents=True, exist_ok=True)
-        bundle_path = staging / "bundle.zip"
 
         try:
-            download(str(request.bundleDownloadUrl), bundle_path, config.REMOTE_MAX_BUNDLE_BYTES)
-            extracted = staging / "extracted"
-            safe_extract_zip(
-                bundle_path,
-                extracted,
-                config.REMOTE_MAX_BUNDLE_UNCOMPRESSED_BYTES,
-            )
-
             final_job_dir = (self.jobs_root / request.jobId).resolve()
             if final_job_dir.exists():
                 shutil.rmtree(final_job_dir)
-            # Bundle entries are relative to the job directory.
-            shutil.move(str(extracted), str(final_job_dir))
-            # The move replaces the directory that held status.json. Restore the
-            # process-local status immediately so GET /api/jobs/{jobId} remains
-            # available while final rendering is running.
+
+            xray_dir = final_job_dir / "inputs" / "xray"
+            artifact_dir = final_job_dir / "outputs" / "assembly" / "artifacts" / request.artifactId
+            xray_dir.mkdir(parents=True, exist_ok=True)
+            artifact_dir.mkdir(parents=True, exist_ok=True)
+
+            # 원본 X-RAY는 S3 Presigned GET URL로 다시 구성한다.
+            for item in request.xrayInputs:
+                download(
+                    str(item.downloadUrl),
+                    xray_dir / self._safe_name(item.fileName),
+                    config.REMOTE_MAX_IMAGE_BYTES,
+                )
+
+            # 자동 결합 단계에서 저장한 fragment mask intermediate를 복원한다.
+            masks_zip_path = staging / "layout_fragment_masks.zip"
+            download(
+                str(request.layoutFragmentMasksDownloadUrl),
+                masks_zip_path,
+                config.REMOTE_MAX_BUNDLE_BYTES,
+            )
+            safe_extract_zip(
+                masks_zip_path,
+                artifact_dir,
+                config.REMOTE_MAX_BUNDLE_UNCOMPRESSED_BYTES,
+            )
+
+            # 사용자가 보정한 최종 layout을 artifact directory에 둔다.
+            download(
+                str(request.finalLayoutDownloadUrl),
+                artifact_dir / "layout.final.json",
+                config.REMOTE_MAX_JSON_BYTES,
+            )
+
+            # Finalizer가 기존 process-local 계약을 그대로 사용할 수 있도록
+            # 최소 job.json을 재구성한다.
+            self._write_json(
+                final_job_dir / "job.json",
+                {
+                    "jobId": request.jobId,
+                    "artifactId": request.artifactId,
+                    "status": "COMPLETED",
+                    "message": "X-ray stitching completed.",
+                    "updatedAt": self._now(),
+                },
+            )
+
             self._set_status(
                 request.jobId,
                 request.artifactId,
@@ -191,43 +249,39 @@ class JobService:
                 None,
             )
 
-            artifact_dir = (
-                final_job_dir
-                / "outputs"
-                / "assembly"
-                / "artifacts"
-                / request.artifactId
-            )
-            if not artifact_dir.is_dir():
-                raise FinalizationError(
-                    f"Artifact directory is missing from bundle: {artifact_dir}"
-                )
-            download(
-                str(request.finalLayoutDownloadUrl),
-                artifact_dir / "layout.final.json",
-                config.REMOTE_MAX_JSON_BYTES,
-            )
-
-            # Finalizer deliberately requires COMPLETED in job.json.
-            job_json = final_job_dir / "job.json"
-            job_data = self._read_json(job_json)
-            job_data.update(
-                {
-                    "jobId": request.jobId,
-                    "artifactId": request.artifactId,
-                    "status": "COMPLETED",
-                }
-            )
-            self._write_json(job_json, job_data)
-
             self.finalizer.finalize(request.jobId)
+
             outputs = request.outputPutUrls
-            upload(str(outputs.assembledFinal), artifact_dir / "assembled_xray.final.png", "image/png")
-            upload(str(outputs.sourceOwner), artifact_dir / "source_owner.final.png", "image/png")
-            upload(str(outputs.fragmentOwner), artifact_dir / "fragment_owner.final.png", "image/png")
-            upload(str(outputs.seamZone), artifact_dir / "seam_zone.final.png", "image/png")
-            upload(str(outputs.overlapMask), artifact_dir / "overlap_mask.final.png", "image/png")
-            upload(str(outputs.provenance), artifact_dir / "provenance.final.json", "application/json")
+            upload(
+                str(outputs.assembledFinal),
+                artifact_dir / "assembled_xray.final.png",
+                "image/png",
+            )
+            upload(
+                str(outputs.sourceOwner),
+                artifact_dir / "source_owner.final.png",
+                "image/png",
+            )
+            upload(
+                str(outputs.fragmentOwner),
+                artifact_dir / "fragment_owner.final.png",
+                "image/png",
+            )
+            upload(
+                str(outputs.seamZone),
+                artifact_dir / "seam_zone.final.png",
+                "image/png",
+            )
+            upload(
+                str(outputs.overlapMask),
+                artifact_dir / "overlap_mask.final.png",
+                "image/png",
+            )
+            upload(
+                str(outputs.provenance),
+                artifact_dir / "provenance.final.json",
+                "application/json",
+            )
 
             self._set_status(
                 request.jobId,
@@ -236,7 +290,6 @@ class JobService:
                 "Final X-ray rendering completed.",
                 None,
             )
-            # Keep FINALIZED even when the callback is temporarily unavailable.
             self._send_callback_best_effort(
                 request.callbackUrl,
                 request.callbackToken,
@@ -331,31 +384,48 @@ class JobService:
             self._write_json(job_dir / "status.json", status_data)
         return job_dir
 
-    def _create_finalization_bundle(
+    def _create_fragment_masks_zip(
         self,
-        job_dir: Path,
         artifact_dir: Path,
-        bundle_path: Path,
+        zip_path: Path,
     ) -> None:
-        required = [
-            job_dir / "job.json",
-            job_dir / "inputs" / "xray",
-            artifact_dir / "layout.json",
-            artifact_dir / "report.json",
+        """
+        Finalizer에 필요한 자동 결합 intermediate를 artifact_dir 기준 상대경로로 묶는다.
+
+        원본 X-RAY는 finalization 요청에서 별도 URL로 다시 내려받고,
+        layout.final.json도 별도 URL로 내려받으므로 ZIP에는 포함하지 않는다.
+        """
+        if not artifact_dir.is_dir():
+            raise StitchExecutionError(f"Artifact directory is missing: {artifact_dir}")
+
+        excluded_names = {
+            "assembled_xray.png",
+            "assembled_xray.final.png",
+            "layout.json",
+            "layout.final.json",
+            "report.json",
+            "source_owner.final.png",
+            "fragment_owner.final.png",
+            "seam_zone.final.png",
+            "overlap_mask.final.png",
+            "provenance.final.json",
+        }
+
+        candidates = [
+            path
+            for path in artifact_dir.rglob("*")
+            if path.is_file() and path.name not in excluded_names
         ]
-        missing = [str(path) for path in required if not path.exists()]
-        if missing:
+
+        if not candidates:
             raise StitchExecutionError(
-                "Finalization bundle inputs are missing: " + ", ".join(missing)
+                f"Fragment-mask intermediate files were not found under: {artifact_dir}"
             )
-        with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.write(job_dir / "job.json", "job.json")
-            for path in (job_dir / "inputs" / "xray").rglob("*"):
-                if path.is_file():
-                    archive.write(path, path.relative_to(job_dir).as_posix())
-            for path in artifact_dir.rglob("*"):
-                if path.is_file():
-                    archive.write(path, path.relative_to(job_dir).as_posix())
+
+        zip_path.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in candidates:
+                archive.write(path, path.relative_to(artifact_dir).as_posix())
 
     def _write_job_json(
         self,
