@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import unquote_plus
+
+import boto3
 
 from repository import connection, upsert_s3_file
 from s3_key import parse_s3_key
 
 
-def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Persist S3 ObjectCreated records one transaction at a time.
+s3_client = boto3.client("s3")
 
-    S3 event delivery is at-least-once.  ``s3_key`` is unique in PostgreSQL,
-    so retries update the same row.  A separate transaction per record avoids
-    one malformed record aborting every successful record in a multi-record
-    invocation.
-    """
+
+def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """S3 ObjectCreated 이벤트를 S3_FILE에 idempotent하게 기록한다."""
 
     processed = 0
     ignored = 0
@@ -30,17 +30,31 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 ignored += 1
                 continue
 
+            head = s3_client.head_object(Bucket=bucket, Key=parsed.s3_key)
+            metadata = {str(k).lower(): str(v) for k, v in (head.get("Metadata") or {}).items()}
+            usage_name = metadata.get("usage") or parsed.usage_name
+            source_order = _optional_int(metadata.get("source_order"))
+            if source_order is None:
+                source_order = parsed.source_order
+            encoded_original_name = metadata.get("original_name")
+            original_name = (
+                unquote_plus(encoded_original_name)
+                if encoded_original_name
+                else parsed.original_name
+            )
+
             with connection() as conn:
                 upsert_s3_file(
                     conn,
                     artifact_id=parsed.artifact_id,
                     module_type=parsed.module_type,
-                    usage_name=parsed.usage_name,
-                    source_order=parsed.source_order,
+                    usage_name=usage_name,
+                    source_order=source_order,
+                    original_name=original_name,
                     s3_key=parsed.s3_key,
                     bucket_name=bucket,
-                    size_bytes=_optional_int(obj.get("size")),
-                    etag=_optional_string(obj.get("eTag") or obj.get("etag")),
+                    size_bytes=_optional_int(head.get("ContentLength") or obj.get("size")),
+                    etag=_optional_string(head.get("ETag") or obj.get("eTag") or obj.get("etag")),
                 )
             processed += 1
         except Exception as exc:
@@ -49,13 +63,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     result = {"processed": processed, "ignored": ignored, "errors": errors}
     print(json.dumps(result, ensure_ascii=False))
     if errors:
-        # Force retry only after every valid record had a chance to commit.
         raise RuntimeError("; ".join(errors))
     return result
 
 
 def _optional_int(value: Any) -> int | None:
-    return None if value is None else int(value)
+    if value is None or str(value).strip() == "":
+        return None
+    return int(value)
 
 
 def _optional_string(value: Any) -> str | None:

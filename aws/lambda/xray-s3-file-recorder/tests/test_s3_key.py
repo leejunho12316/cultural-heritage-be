@@ -15,23 +15,25 @@ class S3KeyTest(unittest.TestCase):
     def test_inputs(self):
         xray = parse_s3_key(f"xray/{self.artifact}/inputs/xray/piece_12.png")
         color = parse_s3_key(f"xray/{self.artifact}/inputs/color/front.jpg")
-        self.assertEqual("XRAY_ORIGINAL", xray.usage_name)
+        self.assertEqual("xray_original", xray.usage_name)
         self.assertEqual(12, xray.source_order)
-        self.assertEqual("COLOR_ORIGINAL", color.usage_name)
+        self.assertEqual("piece_12.png", xray.original_name)
+        self.assertEqual("color_reference", color.usage_name)
 
     def test_all_outputs(self):
         expected = {
-            "assembled_xray.png": "ASSEMBLED",
-            "layout.json": "LAYOUT",
-            "report.json": "STITCH_REPORT",
-            "finalization_bundle.zip": "FINALIZATION_BUNDLE",
-            "layout.final.json": "FINAL_LAYOUT",
-            "assembled_xray.final.png": "FINAL_ASSEMBLED",
-            "source_owner.final.png": "SOURCE_OWNER",
-            "fragment_owner.final.png": "FRAGMENT_OWNER",
-            "seam_zone.final.png": "SEAM_ZONE",
-            "overlap_mask.final.png": "OVERLAP_MASK",
-            "provenance.final.json": "PROVENANCE",
+            "assembled_xray.png": "assembled_auto",
+            "layout.json": "layout_auto",
+            "report.json": "report_json",
+            "layout_fragment_masks.zip": "layout_fragment_masks",
+            "layout.final.json": "layout_final",
+            "assembled_xray.final.png": "assembled_final",
+            "source_owner.final.png": "source_owner",
+            "fragment_owner.final.png": "fragment_owner",
+            "seam_zone.final.png": "seam_zone",
+            "overlap_mask.final.png": "overlap_mask",
+            "provenance.final.json": "provenance",
+            "defect_result.png": "defect_result",
         }
         for file_name, usage in expected.items():
             with self.subTest(file_name=file_name):
@@ -39,15 +41,10 @@ class S3KeyTest(unittest.TestCase):
                 self.assertIsNotNone(parsed)
                 self.assertEqual(usage, parsed.usage_name)
 
-    def test_ignores_unknown(self):
+    def test_ignores_unknown_and_folder_marker(self):
         self.assertIsNone(parse_s3_key("visual/not-xray/file.png"))
         self.assertIsNone(parse_s3_key("xray/not-a-uuid/outputs/layout.json"))
-
-    def test_ignores_folder_marker(self):
-        artifact = "22222222-2222-2222-2222-222222222222"
-
-        self.assertIsNone(parse_s3_key(f"xray/{artifact}/inputs/xray/"))
-        self.assertIsNone(parse_s3_key(f"xray/{artifact}/inputs/color/"))
+        self.assertIsNone(parse_s3_key(f"xray/{self.artifact}/inputs/xray/"))
 
 
 if __name__ == "__main__":
