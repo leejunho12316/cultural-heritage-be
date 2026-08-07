@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from app import config
-from app.schemas.stitch_request import StitchJobRequest
+from app.schemas.stitch_request import LocalStitchJobRequest
 
 
 class StitchExecutionError(RuntimeError):
@@ -28,7 +29,7 @@ class StitchExecutionResult:
 
 
 class Stitcher:
-    """공유 작업 폴더의 컬러 기준 이미지와 X-ray 조각을 결합한다."""
+    """Process-local workspace의 컬러 기준 이미지와 X-ray 조각을 결합한다."""
 
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 
@@ -42,7 +43,7 @@ class Stitcher:
             single_script or config.STITCH_SINGLE_SCRIPT
         ).resolve()
 
-    def run(self, request: StitchJobRequest) -> StitchExecutionResult:
+    def run(self, request: LocalStitchJobRequest) -> StitchExecutionResult:
         color_directory = Path(request.colorDirectory).resolve()
         xray_directory = Path(request.xrayDirectory).resolve()
         output_root = Path(request.outputDirectory).resolve()
@@ -171,9 +172,15 @@ class Stitcher:
     @classmethod
     def _list_images(cls, directory: Path) -> list[Path]:
         return sorted(
-            path.resolve()
-            for path in directory.iterdir()
-            if path.is_file() and path.suffix.lower() in cls.IMAGE_EXTENSIONS
+            (
+                path.resolve()
+                for path in directory.iterdir()
+                if path.is_file() and path.suffix.lower() in cls.IMAGE_EXTENSIONS
+            ),
+            key=lambda path: [
+                (0, int(part)) if part.isdigit() else (1, part.casefold())
+                for part in re.findall(r"\d+|\D+", path.name)
+            ],
         )
 
     @staticmethod

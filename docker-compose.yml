@@ -38,18 +38,20 @@ services:
       XRAY_DEFAULT_CONF: "0.08"
       XRAY_NMS_IOU: "0.5"
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      XRAY_STITCH_JOBS_ROOT: /shared/jobs
+      XRAY_STITCH_JOBS_ROOT: /tmp/xray_jobs
+      XRAY_STITCH_CACHE_DIR: /tmp/xray_cache
       XRAY_STITCH_ENGINE_DIR: /code
       XRAY_STITCH_SINGLE_SCRIPT: /code/scripts/assemble_xray.py
       XRAY_STITCH_BATCH_SCRIPT: /code/scripts/batch_assemble.py
       XRAY_STITCH_CONFIG_DIR: /code/configs
       XRAY_STITCH_MAPPING_DIR: /code/mappings
       XRAY_STITCH_MAPPING_PATH: /code/mappings/mapping.color_front.json
-      XRAY_STITCH_CACHE_DIR: /shared/cache
+      XRAY_CORS_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:3000
     ports:
       - "8001:8000"
-    volumes:
-      - ./shared:/shared
+    tmpfs:
+      - /tmp/xray_jobs
+      - /tmp/xray_cache
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -65,8 +67,8 @@ services:
       - "8003:8000"
     volumes:
       # ai_hub/pottery_multitask_model_v2(시대 CNN 모델)는 용량 때문에 git에
-      # 안 올라가 있음 - 이 폴더 없으면 컨테이너는 정상 기동되지만 시대 판정만
-      # 조용히 비활성화됨. 팀원 로컬에 이 폴더를 먼저 받아둬야 함.
+      # 포함되지 않을 수 있다. 폴더가 없으면 서비스는 기동되지만 시대 판정은
+      # 비활성화되므로 팀 배포 전에 모델 파일을 별도로 확인한다.
       - ./ai-services/pottery-inspection-ai/ai_hub:/srv/ai_hub
       - pottery_hf_cache:/root/.cache/huggingface
 
@@ -75,20 +77,19 @@ services:
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
       POTTERY_INSPECTION_AI_BASE_URL: http://pottery-inspection-ai:8000
-      AWS_REGION: ${AWS_REGION}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
       XRAY_AI_BASE_URL: http://xray-ai:8000
       XRAY_AI_TIMEOUT_SECONDS: "300"
       XRAY_AI_CONFIG_NAME: config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json
-      XRAY_STORAGE_LOCAL_ROOT: /shared/jobs
-      XRAY_STORAGE_CONTAINER_ROOT: /shared/jobs
+      XRAY_STITCH_CALLBACK_URL: http://conservation-backend:8080/api/xray/stitch/callback
+      XRAY_STITCH_CALLBACK_TOKEN: ${XRAY_STITCH_CALLBACK_TOKEN:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/conservation
       SPRING_DATASOURCE_USERNAME: conservation
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:3000
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,8 +101,6 @@ services:
         condition: service_started
     ports:
       - "8080:8080"
-    volumes:
-      - ./shared:/shared
 
 volumes:
   pgdata:

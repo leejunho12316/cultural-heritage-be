@@ -251,15 +251,9 @@ class Finalizer:
         return fallback.resolve()
 
     def _resolve_runtime_path(self, value: str) -> Path:
-        path = Path(value)
-        if path.exists():
-            return path.resolve()
-        try:
-            relative = path.relative_to("/shared")
-        except ValueError:
-            return path.resolve()
-        shared_root = self.jobs_root.parent
-        return (shared_root / relative).resolve()
+        # Legacy absolute paths are not authoritative in the S3-native flow.
+        # A bundled job falls back to its process-local artifact directory.
+        return Path(value).resolve()
 
     def _fragment_masks(
         self,

@@ -10,9 +10,8 @@ import tools.jackson.databind.ObjectMapper;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -51,12 +50,9 @@ public class XrayDefectMappingService {
     ) {
         validateRequest(request);
 
-        XrayJobStatusResponse jobStatus = xrayStitchService.getLocalJobStatus(jobId);
-        if (!"COMPLETED".equalsIgnoreCase(jobStatus.status())) {
-            throw new IllegalStateException(
-                    "X-ray stitching result is not ready: " + jobStatus.status()
-            );
-        }
+        // Provenance maps are created only after the remote finalization step.
+        // FINALIZED is therefore the only valid mapping source state.
+        XrayJobStatusResponse jobStatus = xrayStitchService.requireFinalizedJob(jobId);
 
         Map<String, Object> layout = readFinalLayout(jobId);
         validateFinalLayout(layout);
@@ -401,19 +397,18 @@ public class XrayDefectMappingService {
             String jobId,
             XrayDefectMappingResponse.Canvas canvas
     ) {
-        Path outputDirectory = xrayStitchService.getFinalArtifactOutputDirectory(jobId);
         PixelMap sourceOwner = readPixelMap(
-                outputDirectory.resolve("source_owner.final.png"),
+                xrayStitchService.getOutputBytes(jobId, "source-owner"),
                 canvas,
                 "source owner"
         );
         PixelMap seamZone = readPixelMap(
-                outputDirectory.resolve("seam_zone.final.png"),
+                xrayStitchService.getOutputBytes(jobId, "seam-zone"),
                 canvas,
                 "seam zone"
         );
         PixelMap overlapMask = readPixelMap(
-                outputDirectory.resolve("overlap_mask.final.png"),
+                xrayStitchService.getOutputBytes(jobId, "overlap-mask"),
                 canvas,
                 "overlap mask"
         );
@@ -421,17 +416,14 @@ public class XrayDefectMappingService {
     }
 
     private PixelMap readPixelMap(
-            Path path,
+            byte[] bytes,
             XrayDefectMappingResponse.Canvas canvas,
             String label
     ) {
-        if (!Files.isRegularFile(path)) {
-            throw new IllegalStateException("Final " + label + " is missing: " + path);
-        }
         try {
-            BufferedImage image = ImageIO.read(path.toFile());
+            BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
             if (image == null) {
-                throw new IllegalStateException("Failed to decode " + label + ": " + path);
+                throw new IllegalStateException("Failed to decode final " + label + " from S3.");
             }
             if (image.getWidth() != canvas.width() || image.getHeight() != canvas.height()) {
                 throw new IllegalStateException(
@@ -442,7 +434,7 @@ public class XrayDefectMappingService {
             }
             return new PixelMap(image.getRaster(), image.getWidth(), image.getHeight());
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read final " + label + ": " + path, e);
+            throw new IllegalStateException("Failed to read final " + label + " from S3.", e);
         }
     }
 

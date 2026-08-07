@@ -2,6 +2,7 @@ package com.aivle.conservation_backend.xray_api.client;
 
 import com.aivle.conservation_backend.xray_api.dto.AnalysisTarget;
 import com.aivle.conservation_backend.xray_api.dto.XrayDetectionResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayUrlDetectionRequest;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -184,6 +185,29 @@ public class XrayAnomalyClient {
                 .body(XrayDetectionResponse.class);
     }
 
+    /** S3 presigned GET URL의 이미지를 FastAPI가 직접 내려받아 분석한다. */
+    public XrayDetectionResponse detectUrl(
+            String fileName,
+            String downloadUrl,
+            AnalysisTarget target,
+            Double confidence,
+            Integer sourceIndex
+    ) {
+        XrayUrlDetectionRequest.Single body = new XrayUrlDetectionRequest.Single(
+                fileName,
+                downloadUrl,
+                target.getValue(),
+                confidence,
+                sourceIndex
+        );
+        return restClient.post()
+                .uri("/detect-url")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(XrayDetectionResponse.class);
+    }
+
     // ------------------------------------------------------------
     // 여러 이미지 일괄 탐지
     // ------------------------------------------------------------
@@ -269,6 +293,41 @@ public class XrayAnomalyClient {
         return restClient.post()
                 .uri("/detect-batch")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(body)
+                .retrieve()
+                .body(XrayDetectionResponse.class);
+    }
+
+    /** 여러 S3 presigned GET URL을 sourceIndex 순서와 함께 분석한다. */
+    public XrayDetectionResponse detectBatchUrls(
+            List<String> fileNames,
+            List<String> downloadUrls,
+            List<Integer> sourceIndexes,
+            AnalysisTarget target,
+            Double confidence
+    ) {
+        if (fileNames.size() != downloadUrls.size()
+                || fileNames.size() != sourceIndexes.size()) {
+            throw new IllegalArgumentException("URL detection input size mismatch.");
+        }
+        List<XrayUrlDetectionRequest.Single> files = java.util.stream.IntStream
+                .range(0, fileNames.size())
+                .mapToObj(index -> new XrayUrlDetectionRequest.Single(
+                        fileNames.get(index),
+                        downloadUrls.get(index),
+                        target.getValue(),
+                        confidence,
+                        sourceIndexes.get(index)
+                ))
+                .toList();
+        XrayUrlDetectionRequest.Batch body = new XrayUrlDetectionRequest.Batch(
+                files,
+                target.getValue(),
+                confidence
+        );
+        return restClient.post()
+                .uri("/detect-batch-urls")
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
                 .body(XrayDetectionResponse.class);
