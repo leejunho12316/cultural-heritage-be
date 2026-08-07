@@ -16,6 +16,14 @@ def test_vca_image_when_built_uses_bundled_engine() -> None:
     assert engine_pyproject.is_file()
     assert inventory.is_file()
     assert "COPY engine/ /vca_v2/" in dockerfile
+    assert "ENV ENGINE_ROOT=/vca_v2" in dockerfile
+    assert "UV_PROJECT_ENVIRONMENT=/opt/vca-uv-env" in dockerfile
+    assert "UV_CACHE_DIR=/opt/vca-uv-cache" in dockerfile
+    assert "UV_FROZEN=true" in dockerfile
+    assert (
+        'RUN uv sync --project "$ENGINE_ROOT" --group vision --no-install-project'
+        in dockerfile
+    )
 
 
 def test_compose_when_started_does_not_require_sibling_vca_checkout() -> None:
@@ -30,6 +38,11 @@ def test_compose_when_started_does_not_require_sibling_vca_checkout() -> None:
     assert "../vca_v2" not in compose
     assert "../vca_v2" not in override
     assert "VCA_ENGINE_ROOT: /vca_v2" in compose
+    assert "UV_PROJECT_ENVIRONMENT: /opt/vca-uv-env" in compose
+    assert "vca_uv_env:/opt/vca-uv-env" not in compose
+    assert "vca_uv_env:" not in compose
+    assert "vca_uv_cache:/opt/vca-uv-cache" in compose
+    assert "vca_model_cache:/opt/vca-models" in compose
 
 
 def test_windows_launcher_when_used_starts_frontend_with_powershell_syntax() -> None:
@@ -42,6 +55,11 @@ def test_windows_launcher_when_used_starts_frontend_with_powershell_syntax() -> 
     # Then: it uses PowerShell Set-Location, not cmd.exe-only cd /d
     assert "Set-Location -LiteralPath" in script
     assert "cd /d" not in script
+    assert "VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES=true" in script
+    assert "docker compose up --build -d" in script
+    assert 'uv run --project /vca_v2 python -c "import torch; import torchvision; print(torch.__version__); print(torch.cuda.is_available())"' in script
+    assert "vca_model_cache" not in script
+    assert "docker volume rm" not in script
 
 
 def test_compose_when_postgres_is_published_binds_to_localhost_only() -> None:

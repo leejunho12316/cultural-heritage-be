@@ -107,7 +107,6 @@ services:
       - ./shared/vca/engine-output:/vca_v2/output
       - ./shared/vca/input-store:/vca_v2/output/input
       - ${VCA_HOST_DOCUMENT_CORPUS:-./shared/vca/document-corpus}:/opt/vca-data/document:ro
-      - vca_uv_env:/opt/vca-uv-env
       - vca_uv_cache:/opt/vca-uv-cache
       - vca_model_cache:/opt/vca-models
     healthcheck:
@@ -178,7 +177,6 @@ services:
 volumes:
   pgdata:
   minio_data:
-  vca_uv_env:
   vca_uv_cache:
   vca_model_cache:
   pottery_hf_cache:

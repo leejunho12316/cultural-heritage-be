@@ -1,4 +1,6 @@
 $ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+$ProgressPreference = "SilentlyContinue"
 
 $Root = Join-Path $HOME "dev\vca-real"
 $BeRepo = "https://github.com/sukim920406-create/cultural-heritage-be-private.git"
@@ -14,20 +16,38 @@ if ([string]::IsNullOrWhiteSpace($OpenAiKey)) {
   $OpenAiKey = "missing-openai-key"
 }
 
-function Require-Command($Name) {
+function Require-Command {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Name
+  )
+
   if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
     throw "Missing required command: $Name"
   }
 }
 
-function Clone-Or-Pull($Repo, $Dir) {
-  if (Test-Path $Dir) {
+function Clone-Or-Pull {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Repo,
+    [Parameter(Mandatory = $true)]
+    [string]$Dir
+  )
+
+  $GitDir = Join-Path $Dir ".git"
+  if (Test-Path $GitDir) {
     Write-Host "Updating $Dir"
-    git -C $Dir pull
-  } else {
-    Write-Host "Cloning $Repo"
-    git clone $Repo $Dir
+    git -C $Dir pull --ff-only
+    return
   }
+
+  if (Test-Path $Dir) {
+    throw "Existing path is not a git repository: $Dir"
+  }
+
+  Write-Host "Cloning $Repo"
+  git clone $Repo $Dir
 }
 
 Require-Command git
@@ -56,6 +76,8 @@ VCA_DEVICE=auto
 VCA_MAX_IMAGES=1
 VCA_BOOTSTRAP_MODELS=true
 VCA_SKIP_VISUAL_CUES=false
+VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES=true
+VCA_MODEL_CACHE_ROOT=/opt/vca-models/models
 VCA_S3_OBJECT_PREFIX=vca/images
 
 AWS_REGION=ap-northeast-2
@@ -92,18 +114,26 @@ VITE_XRAY_SPRING_INSPECTION_API_BASE=http://localhost:8080/api/xray
 
 Write-Host "Installing frontend dependencies"
 Push-Location $FeDir
-npm install
-Pop-Location
+try {
+  npm install
+}
+finally {
+  Pop-Location
+}
 
 Write-Host "Starting backend stack"
 Push-Location $BeDir
-docker compose up --build -d
-docker compose ps
-Pop-Location
+try {
+  docker compose up --build -d
+  docker compose exec -T vca-ai uv run --project /vca_v2 python -c "import torch; import torchvision; print(torch.__version__); print(torch.cuda.is_available())"
+}
+finally {
+  Pop-Location
+}
 
 Write-Host "Starting frontend"
 $FrontendCmd = "Set-Location -LiteralPath `"$FeDir`"; npm run dev"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $FrontendCmd
+Start-Process powershell -ArgumentList @("-NoExit", "-Command", $FrontendCmd)
 
 Write-Host "Frontend: http://localhost:5174"
 Write-Host "Backend:  http://localhost:8080"
