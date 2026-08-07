@@ -183,6 +183,19 @@ def run_assembly(
     route = resolve_route(reference_mask, fragments, config, route_request)
     if route.algorithm_route == "fragment_array":
         fragments = split_multi_object_fragments(fragments, config)
+
+    # Konva 최종 확정 후 동일한 조각 마스크로 다시 렌더링할 수 있도록
+    # 실제 layout에 들어가는 최종 fragment(분할 subfragment 포함)의 마스크를
+    # fragment index 기준으로 보존한다. 기존 fragment_masks는 원본 segmentation
+    # audit trail로 그대로 둔다.
+    layout_masks_debug_dir = debug_root / "layout_fragment_masks"
+    layout_masks_debug_dir.mkdir(exist_ok=True)
+    for fragment in fragments:
+        _write_image(
+            layout_masks_debug_dir / f"fragment_{int(fragment.index):04d}.png",
+            fragment.mask,
+        )
+
     if route.algorithm_route == "fragment_array":
         result = stitch_fragment_array(
             fragments, reference_image, reference_mask, config, route

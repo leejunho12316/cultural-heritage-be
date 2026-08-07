@@ -41,6 +41,7 @@ out/
 
 ### cloud-deploy ###
 /.env
+/.env.k8s
 
 ### conservation-guide-ai ###
 ai-services/conservation-guide-ai/.env
