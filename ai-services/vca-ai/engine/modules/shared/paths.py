@@ -72,6 +72,15 @@ def ensure_no_symlink_leaf(path: Path, reason: str) -> Path:
     return path
 
 
+def ensure_no_symlink_path_components(path: Path, reason: str) -> Path:
+    """Reject a path whose existing components include a symlink."""
+    expanded_path = path.expanduser()
+    for component in (expanded_path, *expanded_path.parents):
+        if component.is_symlink():
+            raise PathSafetyError(str(path), reason)
+    return path
+
+
 def ensure_contained_write_path(root: Path, path: Path, reason: str) -> Path:
     """Reject a write path when its leaf or parent chain is unsafe."""
     expanded_root = root.expanduser()

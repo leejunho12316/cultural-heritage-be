@@ -114,6 +114,7 @@ from modules.shared.paths import (
     ensure_contained_write_path,
     ensure_final_report_write_paths,
     ensure_no_symlink_leaf,
+    ensure_no_symlink_path_components,
     ensure_safe_run_root,
     ensure_source_document_is_not_write_target,
 )
@@ -220,6 +221,7 @@ __all__ = (
     "ensure_contained_write_path",
     "ensure_final_report_write_paths",
     "ensure_no_symlink_leaf",
+    "ensure_no_symlink_path_components",
     "ensure_safe_run_root",
     "ensure_source_document_is_not_write_target",
     "evaluate_final_success",
