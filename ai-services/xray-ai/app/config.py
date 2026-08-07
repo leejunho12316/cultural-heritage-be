@@ -134,7 +134,7 @@ CORS_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "XRAY_CORS_ORIGINS",
-        "http://localhost:5173,http://localhost:3000"
+        "http://localhost:5173,http://localhost:5174,http://localhost:3000"
     ).split(",")
     if origin.strip()
 ]
@@ -231,13 +231,15 @@ STITCH_MAPPING_DIR = Path(
     )
 )
 
-# Spring Boot와 FastAPI가 함께 사용하는 작업 루트
+# FastAPI pod/container 내부의 임시 workspace. S3/RDS가 정본이며
+# 이 경로는 pod 재시작 시 사라져도 된다.
 STITCH_JOBS_ROOT = Path(
     os.getenv(
         "XRAY_STITCH_JOBS_ROOT",
-        "/shared/jobs",
+        "/tmp/xray_jobs",
     )
 ).resolve()
+STITCH_JOBS_ROOT.mkdir(parents=True, exist_ok=True)
 
 # 결합 엔진이 포함된 xray-ai 프로젝트 루트
 STITCH_ENGINE_DIR = Path(
@@ -263,13 +265,14 @@ STITCH_BATCH_SCRIPT = Path(
     )
 ).resolve()
 
-# ZIP 해제 캐시. 작업 결과와 분리하여 재사용한다.
+# 결합 엔진 내부 캐시도 process-local 임시 경로만 사용한다.
 STITCH_CACHE_DIR = Path(
     os.getenv(
         "XRAY_STITCH_CACHE_DIR",
-        "/shared/cache",
+        "/tmp/xray_cache",
     )
 ).resolve()
+STITCH_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # 기본 매핑 파일
 STITCH_MAPPING_PATH = Path(
@@ -278,3 +281,21 @@ STITCH_MAPPING_PATH = Path(
         str(STITCH_MAPPING_DIR / "mapping.color_front.json"),
     )
 ).resolve()
+
+
+# S3 presigned URL download safety limits
+REMOTE_MAX_IMAGE_BYTES = int(
+    os.getenv("XRAY_REMOTE_MAX_IMAGE_BYTES", str(100 * 1024 * 1024))
+)
+REMOTE_MAX_JSON_BYTES = int(
+    os.getenv("XRAY_REMOTE_MAX_JSON_BYTES", str(50 * 1024 * 1024))
+)
+REMOTE_MAX_BUNDLE_BYTES = int(
+    os.getenv("XRAY_REMOTE_MAX_BUNDLE_BYTES", str(2 * 1024 * 1024 * 1024))
+)
+REMOTE_MAX_BUNDLE_UNCOMPRESSED_BYTES = int(
+    os.getenv(
+        "XRAY_REMOTE_MAX_BUNDLE_UNCOMPRESSED_BYTES",
+        str(4 * 1024 * 1024 * 1024),
+    )
+)
