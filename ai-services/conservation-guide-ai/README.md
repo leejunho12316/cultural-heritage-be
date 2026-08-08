@@ -70,7 +70,7 @@
     "treatmentPurpose": "전시용"
   },
   "relicPhoto": [],
-  "flow": ["disassembly","reinforcement"]
+  "flow": ["restoration"]
 }
 ```
 

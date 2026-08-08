@@ -3,7 +3,14 @@ package com.aivle.conservation_backend.xray_api.controller;
 import com.aivle.conservation_backend.xray_api.dto.XrayFinalLayoutRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayJobResponse;
 import com.aivle.conservation_backend.xray_api.dto.XrayJobStatusResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayStitchCallbackRequest;
+import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.PrepareRequest;
+import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.PrepareResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.ReconcileResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.StartRequest;
+import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.UrlResponse;
 import com.aivle.conservation_backend.xray_api.service.XrayStitchService;
+import com.aivle.conservation_backend.xray_api.storage.XrayS3Keys;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -15,156 +22,167 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/xray/stitch/jobs")
+@RequestMapping("/api/xray/stitch")
 public class XrayStitchController {
 
-    private final XrayStitchService xrayStitchService;
+    private final XrayStitchService stitchService;
 
-    public XrayStitchController(
-            XrayStitchService xrayStitchService
-    ) {
-        this.xrayStitchService = xrayStitchService;
+    public XrayStitchController(XrayStitchService stitchService) {
+        this.stitchService = stitchService;
     }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<XrayJobResponse> createJob(
+    /** New FE flow: obtain presigned PUT URLs, then upload directly to S3. */
+    @PostMapping(
+            value = "/jobs/prepare",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<PrepareResponse> prepare(@RequestBody PrepareRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(stitchService.prepare(request));
+    }
+
+    /**
+     * Compatibility flow for the current main FE. Files still end up in S3;
+     * no shared/EFS directory is used.
+     */
+    @PostMapping(
+            value = "/jobs",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<XrayJobResponse> createMultipartJob(
             @RequestParam("artifactId") String artifactId,
             @RequestParam("colorFiles") List<MultipartFile> colorFiles,
             @RequestParam("xrayFiles") List<MultipartFile> xrayFiles
     ) {
-        XrayJobResponse response = xrayStitchService.createJob(
-                artifactId,
-                colorFiles,
-                xrayFiles
+        return ResponseEntity.accepted().body(
+                stitchService.createJob(artifactId, colorFiles, xrayFiles)
         );
-
-        return ResponseEntity
-                .status(HttpStatus.ACCEPTED)
-                .body(response);
     }
 
-    @GetMapping("/{jobId}")
-    public ResponseEntity<XrayJobStatusResponse> getJobStatus(
-            @PathVariable String jobId
-    ) {
-        XrayJobStatusResponse response =
-                xrayStitchService.getLocalJobStatus(jobId);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping(
-            value = "/{jobId}/result",
-            produces = MediaType.IMAGE_PNG_VALUE
-    )
-    public ResponseEntity<Resource> getJobResult(
-            @PathVariable String jobId
-    ) {
-        try {
-            Resource result = xrayStitchService.getResult(jobId);
-            ContentDisposition disposition = ContentDisposition
-                    .inline()
-                    .filename("assembled-xray.png", StandardCharsets.UTF_8)
-                    .build();
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.IMAGE_PNG)
-                    .header(
-                            HttpHeaders.CONTENT_DISPOSITION,
-                            disposition.toString()
-                    )
-                    .body(result);
-        } catch (IllegalStateException e) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    e.getMessage(),
-                    e
-            );
-        }
-    }
-    @GetMapping(
-            value = "/{jobId}/result/final",
-            produces = MediaType.IMAGE_PNG_VALUE
-    )
-    public ResponseEntity<Resource> getFinalJobResult(
-            @PathVariable String jobId
-    ) {
-        try {
-            Resource result = xrayStitchService.getFinalResult(jobId);
-            ContentDisposition disposition = ContentDisposition
-                    .inline()
-                    .filename("assembled-xray-final.png", StandardCharsets.UTF_8)
-                    .build();
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.IMAGE_PNG)
-                    .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
-                    .body(result);
-        } catch (IllegalStateException e) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    e.getMessage(),
-                    e
-            );
-        }
-    }
-
-    /**
-     * Konva에서 최종 확정한 조각 위치/회전을 저장한다.
-     *
-     * 자동 결합 결과인 layout.json은 보존하고, 최종 보정 결과는
-     * 같은 결과 디렉터리의 layout.final.json으로 별도 저장한다.
-     */
-    @PutMapping(
-            value = "/{jobId}/layout/final",
+    @PostMapping(
+            value = "/jobs/{jobId}/start",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    public ResponseEntity<String> saveFinalJobLayout(
+    public ResponseEntity<XrayJobStatusResponse> start(
             @PathVariable String jobId,
-            @RequestBody XrayFinalLayoutRequest request
+            @RequestBody StartRequest request
     ) {
-        return ResponseEntity.ok(
-                xrayStitchService.saveFinalLayout(jobId, request)
+        return ResponseEntity.accepted().body(
+                stitchService.start(jobId, request.colorFileName(), request.xrayFileNames())
         );
     }
 
-    /**
-     * Konva 보정까지 반영해 저장한 최종 layout을 조회한다.
-     */
-    @GetMapping(
-            value = "/{jobId}/layout/final",
-            produces = MediaType.APPLICATION_JSON_VALUE
+    @PostMapping(
+            value = "/callback",
+            consumes = MediaType.APPLICATION_JSON_VALUE
     )
-    public ResponseEntity<String> getFinalJobLayout(
-            @PathVariable String jobId
+    public ResponseEntity<Void> callback(
+            @RequestBody XrayStitchCallbackRequest request,
+            @RequestHeader(value = "X-Xray-Callback-Token", required = false) String token
     ) {
-        return ResponseEntity.ok(xrayStitchService.getFinalLayout(jobId));
+        stitchService.handleCallback(request, token);
+        return ResponseEntity.ok().build();
     }
 
-    /**
-     * 조각별 자동 배치 정보를 조회한다.
-     *
-     * 수동 보정 화면이 이 값으로 조각을 개별 배치한다.
-     * 결합 결과 이미지만으로는 조각을 따로 움직일 수 없다.
-     */
-    @GetMapping(
-            value = "/{jobId}/layout",
+    @GetMapping(value = "/jobs/{jobId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<XrayJobStatusResponse> getStatus(@PathVariable String jobId) {
+        return ResponseEntity.ok(stitchService.getLocalJobStatus(jobId));
+    }
+
+    @PostMapping(value = "/jobs/{jobId}/reconcile", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ReconcileResponse> reconcile(@PathVariable String jobId) {
+        return ResponseEntity.ok(stitchService.reconcile(jobId));
+    }
+
+    // Presigned URL endpoints used by the S3-native FE.
+    @GetMapping(value = "/jobs/{jobId}/result-url", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<UrlResponse> getResultUrl(@PathVariable String jobId) {
+        XrayJobStatusResponse job = stitchService.getLocalJobStatus(jobId);
+        return ResponseEntity.ok(new UrlResponse(
+                stitchService.getAssembledUrl(jobId),
+                XrayS3Keys.assembled(job.artifactId())
+        ));
+    }
+
+    @GetMapping(value = "/jobs/{jobId}/layout-url", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<UrlResponse> getLayoutUrl(@PathVariable String jobId) {
+        XrayJobStatusResponse job = stitchService.getLocalJobStatus(jobId);
+        return ResponseEntity.ok(new UrlResponse(
+                stitchService.getLayoutUrl(jobId),
+                XrayS3Keys.layout(job.artifactId())
+        ));
+    }
+
+    @GetMapping(value = "/jobs/{jobId}/report", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<UrlResponse> getReportUrl(@PathVariable String jobId) {
+        XrayJobStatusResponse job = stitchService.getLocalJobStatus(jobId);
+        return ResponseEntity.ok(new UrlResponse(
+                stitchService.getReportUrl(jobId),
+                XrayS3Keys.report(job.artifactId())
+        ));
+    }
+
+    @GetMapping(value = "/jobs/{jobId}/result/final-url", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<UrlResponse> getFinalResultUrl(@PathVariable String jobId) {
+        XrayJobStatusResponse job = stitchService.requireFinalizedJob(jobId);
+        return ResponseEntity.ok(new UrlResponse(
+                stitchService.getFinalAssembledUrl(jobId),
+                XrayS3Keys.finalAssembled(job.artifactId())
+        ));
+    }
+
+    // Current-main compatibility: actual layout JSON and image bytes.
+    @GetMapping(value = "/jobs/{jobId}/layout", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> getLayout(@PathVariable String jobId) {
+        return ResponseEntity.ok(stitchService.getLayout(jobId));
+    }
+
+    @GetMapping(value = "/jobs/{jobId}/result", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<Resource> getResultImage(@PathVariable String jobId) {
+        return imageResponse(stitchService.getResult(jobId), "assembled-xray.png");
+    }
+
+    @GetMapping(value = "/jobs/{jobId}/result/final", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<Resource> getFinalResultImage(@PathVariable String jobId) {
+        return imageResponse(stitchService.getFinalResult(jobId), "assembled-xray-final.png");
+    }
+
+    @PutMapping(
+            value = "/jobs/{jobId}/layout/final",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    public ResponseEntity<String> getJobLayout(
-            @PathVariable String jobId
+    public ResponseEntity<String> saveFinalLayout(
+            @PathVariable String jobId,
+            @RequestBody XrayFinalLayoutRequest request
     ) {
-        return ResponseEntity.ok(xrayStitchService.getLayout(jobId));
+        return ResponseEntity.ok(stitchService.saveFinalLayout(jobId, request));
+    }
+
+    @GetMapping(value = "/jobs/{jobId}/layout/final", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> getFinalLayout(@PathVariable String jobId) {
+        return ResponseEntity.ok(stitchService.getFinalLayout(jobId));
+    }
+
+    private ResponseEntity<Resource> imageResponse(Resource resource, String fileName) {
+        ContentDisposition disposition = ContentDisposition.inline()
+                .filename(fileName, StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(resource);
     }
 }

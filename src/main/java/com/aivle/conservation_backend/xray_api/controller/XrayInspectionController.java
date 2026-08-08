@@ -8,7 +8,6 @@ import com.aivle.conservation_backend.xray_api.dto.XrayDefectMappingResponse;
 import com.aivle.conservation_backend.xray_api.service.XrayDefectMappingService;
 import com.aivle.conservation_backend.xray_api.service.XrayStitchService;
 
-import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -84,12 +83,13 @@ public class XrayInspectionController {
             @RequestParam(value = "confidence", required = false) Double confidence
     ) {
         xrayStitchService.requireFinalizedJob(jobId);
-        Resource finalImage = xrayStitchService.getFinalResult(jobId);
         return ResponseEntity.ok(
-                xrayAnomalyClient.detect(
-                        finalImage,
+                xrayAnomalyClient.detectUrl(
+                        "assembled_xray.final.png",
+                        xrayStitchService.getFinalAssembledUrl(jobId),
                         AnalysisTarget.ASSEMBLED,
-                        confidence
+                        confidence,
+                        null
                 )
         );
     }
@@ -102,11 +102,13 @@ public class XrayInspectionController {
             @PathVariable String jobId,
             @RequestParam(value = "confidence", required = false) Double confidence
     ) {
-        List<Resource> files = xrayStitchService.getOrderedXraySourceResources(jobId);
-        List<Integer> sourceIndexes = IntStream.range(0, files.size()).boxed().toList();
+        List<String> fileNames = xrayStitchService.getOrderedXraySourceFileNames(jobId);
+        List<String> urls = xrayStitchService.getOrderedXraySourceUrls(jobId);
+        List<Integer> sourceIndexes = IntStream.range(0, fileNames.size()).boxed().toList();
         return ResponseEntity.ok(
-                xrayAnomalyClient.detectBatchResources(
-                        files,
+                xrayAnomalyClient.detectBatchUrls(
+                        fileNames,
+                        urls,
                         sourceIndexes,
                         AnalysisTarget.FRAGMENT,
                         confidence

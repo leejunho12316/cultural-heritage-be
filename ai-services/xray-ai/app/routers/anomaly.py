@@ -11,6 +11,8 @@ prefix="/anomaly"를 지정한다. 이 파일은 건드리지 않아도 된다.
 """
 
 import json
+import uuid
+from pathlib import Path
 
 from fastapi import (
     APIRouter,
@@ -23,6 +25,8 @@ from fastapi.responses import JSONResponse
 
 from app import config
 from app.services import detector, reporter
+from app.services.remote_io import RemoteIoError, download
+from app.schemas.url_detection import UrlDetectionBatch, UrlDetectionFile
 from app.utils import cleanup, save_upload
 
 
@@ -87,6 +91,103 @@ async def detect(
 
     finally:
         cleanup([temp_path])
+
+
+# ------------------------------------------------------------
+# S3 presigned URL 탐지
+# ------------------------------------------------------------
+
+@router.post("/detect-url")
+def detect_url(request: UrlDetectionFile):
+    suffix = Path(request.fileName).suffix or ".img"
+    temp_path = config.UPLOAD_DIR / f"url-{uuid.uuid4()}{suffix}"
+    try:
+        download(
+            str(request.downloadUrl),
+            temp_path,
+            config.REMOTE_MAX_IMAGE_BYTES,
+        )
+        result = detector.detect_anomalies(
+            image_path=temp_path,
+            analysis_target=request.analysisTarget,
+            confidence=request.confidence,
+            imgsz=None,
+        )
+        for region in result["regions"]:
+            region["fileName"] = request.fileName
+            if request.sourceIndex is not None:
+                region["sourceIndex"] = request.sourceIndex
+        result["summary"]["fileName"] = request.fileName
+        if request.sourceIndex is not None:
+            result["summary"]["sourceIndex"] = request.sourceIndex
+        return JSONResponse({
+            "success": True,
+            "regions": result["regions"],
+            "summary": result["summary"],
+        })
+    except (RemoteIoError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"{type(error).__name__}: {error}",
+        ) from error
+    finally:
+        cleanup([temp_path])
+
+
+@router.post("/detect-batch-urls")
+def detect_batch_urls(request: UrlDetectionBatch):
+    temp_paths = []
+    all_regions = []
+    summaries = []
+    next_index = 1
+    try:
+        for item in request.files:
+            suffix = Path(item.fileName).suffix or ".img"
+            temp_path = config.UPLOAD_DIR / f"url-{uuid.uuid4()}{suffix}"
+            temp_paths.append(temp_path)
+            try:
+                download(
+                    str(item.downloadUrl),
+                    temp_path,
+                    config.REMOTE_MAX_IMAGE_BYTES,
+                )
+                result = detector.detect_anomalies(
+                    image_path=temp_path,
+                    analysis_target=request.analysisTarget,
+                    confidence=(
+                        item.confidence
+                        if item.confidence is not None
+                        else request.confidence
+                    ),
+                    imgsz=None,
+                    start_index=next_index,
+                )
+                for region in result["regions"]:
+                    region["fileName"] = item.fileName
+                    region["sourceIndex"] = item.sourceIndex
+                result["summary"]["fileName"] = item.fileName
+                result["summary"]["sourceIndex"] = item.sourceIndex
+                all_regions.extend(result["regions"])
+                summaries.append(result["summary"])
+                next_index = result["nextIndex"]
+            except Exception as error:
+                summaries.append({
+                    "fileName": item.fileName,
+                    "sourceIndex": item.sourceIndex,
+                    "analysisTarget": request.analysisTarget,
+                    "regionCount": 0,
+                    "error": f"{type(error).__name__}: {error}",
+                })
+        return JSONResponse({
+            "success": True,
+            "totalRegionCount": len(all_regions),
+            "regions": all_regions,
+            "summaries": summaries,
+        })
+    finally:
+        cleanup(temp_paths)
 
 
 # ------------------------------------------------------------

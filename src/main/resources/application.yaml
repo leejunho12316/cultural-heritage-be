@@ -1,6 +1,5 @@
 server:
   port: 8080
-
   tomcat:
     max-part-count: 300
     max-swallow-size: -1
@@ -20,7 +19,6 @@ spring:
       hibernate:
         format_sql: true
     open-in-view: false
-
   servlet:
     multipart:
       max-file-size: 100MB
@@ -29,7 +27,6 @@ spring:
 conservation-guide-ai:
   base-url: ${CONSERVATION_GUIDE_AI_BASE_URL:http://localhost:8000}
 
-
 pottery-inspection-ai:
   base-url: ${POTTERY_INSPECTION_AI_BASE_URL:http://localhost:8003}
 
@@ -37,34 +34,31 @@ report-ai:
   base-url: ${REPORT_AI_BASE_URL:http://localhost:8002}
 
 aws:
-  region: ${AWS_REGION}
-  access-key-id: ${AWS_ACCESS_KEY_ID}
-  secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+  region: ${AWS_REGION:ap-northeast-2}
+  # Leave blank in EKS/EC2/ECS and use IAM role credentials.
+  access-key-id: ${AWS_ACCESS_KEY_ID:}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
   s3:
-    bucket: ${AWS_S3_BUCKET}
-xray:
-  storage:
-    # Spring Boot 컨테이너가 입력 ZIP과 job.json을 저장하는 경로
-    local-root: ${XRAY_STORAGE_LOCAL_ROOT:./shared/jobs}
-    # FastAPI 컨테이너에 전달할 동일 공유 볼륨 경로
-    container-root: ${XRAY_STORAGE_CONTAINER_ROOT:/shared/jobs}
+    bucket: ${AWS_S3_BUCKET:}
 
+xray:
+  s3:
+    presign-input-minutes: ${XRAY_PRESIGN_INPUT_MINUTES:30}
+    presign-output-minutes: ${XRAY_PRESIGN_OUTPUT_MINUTES:120}
+    presign-get-minutes: ${XRAY_PRESIGN_GET_MINUTES:120}
   ai:
     base-url: ${XRAY_AI_BASE_URL:http://localhost:8001}
     timeout-seconds: ${XRAY_AI_TIMEOUT_SECONDS:300}
     config-name: ${XRAY_AI_CONFIG_NAME:config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json}
-    stitch-timeout-seconds: 2100
+  stitch:
+    callback-url: ${XRAY_STITCH_CALLBACK_URL:http://localhost:8080/api/xray/stitch/callback}
+    callback-token: ${XRAY_STITCH_CALLBACK_TOKEN:}
+    finalization-wait-seconds: ${XRAY_FINALIZATION_WAIT_SECONDS:300}
 
-# 프론트엔드 CORS 허용 주소
 app:
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:3000}
 
 logging:
   level:
-    com.aivle.conservation_backend.xray: DEBUG
-
-jwt:
-  issuer : cultural-heritage-backend
-  secret_key: ${JWT_SECRET}
-  expiration-ms: 3600000
+    com.aivle.conservation_backend.xray_api: DEBUG
