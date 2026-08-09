@@ -46,6 +46,8 @@ public class VcaIntermediateResultStorage {
         this.outputRoot = Path.of(outputRoot).toAbsolutePath().normalize();
     }
 
+    // VcaService.getIntermediateResults가 호출하는 진입점. 파이프라인 각 단계 산출물 디렉터리를
+    // 순서대로 훑어, 비어있지 않은 단계만 응답에 담는다(디버깅/중간 결과 확인용 엔드포인트).
     IntermediateResultsResponse read(
             String artifactId,
             String assessmentRunId,
@@ -63,6 +65,8 @@ public class VcaIntermediateResultStorage {
         );
     }
 
+    // 단계 하나(예: preprocessing)의 산출물 디렉터리를 재귀적으로 훑어 파일 항목 목록을 만든다.
+    // 디렉터리가 없으면(아직 그 단계까지 진행 안 됐거나 실패) 빈 목록을 반환한다.
     private IntermediateResultsResponse.Stage readStage(
             StageDescriptor stage,
             String projectName
@@ -78,7 +82,7 @@ public class VcaIntermediateResultStorage {
                 items = paths
                         .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                         .filter(path -> isSafeChild(path, realStageDirectory))
-                        .map(path -> toItem(stageDirectory, path))
+                        .map(path -> toItem(stage.stage(), stageDirectory, path))
                         .toList();
             }
             return new IntermediateResultsResponse.Stage(stage.stage(), stage.displayName(), items);
@@ -91,6 +95,8 @@ public class VcaIntermediateResultStorage {
         }
     }
 
+    // 심볼릭 링크가 stage 디렉터리 밖의 파일을 가리키도록 심어져 있어도 실제 경로(realPath)를
+    // 풀어서 여전히 stage 디렉터리 안인지 확인한다 - 링크를 통한 임의 파일 노출을 막기 위함.
     private static boolean isSafeChild(Path path, Path realStageDirectory) {
         try {
             return path.toRealPath(LinkOption.NOFOLLOW_LINKS).startsWith(realStageDirectory);
@@ -99,16 +105,16 @@ public class VcaIntermediateResultStorage {
         }
     }
 
-    private IntermediateResultsResponse.Item toItem(Path stageDirectory, Path file) {
+    private IntermediateResultsResponse.Item toItem(String stage, Path stageDirectory, Path file) {
         String relativePath = stageDirectory.relativize(file).toString()
                 .replace(File.separator, "/");
         try {
             return new IntermediateResultsResponse.Item(
                     relativePath,
                     file.getFileName().toString(),
-                    contentType(file),
+                    contentType(stage, file),
                     Files.size(file),
-                    preview(file)
+                    preview(stage, file)
             );
         } catch (IOException exception) {
             throw new VcaApiException(
@@ -119,16 +125,16 @@ public class VcaIntermediateResultStorage {
         }
     }
 
-    private static String contentType(Path file) throws IOException {
+    private static String contentType(String stage, Path file) throws IOException {
         String probed = Files.probeContentType(file);
         if (probed != null) {
             return probed;
         }
-        return isPreviewable(file) ? "text/plain" : "application/octet-stream";
+        return isPreviewable(stage, file) ? "text/plain" : "application/octet-stream";
     }
 
-    private static String preview(Path file) throws IOException {
-        if (!isPreviewable(file)) {
+    private static String preview(String stage, Path file) throws IOException {
+        if (!isPreviewable(stage, file)) {
             return null;
         }
         byte[] bytes;
@@ -138,7 +144,12 @@ public class VcaIntermediateResultStorage {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
-    private static boolean isPreviewable(Path file) {
+    // rag/prompt_generating 단계는 확장자 조건을 만족해도 미리보기를 만들지 않는다
+    // (내부 프롬프트/근거 원문이라 응답에 그대로 노출하고 싶지 않은 단계).
+    private static boolean isPreviewable(String stage, Path file) {
+        if ("rag".equals(stage) || "prompt_generating".equals(stage)) {
+            return false;
+        }
         String fileName = file.getFileName().toString().toLowerCase();
         return PREVIEW_SUFFIXES.stream().anyMatch(fileName::endsWith);
     }

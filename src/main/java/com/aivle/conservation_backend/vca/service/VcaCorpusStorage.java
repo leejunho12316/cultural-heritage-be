@@ -23,6 +23,8 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 
+// RAG용 PDF 코퍼스(corpusRoot 디렉터리)를 로컬 파일시스템에 관리한다.
+// VcaService의 getCorpusPdfs/uploadCorpusPdf/deleteCorpusPdf가 위임하는 대상.
 @Component
 public class VcaCorpusStorage {
 
@@ -37,6 +39,7 @@ public class VcaCorpusStorage {
         this.corpusRoot = Path.of(documentCorpusRoot).toAbsolutePath().normalize();
     }
 
+    // corpusRoot 바로 아래에 있는 .pdf 파일 목록을 파일명 순으로 반환.
     VcaCorpusPdfCollectionResponse listPdfs() {
         if (!Files.exists(corpusRoot, LinkOption.NOFOLLOW_LINKS)) {
             return new VcaCorpusPdfCollectionResponse(List.of());
@@ -56,6 +59,7 @@ public class VcaCorpusStorage {
         }
     }
 
+    // 새 PDF를 임시 파일로 받아 %PDF- 헤더/sha256을 검증한 뒤 코퍼스에 원자적으로 추가.
     VcaCorpusPdfResponse storePdf(MultipartFile file) {
         String fileName = validateUpload(file);
         Path targetFile = corpusFile(fileName);
@@ -67,6 +71,9 @@ public class VcaCorpusStorage {
             }
             temporaryFile = Files.createTempFile(corpusRoot, ".vca-corpus-", ".tmp");
             String sha256 = copyVerifiedPdf(file, temporaryFile);
+            // 위쪽의 exists() 검사는 빠른 경로일 뿐이며, 같은 이름으로 동시에 업로드가 들어오면
+            // 레이스가 발생할 수 있다. 실제 중복 방지는 moveWithoutOverwrite가 담당하는데,
+            // REPLACE_EXISTING 없이 Files.move를 호출하면 대상이 이미 있을 때 원자적으로 실패하기 때문이다.
             moveWithoutOverwrite(temporaryFile, targetFile);
             return toResponse(targetFile, sha256);
         } catch (FileAlreadyExistsException exception) {
@@ -78,6 +85,7 @@ public class VcaCorpusStorage {
         }
     }
 
+    // 코퍼스에서 지정한 이름의 PDF 파일을 삭제. 파일명은 corpusFile에서 basename으로 재검증됨.
     void deletePdf(String fileName) {
         Path targetFile = corpusFile(validateFileName(fileName));
         if (!Files.isRegularFile(targetFile, LinkOption.NOFOLLOW_LINKS)) {
@@ -125,6 +133,7 @@ public class VcaCorpusStorage {
         return validateFileName(file.getOriginalFilename());
     }
 
+    // 파일명에 경로 구분자/제어 문자가 없는 안전한 basename인지 검증(경로 조작 방지).
     private String validateFileName(String fileName) {
         if (fileName == null || fileName.isBlank() || fileName.contains("/") || fileName.contains("\\")
                 || fileName.length() <= ".pdf".length() || !fileName.endsWith(".pdf")
@@ -134,6 +143,8 @@ public class VcaCorpusStorage {
         return fileName;
     }
 
+    // corpusRoot 하위 실제 파일 경로로 변환하면서, normalize 후에도 corpusRoot 바로 아래에
+    // 있는지 재확인한다(파일명에 "../" 등이 섞여 경로를 벗어나는 것을 막기 위함).
     private Path corpusFile(String fileName) {
         Path targetFile = corpusRoot.resolve(fileName).normalize();
         if (!targetFile.getParent().equals(corpusRoot)) {
@@ -142,6 +153,7 @@ public class VcaCorpusStorage {
         return targetFile;
     }
 
+    // 업로드 스트림을 임시 파일로 복사하면서 %PDF- 헤더를 검증하고 sha256을 함께 계산한다.
     private static String copyVerifiedPdf(MultipartFile file, Path temporaryFile) throws IOException {
         try (BufferedInputStream input = new BufferedInputStream(file.getInputStream());
              OutputStream output = Files.newOutputStream(temporaryFile)) {

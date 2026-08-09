@@ -14,6 +14,7 @@ public class VcaWebConfig implements WebMvcConfigurer {
         this.accessToken = accessToken;
     }
 
+    // VCA API 경로(/api/vca/**)에만 접근 토큰 검증 인터셉터를 건다.
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new VcaAccessTokenInterceptor(accessToken))

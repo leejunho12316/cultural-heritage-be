@@ -15,6 +15,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.regex.Pattern;
 
+// VcaS3ImageStorage(S3 업로드 경로)가 사용하는 이미지 업로드 검증 유틸.
+// VcaSharedStorage(로컬 디스크 경로)에도 동일한 매직 바이트 검증 로직이 별도로 존재한다 -
+// 두 저장소 구현이 독립적으로 유지되고 있어 한쪽만 고치면 다른 쪽은 반영되지 않는다.
 final class VcaImageUploadValidator {
 
     private static final Pattern IMAGE_CONTENT_TYPE =
@@ -24,6 +27,7 @@ final class VcaImageUploadValidator {
     private VcaImageUploadValidator() {
     }
 
+    // 파일이 비어있지 않고 Content-Type이 허용된 이미지 포맷인지 1차 검증.
     static void validateUpload(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new VcaApiException(
@@ -42,6 +46,8 @@ final class VcaImageUploadValidator {
         }
     }
 
+    // 멀티파트 Content-Type 헤더는 클라이언트가 스스로 선언한 값이라 그대로 신뢰할 수 없으므로,
+    // 아래에서 실제 파일 앞부분 바이트를 읽어 선언된 타입과 일치하는지 검증한다.
     static InputStream verifiedImageInput(MultipartFile file) throws IOException {
         BufferedInputStream input = new BufferedInputStream(file.getInputStream());
         input.mark(IMAGE_HEADER_SIZE);
@@ -57,6 +63,7 @@ final class VcaImageUploadValidator {
         return input;
     }
 
+    // 검증된 이미지 스트림의 SHA-256을 계산(업로드 무결성 확인/파일 조회 키로 사용).
     static String uploadSha256(MultipartFile file) throws IOException, NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         try (InputStream input = verifiedImageInput(file);
@@ -66,6 +73,7 @@ final class VcaImageUploadValidator {
         return HexFormat.of().formatHex(digest.digest());
     }
 
+    // 경로 구분자를 제거해 원본 파일명에서 basename만 남긴다(경로 조작 방지).
     static String safeFileName(String originalFileName) {
         if (originalFileName == null || originalFileName.isBlank()) {
             throw new VcaApiException(

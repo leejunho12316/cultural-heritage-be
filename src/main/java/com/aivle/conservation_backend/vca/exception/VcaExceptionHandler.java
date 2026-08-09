@@ -10,9 +10,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+// VcaController에만 적용되는 예외 핸들러(assignableTypes로 범위 한정 - 다른 컨트롤러의
+// 예외에는 관여하지 않는다). 모든 VCA 오류 응답을 ErrorEnvelopeResponse 형태로 통일한다.
 @RestControllerAdvice(assignableTypes = VcaController.class)
 public class VcaExceptionHandler {
 
+    // VcaService/게이트웨이 등에서 의도적으로 던진 VcaApiException을 그대로 status/code/message로 변환.
     @ExceptionHandler(VcaApiException.class)
     public ResponseEntity<ErrorEnvelopeResponse> handleVcaApiException(
             VcaApiException exception
@@ -20,6 +23,7 @@ public class VcaExceptionHandler {
         return error(exception.status(), exception.code(), exception.getMessage());
     }
 
+    // @Valid 바인딩 실패(요청 DTO 검증 실패) 시 첫 번째 필드 오류만 뽑아 메시지로 사용한다.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorEnvelopeResponse> handleValidation(
             MethodArgumentNotValidException exception
@@ -31,6 +35,7 @@ public class VcaExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message);
     }
 
+    // 경로 변수 제약 위반이나 요청 본문 파싱 실패처럼 구체적인 필드 정보가 없는 400 오류를 처리.
     @ExceptionHandler({
             ConstraintViolationException.class,
             HttpMessageNotReadableException.class

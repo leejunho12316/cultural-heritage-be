@@ -1,6 +1,7 @@
 package com.aivle.conservation_backend.vca.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 public record RunResponse(
         String assessmentRunId,
@@ -9,6 +10,17 @@ public record RunResponse(
         int imageCount,
         Instant createdAt,
         Instant completedAt,
-        String reportUrl
+        String reportUrl,
+        String currentStage,
+        List<Stage> stages,
+        String failureReason
 ) {
+
+    public record Stage(
+            String name,
+            String status,
+            Integer exitCode,
+            String reason
+    ) {
+    }
 }

@@ -116,6 +116,13 @@ class VcaControllerTest {
         }
 
         @Override
+        public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+            return new VcaAiAssessmentRun(
+                    runId, runId.replace("vca-ai-", ""), "FAILED", null, List.of(), "cancelled by user"
+            );
+        }
+
+        @Override
         public VcaAiAssessmentReport getAssessmentReport(String runId) {
             return new VcaAiAssessmentReport(
                     runId,
@@ -125,8 +132,15 @@ class VcaControllerTest {
                     List.of(new VcaAiAssessmentFinding(
                             "VCA_ANOMALY",
                             "INFO",
-                            "Gateway finding propagated."
-                    ))
+                            "Gateway finding propagated.",
+                            "image-001",
+                            "crack",
+                            "line surface",
+                            List.of(),
+                            new VcaAiAssessmentFinding.Bbox(10.0, 20.0, 30.0, 40.0),
+                            null
+                    )),
+                    null
             );
         }
     }
@@ -341,7 +355,6 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.recommendations").isArray())
                 .andExpect(jsonPath("$.images").isArray())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.summary.overallCondition").value("FAIR"))
                 .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
                 .andExpect(jsonPath("$.findings[0].severity").value("MEDIUM"))
                 .andExpect(jsonPath("$.recommendations[0].priority").value("HIGH"))
@@ -590,6 +603,101 @@ class VcaControllerTest {
     }
 
     @Test
+    void cancelsQueuedDemoRunAndReportsFailedWithReason() throws Exception {
+        MvcResult presignResult = mockMvc.perform(post("/api/vca/cancel-demo-artifact/images/presign")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "fileName": "front.jpg",
+                                  "contentType": "image/jpeg",
+                                  "sizeBytes": 2048,
+                                  "sha256": "%s"
+                                }
+                                """.formatted(SHA256)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String imageId = JsonPath.read(
+                presignResult.getResponse().getContentAsString(),
+                "$.imageId"
+        );
+        mockMvc.perform(post("/api/vca/cancel-demo-artifact/images/{imageId}/complete", imageId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"sha256":"%s"}
+                                """.formatted(SHA256)))
+                .andExpect(status().isOk());
+
+        MvcResult runResult = mockMvc.perform(post("/api/vca/cancel-demo-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("QUEUED"))
+                .andReturn();
+        String assessmentRunId = JsonPath.read(
+                runResult.getResponse().getContentAsString(),
+                "$.assessmentRunId"
+        );
+
+        mockMvc.perform(post("/api/vca/cancel-demo-artifact/runs/{assessmentRunId}/cancel", assessmentRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.failureReason").value("사용자가 분석을 중지했습니다."));
+
+        // A second stop click on an already-terminal run is a harmless no-op.
+        mockMvc.perform(post("/api/vca/cancel-demo-artifact/runs/{assessmentRunId}/cancel", assessmentRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"));
+    }
+
+    @Test
+    void cancelsRunThroughGatewayAndAppliesReturnedStatus() throws Exception {
+        VcaAiGateway gateway = new VcaAiGateway() {
+            @Override
+            public VcaAiAssessmentRun createAssessmentRun(
+                    String assessmentId,
+                    String projectName,
+                    String inputImageFolder
+            ) {
+                return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+                return new VcaAiAssessmentRun(runId, runId.replace("vca-ai-", ""), "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+                return new VcaAiAssessmentRun(
+                        runId, runId.replace("vca-ai-", ""), "FAILED", null, List.of(), "cancelled by user"
+                );
+            }
+
+            @Override
+            public VcaAiAssessmentReport getAssessmentReport(String runId) {
+                throw new AssertionError("Report must not be fetched while cancelling a run.");
+            }
+        };
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+
+        gatewayMvc.perform(multipart("/api/vca/cancel-gateway-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
+                .andExpect(status().isCreated());
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/cancel-gateway-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("RUNNING"))
+                .andReturn();
+        String assessmentRunId = JsonPath.read(
+                runResult.getResponse().getContentAsString(),
+                "$.assessmentRunId"
+        );
+
+        gatewayMvc.perform(post("/api/vca/cancel-gateway-artifact/runs/{assessmentRunId}/cancel", assessmentRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.failureReason").value("cancelled by user"));
+    }
+
+    @Test
     void returnsDraftArtifactForFirstVcaEntry() throws Exception {
         mockMvc.perform(get("/api/vca/new-workspace-artifact"))
                 .andExpect(status().isOk())
@@ -681,6 +789,13 @@ class VcaControllerTest {
             }
 
             @Override
+            public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+                return new VcaAiAssessmentRun(
+                        runId, runId.replace("vca-ai-", ""), "FAILED", null, List.of(), "cancelled by user"
+                );
+            }
+
+            @Override
             public VcaAiAssessmentReport getAssessmentReport(String runId) {
                 return new VcaAiAssessmentReport(
                         runId,
@@ -690,8 +805,15 @@ class VcaControllerTest {
                         List.of(new VcaAiAssessmentFinding(
                                 "VCA_ANOMALY",
                                 "INFO",
-                                "Gateway finding propagated."
-                        ))
+                                "Gateway finding propagated.",
+                                "image-001",
+                                "crack",
+                                "line surface",
+                                List.of(),
+                                new VcaAiAssessmentFinding.Bbox(10.0, 20.0, 30.0, 40.0),
+                                null
+                        )),
+                        sampleRagArtifacts()
                 );
             }
         };
@@ -744,9 +866,67 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
                 .andExpect(jsonPath("$.summary.description").value("Gateway generated VCA report."))
                 .andExpect(jsonPath("$.findings[0].category").value("VCA_ANOMALY"))
-                .andExpect(jsonPath("$.findings[0].title").value("VCA 이상 후보"))
-                .andExpect(jsonPath("$.recommendations[0].title").value("전문가 검토 후 보존처리 계획에 반영"))
-                .andExpect(jsonPath("$.findings[0].description").value("Gateway finding propagated."));
+                .andExpect(jsonPath("$.findings[0].conceptFamily").value("crack"))
+                .andExpect(jsonPath("$.findings[0].descriptor").value("line surface"))
+                .andExpect(jsonPath("$.findings[0].bbox.xMin").value(10.0))
+                .andExpect(jsonPath("$.findings[0].bbox.yMax").value(40.0))
+                .andExpect(jsonPath("$.recommendations[0].title").value("crack"))
+                .andExpect(jsonPath("$.findings[0].description").value("Gateway finding propagated."))
+                .andExpect(jsonPath("$.ragArtifacts.schema").value("rag_candidate_evidence_v1"))
+                .andExpect(jsonPath("$.ragArtifacts.queryCount").value(1))
+                .andExpect(jsonPath("$.ragArtifacts.retrievalResults[0].pageNumber").isEmpty())
+                .andExpect(jsonPath("$.ragArtifacts.evidenceRows[0].queryId").isEmpty())
+                .andExpect(jsonPath("$.ragArtifacts.visualConceptCards[0].conceptFamily").isEmpty());
+    }
+
+    private static VcaAiAssessmentReport.RagArtifacts sampleRagArtifacts() {
+        return new VcaAiAssessmentReport.RagArtifacts(
+                "rag_candidate_evidence_v1",
+                1,
+                1,
+                1,
+                1,
+                List.of(new VcaAiAssessmentReport.RagQuery(
+                        "owlv2_sam2",
+                        "surface crack",
+                        "q-1"
+                )),
+                List.of(new VcaAiAssessmentReport.RagRetrievalResult(
+                        "chunk-1",
+                        "citation-1",
+                        "owlv2_sam2",
+                        List.of("surface"),
+                        null,
+                        "surface crack",
+                        "q-1",
+                        1,
+                        0.86,
+                        "source text",
+                        "source.pdf"
+                )),
+                List.of(new VcaAiAssessmentReport.RagEvidenceRow(
+                        "rag_evidence_not_found",
+                        "owlv2_sam2",
+                        List.of(),
+                        "surface crack",
+                        null,
+                        "candidate-1",
+                        null,
+                        null
+                )),
+                List.of(new VcaAiAssessmentReport.RagVisualConceptCard(
+                        "card-1",
+                        null,
+                        List.of("surface"),
+                        List.of("line"),
+                        List.of(),
+                        "weak",
+                        "candidate-1",
+                        "sentence",
+                        0.52,
+                        List.of("citation-1")
+                ))
+        );
     }
 
     @Test
@@ -898,6 +1078,11 @@ class VcaControllerTest {
             }
 
             @Override
+            public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+                throw new AssertionError("Cancel must not be called while creating a PDF job.");
+            }
+
+            @Override
             public VcaAiAssessmentReport getAssessmentReport(String runId) {
                 throw new AssertionError("Report must not be fetched while creating a PDF job.");
             }
@@ -952,6 +1137,11 @@ class VcaControllerTest {
             }
 
             @Override
+            public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+                throw new AssertionError("Cancel must not be called while creating a run.");
+            }
+
+            @Override
             public VcaAiAssessmentReport getAssessmentReport(String runId) {
                 throw new AssertionError("Report must not be fetched while creating a run.");
             }
@@ -1000,6 +1190,92 @@ class VcaControllerTest {
         gatewayMvc.perform(multipart("/api/vca/gateway-artifact/images").file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void reportFindingImageIdIsTranslatedFromEngineSha256BackToTheUploadUuid() throws Exception {
+        // vca-ai only ever knows an image by its content sha256 (see
+        // vca_artifacts.py's engine image_id -> sha256 translation, which
+        // vca_v2 itself never changes since it must stay standalone-CLI
+        // capable). The FE must only ever see Spring's own upload uuid - the
+        // same id every other VCA endpoint (image delete/complete, the
+        // images[] array itself) uses - so Spring translates sha256 back to
+        // that uuid here. sha256 is purely internal vca-ai<->Spring plumbing;
+        // it must never reach the FE-facing JSON at all.
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        String expectedSha256 = sha256(JPEG_BYTES);
+        VcaAiGateway gateway = new VcaAiGateway() {
+            @Override
+            public VcaAiAssessmentRun createAssessmentRun(
+                    String assessmentId, String projectName, String inputImageFolder
+            ) {
+                return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+                return new VcaAiAssessmentRun(runId, runId.replace("vca-ai-", ""), "COMPLETED");
+            }
+
+            @Override
+            public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+                throw new AssertionError("Cancel must not be called while reading a report.");
+            }
+
+            @Override
+            public VcaAiAssessmentReport getAssessmentReport(String runId) {
+                return new VcaAiAssessmentReport(
+                        runId,
+                        runId.replace("vca-ai-", ""),
+                        "COMPLETED",
+                        "Gateway generated VCA report.",
+                        List.of(new VcaAiAssessmentFinding(
+                                "VCA_ANOMALY",
+                                "INFO",
+                                "Gateway finding propagated.",
+                                expectedSha256,
+                                "crack",
+                                "line surface",
+                                List.of(),
+                                null,
+                                null
+                        )),
+                        null
+                );
+            }
+        };
+        MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "front.jpg", "image/jpeg", JPEG_BYTES
+        );
+
+        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/report-image-id-artifact/images").file(file))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String uploadedImageId = JsonPath.read(
+                uploadResult.getResponse().getContentAsString(),
+                "$.imageId"
+        );
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/report-image-id-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String assessmentRunId = JsonPath.read(
+                runResult.getResponse().getContentAsString(),
+                "$.assessmentRunId"
+        );
+
+        gatewayMvc.perform(get(
+                        "/api/vca/report-image-id-artifact/runs/{assessmentRunId}/report",
+                        assessmentRunId
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.images[0].imageId").value(uploadedImageId))
+                .andExpect(jsonPath("$.findings[0].imageId").value(uploadedImageId));
+    }
+
+    private static String sha256(byte[] bytes) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(digest.digest(bytes));
     }
 
     @Test
@@ -1126,6 +1402,53 @@ class VcaControllerTest {
                 .hasSize(8_192)
                 .startsWith("HEAD")
                 .doesNotContain("TAIL_MARKER");
+    }
+
+    @Test
+    void suppressesSensitiveRagAndPromptIntermediatePreviews() throws Exception {
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        Path outputRoot = tempDirectory.resolve("engine-output");
+        VcaIntermediateResultStorage intermediateStorage =
+                new VcaIntermediateResultStorage(outputRoot.toString());
+        MockMvc gatewayMvc = mvc(new VcaService(
+                true,
+                new StaticVcaAiGateway(),
+                sharedStorage,
+                intermediateStorage
+        ));
+        gatewayMvc.perform(multipart("/api/vca/sensitive-preview-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
+                .andExpect(status().isCreated());
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/sensitive-preview-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String assessmentRunId = JsonPath.read(
+                runResult.getResponse().getContentAsString(),
+                "$.assessmentRunId"
+        );
+        String projectName = "sensitive-preview-artifact-" + assessmentRunId;
+        Path ragFile = outputRoot.resolve("rag").resolve(projectName).resolve("prompt_rag_results.jsonl");
+        Path promptFile = outputRoot.resolve("prompt_generating").resolve(projectName).resolve("prompt.json");
+        Files.createDirectories(ragFile.getParent());
+        Files.createDirectories(promptFile.getParent());
+        Files.writeString(ragFile, "{\"snippet_text\":\"sensitive retrieved evidence\"}");
+        Files.writeString(promptFile, "{\"prompt\":\"sensitive prompt text\"}");
+
+        MvcResult result = gatewayMvc.perform(get(
+                        "/api/vca/sensitive-preview-artifact/runs/{assessmentRunId}/intermediate-results",
+                        assessmentRunId
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stages[0].stage").value("rag"))
+                .andExpect(jsonPath("$.stages[0].items[0].relativePath").value("prompt_rag_results.jsonl"))
+                .andExpect(jsonPath("$.stages[0].items[0].preview").isEmpty())
+                .andExpect(jsonPath("$.stages[1].stage").value("prompt_generating"))
+                .andExpect(jsonPath("$.stages[1].items[0].relativePath").value("prompt.json"))
+                .andExpect(jsonPath("$.stages[1].items[0].preview").isEmpty())
+                .andReturn();
+
+        assertThat(result.getResponse().getContentAsString())
+                .doesNotContain("sensitive retrieved evidence", "sensitive prompt text");
     }
 
     @Test

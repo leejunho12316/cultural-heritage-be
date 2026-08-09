@@ -38,6 +38,9 @@ def validate_project_name(project_name: ProjectName) -> None:
         raise InvalidProjectNameError(str(project_name))
 
 
+# 업로드 폴더가 공유 스토리지 루트 하위에 있고, 실제 존재하며, 지원 이미지
+# 확장자를 가진 파일을 하나 이상 포함하는지 검증한다.
+# create_assessment_run()에서 파이프라인 실행 전 호출된다.
 def validate_input_image_folder(
     input_image_folder: InputImageFolder,
     shared_storage_root: Path,

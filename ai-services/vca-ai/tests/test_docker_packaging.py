@@ -68,8 +68,10 @@ def test_compose_when_postgres_is_published_binds_to_localhost_only() -> None:
     compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 
     # When: the Postgres port mapping is inspected
-    # Then: default credentials are not exposed on every host interface
-    assert '"127.0.0.1:5432:5432"' in compose
+    # Then: default credentials are not exposed on every host interface, even
+    # though the published host port is configurable (POSTGRES_HOST_PORT) so
+    # a locally running Postgres outside Docker will not conflict.
+    assert '"127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"' in compose
     assert '"5432:5432"' not in compose
 
 

@@ -1,3 +1,4 @@
+import json
 import subprocess
 from pathlib import Path
 
@@ -9,6 +10,24 @@ from app.services import assessment_runs
 
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _run_background_launch_inline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the pipeline launch synchronously so assertions are deterministic.
+
+    Production code backgrounds the run via a real thread (see
+    assessment_runs._launch_background); tests that want to assert on
+    side effects right after the HTTP call opt into that here instead of
+    racing a real thread.
+    """
+
+    def launch_inline(
+        run: object, input_directory: object, settings: object
+    ) -> None:
+        assessment_runs._run_vca_and_record_failure(run, input_directory, settings)
+
+    monkeypatch.setattr(assessment_runs, "_launch_background", launch_inline)
 
 
 def create_input_folder(shared_root: Path) -> Path:
@@ -43,19 +62,19 @@ def test_assessment_run_when_created_in_default_full_mode(
     captured_command: list[str] = []
 
     def fake_run(
-        command: list[str], *, cwd: Path, check: bool, capture_output: bool, text: bool, timeout: int
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
     ) -> subprocess.CompletedProcess[str]:
         captured_command.extend(command)
         assert cwd == engine_root
         assert not stale_output.exists()
-        assert (check, capture_output, text, timeout) == (True, True, True, 600)
+        assert timeout == 600
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
     monkeypatch.setenv("VCA_RUN_TIMEOUT_SECONDS", "600")
     monkeypatch.setenv("VCA_DRY_RUN_TIMEOUT_SECONDS", "120")
-    monkeypatch.setattr(assessment_runs.subprocess, "run", fake_run)
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
 
     # When: Spring creates an assessment run
     response = client.post(
@@ -83,9 +102,9 @@ def test_assessment_run_when_optional_engine_settings_are_configured(
     captured_command: list[str] = []
 
     def fake_run(
-        command: list[str], *, cwd: Path, check: bool, capture_output: bool, text: bool, timeout: int
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
     ) -> subprocess.CompletedProcess[str]:
-        _ = cwd, check, capture_output, text, timeout
+        _ = cwd, timeout
         captured_command.extend(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -94,7 +113,7 @@ def test_assessment_run_when_optional_engine_settings_are_configured(
     monkeypatch.setenv("VCA_DEVICE", "cpu")
     monkeypatch.setenv("VCA_MAX_IMAGES", "2")
     monkeypatch.setenv("VCA_MODEL_CACHE_ROOT", "/opt/vca-models/models")
-    monkeypatch.setattr(assessment_runs.subprocess, "run", fake_run)
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
 
     # When: Spring creates a run
     response = client.post(
@@ -124,16 +143,16 @@ def test_assessment_run_when_local_unverified_model_hashes_are_allowed(
     captured_command: list[str] = []
 
     def fake_run(
-        command: list[str], *, cwd: Path, check: bool, capture_output: bool, text: bool, timeout: int
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
     ) -> subprocess.CompletedProcess[str]:
-        _ = cwd, check, capture_output, text, timeout
+        _ = cwd, timeout
         captured_command.extend(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
     monkeypatch.setenv("VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES", "true")
-    monkeypatch.setattr(assessment_runs.subprocess, "run", fake_run)
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
 
     # When: Spring creates a run through the local adapter.
     response = client.post(
@@ -157,9 +176,9 @@ def test_assessment_run_when_dry_run_mode_is_explicitly_configured(
     captured_command: list[str] = []
 
     def fake_run(
-        command: list[str], *, cwd: Path, check: bool, capture_output: bool, text: bool, timeout: int
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
     ) -> subprocess.CompletedProcess[str]:
-        _ = cwd, check, capture_output, text, timeout
+        _ = cwd, timeout
         captured_command.extend(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -168,7 +187,7 @@ def test_assessment_run_when_dry_run_mode_is_explicitly_configured(
     monkeypatch.setenv("VCA_RUN_MODE", "dry-run")
     monkeypatch.setenv("VCA_DEVICE", "cuda")
     monkeypatch.setenv("VCA_MAX_IMAGES", "2")
-    monkeypatch.setattr(assessment_runs.subprocess, "run", fake_run)
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
 
     # When: Spring creates a dry-run assessment
     response = client.post(
@@ -193,15 +212,15 @@ def test_assessment_run_when_real_startup_exits_non_zero(
     captured_command: list[str] = []
 
     def fake_run(
-        command: list[str], *, cwd: Path, check: bool, capture_output: bool, text: bool, timeout: int
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
     ) -> subprocess.CompletedProcess[str]:
-        _ = cwd, check, capture_output, text, timeout
+        _ = cwd, timeout
         captured_command.extend(command)
         raise subprocess.CalledProcessError(2, command, output="", stderr="GPU unavailable")
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs.subprocess, "run", fake_run)
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
 
     # When: Spring creates a real assessment run
     response = client.post(
@@ -209,10 +228,207 @@ def test_assessment_run_when_real_startup_exits_non_zero(
         json={"assessmentId": "artifact-123", "projectName": "artifact-123-run-123", "inputImageFolder": str(input_folder)},
     )
 
-    # Then: the non-zero process exit remains a gateway failure without dry-run fallback
-    assert response.status_code == 502
-    assert "GPU unavailable" in response.json()["detail"]
+    # Then: the run is still accepted (it runs in the background); the
+    # non-zero process exit surfaces as a polled FAILED status instead of a
+    # synchronous gateway error.
+    assert response.status_code == 202
+    assert response.json()["status"] == "FAILED"
+    assert "GPU unavailable" in response.json()["failureReason"]
     assert "--dry-run" not in captured_command
+
+
+def test_assessment_run_when_cancelled_reports_cancelled_by_user_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a run cancel_run() already marked cancelled right before its
+    # subprocess exits non-zero from the SIGTERM it sent.
+    shared_root = tmp_path / "shared" / "vca"
+    input_folder = create_input_folder(shared_root)
+    engine_root = tmp_path / "vca_v2"
+    run_id = "vca-artifact-123~artifact-123-run-123"
+    assessment_runs._cancelled_run_ids.add(run_id)
+
+    def fake_run(
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
+    ) -> subprocess.CompletedProcess[str]:
+        _ = cwd, timeout, run_id
+        raise subprocess.CalledProcessError(-15, command, output="", stderr="Terminated")
+
+    monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+
+    try:
+        # When: Spring creates the run that gets cancelled mid-flight.
+        response = client.post(
+            "/internal/vca/assessment-runs",
+            json={"assessmentId": "artifact-123", "projectName": "artifact-123-run-123", "inputImageFolder": str(input_folder)},
+        )
+
+        # Then: the failure reason is the user-facing cancellation message,
+        # not the raw subprocess stderr.
+        assert response.status_code == 202
+        assert response.json()["status"] == "FAILED"
+        assert assessment_runs._CANCELLED_BY_USER_REASON in response.json()["failureReason"]
+        assert "Terminated" not in response.json()["failureReason"]
+    finally:
+        assessment_runs._cancelled_run_ids.discard(run_id)
+
+
+def test_cancel_run_signals_the_active_process_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a run with an actively tracked, still-alive subprocess.
+    killed_groups: list[tuple[int, int]] = []
+
+    class RunningProcess:
+        pid = 24680
+
+        def poll(self) -> int | None:
+            return None
+
+    monkeypatch.setattr(
+        assessment_runs.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
+    )
+    assessment_runs._mark_cancellable("run-cancel-1", RunningProcess())
+
+    try:
+        # When: the run is cancelled.
+        cancelled = assessment_runs.cancel_run("run-cancel-1")
+
+        # Then: SIGTERM reaches the process group and the run is remembered
+        # as cancelled so _run_vca() can report a clean reason.
+        assert cancelled is True
+        assert killed_groups == [(24680, assessment_runs.signal.SIGTERM)]
+        assert assessment_runs._was_cancelled("run-cancel-1") is True
+    finally:
+        assessment_runs._forget_cancellable("run-cancel-1")
+
+
+def test_cancel_run_is_a_no_op_when_no_process_is_tracked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: no subprocess registered for this run id (never launched, or
+    # this adapter instance did not launch it).
+    killed_groups: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        assessment_runs.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
+    )
+
+    # When/Then: cancelling reports nothing to cancel and signals nobody.
+    assert assessment_runs.cancel_run("run-never-started") is False
+    assert killed_groups == []
+
+
+def test_cancel_run_is_a_no_op_once_the_process_already_exited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a tracked process that already finished on its own.
+    killed_groups: list[tuple[int, int]] = []
+
+    class FinishedProcess:
+        pid = 13579
+
+        def poll(self) -> int | None:
+            return 0
+
+    monkeypatch.setattr(
+        assessment_runs.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
+    )
+    assessment_runs._mark_cancellable("run-cancel-2", FinishedProcess())
+
+    try:
+        # When/Then: cancelling an already-finished run signals nothing.
+        assert assessment_runs.cancel_run("run-cancel-2") is False
+        assert killed_groups == []
+    finally:
+        assessment_runs._forget_cancellable("run-cancel-2")
+
+
+def test_cancel_run_endpoint_returns_current_run_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: an engine root with no progress.json yet for this run id (no
+    # subprocess is tracked for it in this adapter instance either).
+    engine_root = tmp_path / "vca_v2"
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+    run_id = "vca-artifact-cancel~artifact-cancel-run-1"
+
+    # When: a cancel request arrives for it.
+    response = client.post(f"/internal/vca/assessment-runs/{run_id}/cancel")
+
+    # Then: it responds with the run's current status instead of erroring,
+    # so a stale/duplicate stop click stays harmless.
+    assert response.status_code == 200
+    assert response.json()["runId"] == run_id
+    assert response.json()["status"] == "RUNNING"
+
+
+def test_cancel_run_endpoint_rejects_unknown_run_id_shape() -> None:
+    response = client.post("/internal/vca/assessment-runs/not-a-real-run-id/cancel")
+
+    assert response.status_code == 404
+
+
+def test_run_command_when_timeout_kills_process_group(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a native startup process exceeds the configured timeout.
+    killed_groups: list[tuple[int, int]] = []
+
+    class TimeoutProcess:
+        pid = 12345
+        returncode = None
+        communicate_calls = 0
+
+        def communicate(self, *, timeout: int | None = None) -> tuple[str, str]:
+            self.communicate_calls += 1
+            if timeout == 1:
+                raise subprocess.TimeoutExpired(["uv"], 1)
+            if timeout == assessment_runs._PROCESS_TERMINATION_GRACE_SECONDS:
+                raise subprocess.TimeoutExpired(["uv"], timeout)
+            return "", ""
+
+    def fake_popen(
+        command: list[str],
+        *,
+        cwd: Path,
+        stdout: int,
+        stderr: int,
+        text: bool,
+        start_new_session: bool,
+    ) -> TimeoutProcess:
+        assert command == ["uv"]
+        assert cwd == tmp_path
+        assert (stdout, stderr, text, start_new_session) == (
+            subprocess.PIPE,
+            subprocess.PIPE,
+            True,
+            True,
+        )
+        return TimeoutProcess()
+
+    def fake_killpg(pid: int, sig: int) -> None:
+        killed_groups.append((pid, sig))
+
+    monkeypatch.setattr(assessment_runs.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(assessment_runs.os, "killpg", fake_killpg)
+
+    # When/Then: the timeout is re-raised after killing the whole process group.
+    with pytest.raises(subprocess.TimeoutExpired):
+        assessment_runs._run_command(
+            ["uv"],
+            cwd=tmp_path,
+            timeout=1,
+            run_id="test-run",
+        )
+    assert killed_groups == [
+        (12345, assessment_runs.signal.SIGTERM),
+        (12345, assessment_runs.signal.SIGKILL),
+    ]
 
 
 def test_assessment_run_when_run_mode_is_invalid(
@@ -252,14 +468,14 @@ def test_assessment_run_when_stage_outputs_are_stale(
             (output_directory / "output.txt").write_text(content, encoding="utf-8")
 
     def fake_run(
-        command: list[str], *, cwd: Path, check: bool, capture_output: bool, text: bool, timeout: int
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
     ) -> subprocess.CompletedProcess[str]:
-        _ = cwd, check, capture_output, text, timeout
+        _ = cwd, timeout
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs.subprocess, "run", fake_run)
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
 
     # When: Spring creates an internal assessment run for that project
     response = client.post(
@@ -324,3 +540,112 @@ def test_assessment_status_when_run_identifier_is_unknown() -> None:
 
     # Then: the adapter rejects it as an unknown run
     assert response.status_code == 404
+
+
+def _write_progress(
+    engine_root: Path,
+    project_name: str,
+    *,
+    status: str,
+    current_stage: str | None,
+    stages: list[dict[str, object]],
+) -> None:
+    progress_path = (
+        engine_root / "output" / "result" / project_name / "receipts" / "progress.json"
+    )
+    progress_path.parent.mkdir(parents=True)
+    progress_path.write_text(
+        json.dumps(
+            {
+                "schema": "vca-startup-progress-v1",
+                "project_name": project_name,
+                "status": status,
+                "current_stage": current_stage,
+                "stages": stages,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_assessment_status_reflects_running_engine_progress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: the engine has written an in-flight progress snapshot.
+    engine_root = tmp_path / "vca_v2"
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+    _write_progress(
+        engine_root,
+        "artifact-123-run-123",
+        status="running",
+        current_stage="rag",
+        stages=[
+            {"name": "preprocessing", "status": "completed", "exit_code": 0},
+            {"name": "rough_masking", "status": "completed", "exit_code": 0},
+        ],
+    )
+
+    # When: Spring polls the run status mid-flight.
+    response = client.get(
+        "/internal/vca/assessment-runs/vca-artifact-123~artifact-123-run-123"
+    )
+
+    # Then: the real in-progress stage detail is surfaced, not hardcoded COMPLETED.
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "RUNNING"
+    assert body["currentStage"] == "rag"
+    assert [stage["name"] for stage in body["stages"]] == [
+        "preprocessing",
+        "rough_masking",
+    ]
+    assert [stage["status"] for stage in body["stages"]] == [
+        "completed",
+        "completed",
+    ]
+
+
+def test_assessment_status_reflects_completed_engine_progress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: the engine finished every stage and wrote a completed snapshot.
+    engine_root = tmp_path / "vca_v2"
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+    _write_progress(
+        engine_root,
+        "artifact-123-run-123",
+        status="completed",
+        current_stage=None,
+        stages=[{"name": "report_generating", "status": "completed", "exit_code": 0}],
+    )
+
+    # When: Spring polls the run status after completion.
+    response = client.get(
+        "/internal/vca/assessment-runs/vca-artifact-123~artifact-123-run-123"
+    )
+
+    # Then: completion is reported from the real snapshot.
+    assert response.status_code == 200
+    assert response.json()["status"] == "COMPLETED"
+    assert response.json()["currentStage"] is None
+
+
+def test_assessment_status_defaults_to_running_before_any_progress_is_written(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a valid run identifier whose engine has not written progress yet.
+    engine_root = tmp_path / "vca_v2"
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+
+    # When: Spring polls immediately after the run was accepted.
+    response = client.get(
+        "/internal/vca/assessment-runs/vca-artifact-999~artifact-999-run-999"
+    )
+
+    # Then: the adapter reports RUNNING with no stages rather than failing.
+    assert response.status_code == 200
+    assert response.json()["status"] == "RUNNING"
+    assert response.json()["stages"] == []

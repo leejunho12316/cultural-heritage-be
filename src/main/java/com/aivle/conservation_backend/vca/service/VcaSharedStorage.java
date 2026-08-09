@@ -20,6 +20,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.regex.Pattern;
 
+// VcaImageStorage(S3) 빈이 없을 때 VcaService가 폴백으로 사용하는 로컬 디스크 저장소.
+// 업로드 이미지, run 입력 디렉터리를 storageRoot 아래에 직접 관리한다.
 @Component
 public class VcaSharedStorage {
 
@@ -38,6 +40,7 @@ public class VcaSharedStorage {
         this.containerRoot = removeTrailingSlash(containerRoot);
     }
 
+    // 검증된 이미지를 storageRoot/uploads/{imageId}/ 아래에 저장하며 sha256을 함께 계산.
     StoredImage storeUpload(String imageId, MultipartFile file) {
         validateUpload(file);
         String fileName = safeFileName(file.getOriginalFilename());
@@ -70,6 +73,9 @@ public class VcaSharedStorage {
         }
     }
 
+    // 엔진이 읽을 수 있도록 업로드 이미지들을 run 전용 입력 디렉터리로 복사한다.
+    // 기존 runDirectory는 매번 삭제 후 재생성하므로, 같은 assessmentRunId로 다시 호출하면
+    // 이전에 준비된 입력이 사라진다(재시도/재생성 목적이 아니라면 호출에 주의).
     RunInputDirectory materializeRunInput(
             String assessmentRunId,
             List<StoredImageReference> images
@@ -105,6 +111,7 @@ public class VcaSharedStorage {
         return new RunInputDirectory(containerRoot + "/" + assessmentRunId + "/input");
     }
 
+    // 이미지 삭제 API(VcaService.deleteImage)에서 호출되어 업로드 디렉터리 전체를 제거한다.
     void deleteUpload(String imageId, Path storedPath) {
         if (storedPath == null) {
             return;
@@ -149,6 +156,8 @@ public class VcaSharedStorage {
         }
     }
 
+    // 멀티파트 Content-Type 헤더는 클라이언트가 스스로 선언한 값이라 그대로 신뢰할 수 없으므로,
+    // 아래에서 실제 파일 앞부분 바이트를 읽어 선언된 타입과 일치하는지 검증한다.
     private static InputStream verifiedImageInput(MultipartFile file) throws IOException {
         BufferedInputStream input = new BufferedInputStream(file.getInputStream());
         input.mark(IMAGE_HEADER_SIZE);
@@ -214,6 +223,8 @@ public class VcaSharedStorage {
         return Path.of(originalFileName).getFileName().toString();
     }
 
+    // imageId/fileName 등 외부 입력으로 만든 경로가 "../"를 통해 parent 밖으로
+    // 벗어나지 않았는지 확인하는 경로 조작(path traversal) 방지 가드.
     private static void requireChild(Path path, Path parent, String message) {
         if (!path.getParent().equals(parent.normalize())) {
             throw new VcaApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message);

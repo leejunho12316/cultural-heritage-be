@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 RAG_TEXT_EMBEDDING_MODEL_KEY: Final = "rag.text_embedding"
 RAG_TEXT_EMBEDDING_REPO_ID: Final = "intfloat/multilingual-e5-small"
 _PINNED_REVISION: Final = re.compile(r"(?:sha256:[0-9a-f]{64}|[0-9a-f]{40})")
+_PASSAGE_EMBED_BATCH_SIZE: Final = 128
 
 class _Tokenizer(Protocol):
     def __call__(
@@ -66,7 +67,13 @@ class LocalTransformerTextEmbedder:
 
     def embed_passages(self, texts: tuple[str, ...]) -> FloatMatrix:
         """Embed document chunks with the passage prefix used by E5 models."""
-        return self._embed(tuple(f"passage: {text}" for text in texts))
+        passages = tuple(f"passage: {text}" for text in texts)
+        vectors: list[FloatVector] = []
+        for start in range(0, len(passages), _PASSAGE_EMBED_BATCH_SIZE):
+            vectors.extend(
+                self._embed(passages[start : start + _PASSAGE_EMBED_BATCH_SIZE])
+            )
+        return tuple(vectors)
 
     def embed_query(self, text: str) -> FloatVector:
         """Embed one query with the query prefix used by E5 models."""

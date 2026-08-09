@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+// VcaImageStorage의 운영용 구현체(S3 기반). aws.s3.bucket이 설정된 환경에서 스프링 빈으로 등록되며,
+// 없으면 VcaService는 VcaSharedStorage 기반 로컬 저장으로 대신 동작한다.
 @Component
 class VcaS3ImageStorage implements VcaImageStorage {
 
@@ -60,6 +62,9 @@ class VcaS3ImageStorage implements VcaImageStorage {
         this.containerRoot = removeTrailingSlash(containerRoot);
     }
 
+    // 클라이언트가 S3로 직접 PUT할 presigned URL을 발급한다. 이 경로는 파일 바이트를 Spring이
+    // 직접 보지 않으므로 storeUpload와 달리 매직 바이트 검증이 불가능하다 - 이후 완료 단계에서
+    // verifyUpload가 크기/sha256만 사후 검증한다.
     @Override
     public PresignedUpload presignUpload(
             String artifactId,
@@ -91,6 +96,7 @@ class VcaS3ImageStorage implements VcaImageStorage {
         );
     }
 
+    // Spring을 거쳐 바로 S3에 저장하는 업로드 경로(DIRECT_UPLOAD). 매직 바이트 검증까지 마친 뒤 저장한다.
     @Override
     public StoredImage storeUpload(String artifactId, String imageId, MultipartFile file) {
         VcaImageUploadValidator.validateUpload(file);
@@ -128,6 +134,8 @@ class VcaS3ImageStorage implements VcaImageStorage {
         }
     }
 
+    // presignUpload로 직접 업로드된 객체가 예약 당시 크기/sha256과 일치하는지 확인한다.
+    // completeImage 호출 시 실행되며, presignUpload 경로에서 유일하게 내용을 검증하는 지점이다.
     @Override
     public void verifyUpload(String objectKey, long expectedSizeBytes, String expectedSha256) {
         HeadObjectResponse response;
@@ -172,6 +180,7 @@ class VcaS3ImageStorage implements VcaImageStorage {
         return URI.create(s3Presigner.presignGetObject(presignRequest).url().toString());
     }
 
+    // run 실행 전, S3에 있는 업로드 이미지들을 엔진 컨테이너가 마운트해 읽을 로컬 입력 디렉터리로 내려받는다.
     @Override
     public VcaSharedStorage.RunInputDirectory materializeRunInput(
             String assessmentRunId,
@@ -237,6 +246,7 @@ class VcaS3ImageStorage implements VcaImageStorage {
         }
     }
 
+    // S3 오브젝트 키 레이아웃: {objectPrefix}/{artifactId}/{imageId}/{fileName}.
     private String objectKey(String artifactId, String imageId, String fileName) {
         return objectPrefix + "/" + artifactId + "/" + imageId + "/" + VcaImageUploadValidator.safeFileName(fileName);
     }
