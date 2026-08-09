@@ -173,7 +173,12 @@ services:
       XRAY_STITCH_CALLBACK_TOKEN: ${XRAY_STITCH_CALLBACK_TOKEN:-}
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/conservation}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-conservation}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      # SPRING_DATASOURCE_PASSWORD가 .env에 아예 없으면(예: 이 변수가 새로
+      # 생기기 전 .env를 아직 안 맞춘 경우) Compose가 빈 문자열을 그대로
+      # 채워넣는데, application.yaml의 ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:}}
+      # 폴백은 변수가 "존재하되 비어있음"일 때는 안 먹힌다(완전히 없을 때만
+      # 폴백함) - 그래서 여기서 미리 POSTGRES_PASSWORD로 폴백해둔다.
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-${POSTGRES_PASSWORD}}
       APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:3000
     depends_on:
       postgres:
