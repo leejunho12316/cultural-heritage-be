@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -38,6 +39,7 @@ class _CliNamespace(argparse.Namespace):
         self.output_json = Path()
 
 
+# 독립 실행 report_generating CLI 진입점(__main__에서 호출).
 def main(arguments: Sequence[str] | None = None) -> int:
     """Run the standalone JSON request/response report generator."""
     parsed = _CliNamespace()
@@ -53,13 +55,20 @@ def main(arguments: Sequence[str] | None = None) -> int:
         FileNotFoundError,
         json.JSONDecodeError,
         PathSafetyError,
-    ):
+    ) as error:
+        print(  # noqa: T201
+            f"report_generating: failed: {type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
         return int(ExitCode.INCOMPLETE_OR_FAILURE)
     return int(ExitCode.OK) if result["verification_status"] == "pass" else int(
         ExitCode.INCOMPLETE_OR_FAILURE
     )
 
 
+# main과 startup_runner.py의 run_report_generating_stage 양쪽에서 호출되는
+# 핵심 오케스트레이션 함수. trace 리포트를 만들고 검증한 뒤, 통과한 경우에만
+# 최종 한국어 리포트까지 생성한다.
 def run_report_generation(request: ReportGeneratingRequest) -> JsonObject:
     """Generate both report layers and return their verification outcome."""
     run_root = ensure_safe_run_root(request.workspace_root, request.run_root)
@@ -78,6 +87,7 @@ def run_report_generation(request: ReportGeneratingRequest) -> JsonObject:
     return _result(trace_root, final_root, status)
 
 
+# run_report_generation에서 반환 JSON payload를 만드는 헬퍼.
 def _result(trace_root: Path, final_root: Path | None, status: str) -> JsonObject:
     return {
         "schema": "report_generating_result_v1",

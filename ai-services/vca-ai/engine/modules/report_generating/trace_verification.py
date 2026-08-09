@@ -29,6 +29,9 @@ from modules.shared import ensure_contained_write_path
 if TYPE_CHECKING:
     from pathlib import Path
 
+# runner.py의 run_report_generation이 trace 생성 직후 호출한다. 정적 검증을
+# 수행하고 결과를 receipt.json으로 남겨, 이후 trace_receipt_integrity_error가
+# 재검증할 수 있는 기준을 만든다.
 def verify_trace_report(run_root: Path) -> VerificationReceipt:
     """Verify trace artifacts and persist a machine-readable receipt."""
     report_root = run_root / "report"
@@ -50,6 +53,9 @@ def verify_trace_report(run_root: Path) -> VerificationReceipt:
     return receipt
 
 
+# final.py의 generate_final_report가 최종 리포트를 쓰기 전에 반드시 호출한다.
+# 저장된 receipt.json이 현재 trace 산출물과 정말 일치하는지까지 재확인해,
+# 검증 후 파일이 변조/재생성된 경우를 막는다.
 def trace_receipt_integrity_error(run_root: Path) -> str | None:
     """Return a refusal reason unless trace evidence matches its receipt."""
     report_root = run_root / "report"
@@ -65,6 +71,8 @@ def trace_receipt_integrity_error(run_root: Path) -> str | None:
     )
 
 
+# verify_trace_report와 trace_receipt_integrity_error가 공유하는 정적 검증
+# 로직(경로 안전성 + metadata/HTML 계약 검사).
 def _trace_static_error(run_root: Path, report_root: Path) -> str | None:
     index_path = report_root / "index.html"
     metadata_path = report_root / "metadata.json"
@@ -82,6 +90,8 @@ def _trace_static_error(run_root: Path, report_root: Path) -> str | None:
     )
 
 
+# verify_trace_report와 _trace_receipt_contract_error가 호출한다. 현재 디스크의
+# trace 산출물로부터 다이제스트를 다시 계산해 receipt와 대조할 기준값을 만든다.
 def trace_digests(report_root: Path) -> JsonObject:
     """Return trace artifact digests used by metadata and receipts."""
     metadata_path = report_root / "metadata.json"
@@ -123,6 +133,8 @@ def _read_trace_metadata(path: Path) -> JsonObject | str:
         return "trace metadata is unreadable"
 
 
+# trace_receipt_integrity_error에서 호출된다. receipt.json 내용이 스키마,
+# run_root, artifact_root, 다이제스트까지 현재 상태와 정확히 일치하는지 검사한다.
 def _trace_receipt_contract_error(
     run_root: Path,
     report_root: Path,
@@ -155,6 +167,8 @@ def _trace_receipt_contract_error(
     )
 
 
+# _trace_static_error에서 호출된다. report 디렉터리가 run_root를 벗어나거나
+# 심볼릭 링크이거나 필수 파일이 없는 경우를 걸러낸다.
 def _trace_path_error(
     run_root: Path,
     report_root: Path,

@@ -71,6 +71,9 @@ class PreflightFailureReceipt:
     exit_code: ExitCode = ExitCode.INCOMPLETE_OR_FAILURE
 
 
+# 이미지 하나가 워크스페이스 안에 있고, 실제 읽을 수 있는 파일이며, 지원되는
+# 이미지 포맷인지 검사해 PreflightImage 또는 PreflightIssue를 반환한다.
+# _validated_images에서 이미지마다 호출된다.
 def _validate_image(
     path: Path, workspace_root: Path
 ) -> PreflightImage | PreflightIssue:
@@ -92,6 +95,8 @@ def _validate_image(
     )
 
 
+# run_root가 workspace_root를 벗어나지 않는지 검증하고, 실패 시에도 로깅용
+# 경로와 이슈 목록을 함께 돌려준다. preflight_run에서 호출된다.
 def _safe_run_root(
     request: RunRequest, workspace_root: Path
 ) -> tuple[Path, tuple[PreflightIssue, ...]]:
@@ -105,6 +110,8 @@ def _safe_run_root(
         return run_root, (PreflightIssue("run_root", error.reason),)
 
 
+# 요청된 이미지 경로들을 중복 제거하며 하나씩 검증해 통과한 이미지와
+# 이슈 목록을 나눠 반환한다. preflight_run에서 호출된다.
 def _validated_images(
     request: RunRequest, workspace_root: Path
 ) -> tuple[tuple[PreflightImage, ...], tuple[PreflightIssue, ...]]:
@@ -128,6 +135,8 @@ def _validated_images(
     return tuple(images), tuple(issues)
 
 
+# 요청된 detector_lanes가 활성 레인 목록에 포함되는지 검증한다.
+# preflight_run에서 호출된다.
 def _validated_lanes(
     request: RunRequest,
 ) -> tuple[tuple[DetectorLane, ...], tuple[PreflightIssue, ...]]:

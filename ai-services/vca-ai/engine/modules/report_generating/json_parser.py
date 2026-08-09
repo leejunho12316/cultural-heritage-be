@@ -13,6 +13,9 @@ if TYPE_CHECKING:
 _NUMBER_PATTERN = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 
 
+# io.py의 read_json_object가 호출하는 공개 진입점. 표준 json.loads 대신 직접
+# 파서를 둔 이유는 모듈 docstring대로 Any 타입이 리포트 경계를 넘어 새는 것을
+# 막기 위함이다.
 def parse_json_object(text: str) -> JsonObject:
     """Parse one complete JSON object into recursive JSON value types."""
     value, position = _parse_value(text, 0)
@@ -21,6 +24,8 @@ def parse_json_object(text: str) -> JsonObject:
     return value
 
 
+# 재귀 하강 파서의 중앙 디스패치. 다음 토큰 종류를 보고 객체/배열/문자열/
+# 리터럴/숫자 파서로 분기한다.
 def _parse_value(text: str, position: int) -> tuple[JsonValue, int]:
     start = _skip_whitespace(text, position)
     marker = _marker(text, start)

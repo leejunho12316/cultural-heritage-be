@@ -58,6 +58,9 @@ def rough_qwen_candidates(
     )
 
 
+# 하나의 rough 레코드를 읽어 RawDetectorCandidate로 재구성한다.
+# rough_qwen_candidates가 각 레코드마다 호출하며, 재구성 실패 시
+# ContractValidationError를 발생시킨다.
 def _qwen_candidate(
     rough_root: Path,
     asset_root: Path,
@@ -88,6 +91,8 @@ def _qwen_candidate(
     return RoughQwenCandidate(rough, candidate)
 
 
+# rough_record_index로 저장된 위치의 레코드를 다시 읽는다. records.json의
+# 항목 순서가 저장 시점과 동일하게 유지된다는 전제에 의존한다.
 def _record(records_path: Path, index: int) -> JsonRecord:
     rows = decode_records(records_path.read_text(encoding="utf-8"))
     if rows is None or index >= len(rows):
@@ -95,6 +100,8 @@ def _record(records_path: Path, index: int) -> JsonRecord:
     return rows[index]
 
 
+# mask/overlay 상대 경로가 rough record 디렉터리와 asset_root를 벗어나지
+# 않는지 검증하고 AssetReference로 만든다(해시는 다시 계산한다).
 def _asset(
     asset_root: Path,
     lane_root: Path,
@@ -117,6 +124,8 @@ def _asset(
     )
 
 
+# 저장된 prompt_text를 신뢰하지 않고 static_seed_minimal_pack의 잠긴
+# 프롬프트 목록과 다시 대조해 PromptRecord를 복원한다.
 def _prompt(detector_lane: DetectorLane, prompt_text: str) -> PromptRecord:
     rag_lane = detector_to_rag_lane(detector_lane)
     for prompt in static_seed_minimal_pack.records:
@@ -125,6 +134,7 @@ def _prompt(detector_lane: DetectorLane, prompt_text: str) -> PromptRecord:
     return _raise_contract("prompt", "must match locked rough seed prompt")
 
 
+# bbox_xyxy를 파싱하고 좌표가 양수이며 순서가 올바른지 검증한다.
 def _bbox(record: JsonRecord) -> tuple[float, float, float, float]:
     raw_bbox = record.get("bbox_xyxy")
     if not isinstance(raw_bbox, list) or len(raw_bbox) != _BBOX_COORDINATES:
@@ -161,6 +171,9 @@ def _source_view_id(rough: RoughRagCandidate) -> str:
 
 
 def _object_id(rough: RoughRagCandidate) -> str | None:
+    # rough-mask 출력 경로 구조 <lane>/<object_id>/<lane>/records.json 에 의존한다
+    # (rough_masking startup_runner._run_object 참고). 구조가 바뀌면 예외 없이
+    # 조용히 잘못된 값을 반환한다.
     raw_path = Path(rough.rough_record_path)
     return (
         raw_path.parts[1] if len(raw_path.parts) >= _OBJECT_ID_MINIMUM_PARTS else None

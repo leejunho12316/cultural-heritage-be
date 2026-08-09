@@ -2,7 +2,24 @@
 
 from typing import Final
 
-from modules.prompt_generating import VisualConceptFamily
+from modules.prompt_generating import (
+    ALLOWED_CONTEXT_TERMS,
+    ALLOWED_DESCRIPTOR_TERMS,
+    ALLOWED_MATERIAL_TERMS,
+    VisualConceptFamily,
+)
+
+__all__ = (
+    "ALLOWED_CONTEXT_TERMS",
+    "ALLOWED_DESCRIPTOR_TERMS",
+    "ALLOWED_MATERIAL_TERMS",
+    "FAMILY_KEYWORDS",
+    "MIN_NUMERIC_FRAGMENT_COUNT",
+    "MIN_REPEATED_FRAGMENT_COUNT",
+    "MIN_TABLE_GARBAGE_NUMERIC_COUNT",
+    "TABLE_GARBAGE_PHRASES",
+    "TABLE_GARBAGE_TERMS",
+)
 
 FAMILY_KEYWORDS: Final = (
     (("crack", "fissure"), VisualConceptFamily.CRACK),
@@ -16,19 +33,13 @@ FAMILY_KEYWORDS: Final = (
     (("deformation",), VisualConceptFamily.DEFORMATION),
     (("adhesive", "residue"), VisualConceptFamily.ADHESIVE_RESIDUE),
 )
-ALLOWED_DESCRIPTOR_TERMS: Final = frozenset(
-    (
-        "white", "black", "green", "reddish", "yellow", "gray", "line", "spot",
-        "hole", "pit", "crust", "powder", "flaking", "broad", "powdery",
-        "crystalline", "rough", "layered", "smooth", "micro", "local",
-    )
-)
-ALLOWED_CONTEXT_TERMS: Final = frozenset(
-    ("surface", "artifact", "area", "region", "localized")
-)
-ALLOWED_MATERIAL_TERMS: Final = frozenset(
-    ("ceramic", "glass", "metal", "stone", "wood")
-)
+# ALLOWED_DESCRIPTOR_TERMS/ALLOWED_MATERIAL_TERMS/ALLOWED_CONTEXT_TERMS는
+# modules.prompt_generating.variants가 유일한 출처다(위에서 그대로 import).
+# 여기서 따로 복제하지 않는다 - 카드 구성 시점의 허용어휘와 프롬프트 렌더링
+# 시점의 안전 검사 허용어휘가 따로 놀면, 카드에는 실렸지만 프롬프트로
+# 렌더링할 때 걸러지는 서술어가 생겨 파이프라인이 PromptSafetyError로
+# 죽는다(실측 근거: qwen_bridge_result.jsonl 523건 기준 원래 21단어 커버리지
+# 43.4% -> prompt_generating 쪽 허용어휘 확장 후 100%).
 TABLE_GARBAGE_TERMS: Final = frozenset({"unchanging"})
 TABLE_GARBAGE_PHRASES: Final = frozenset(
     (

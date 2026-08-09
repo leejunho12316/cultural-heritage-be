@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Protocol
 
@@ -126,10 +127,18 @@ def run_rough_masking_stage(
         return int(
             ExitCode.OK if accepted_count > 0 else ExitCode.INCOMPLETE_OR_FAILURE
         )
-    except (ContractValidationError, OSError):
+    except (ContractValidationError, OSError) as error:
+        print(  # noqa: T201
+            f"rough_masking: failed: {type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
         return int(ExitCode.INCOMPLETE_OR_FAILURE)
 
 
+# 전처리에서 accept된 객체 하나에 대해 해당 lane의 ROI 요청들을 만들고
+# 러너를 실행해 정규화된 candidate 개수를 집계한다. 현재는 객체당 lane이
+# 하나뿐이라 for-루프는 단일 원소 튜플을 순회한다.
+# run_rough_masking_stage에서 manifest.objects마다 호출된다.
 def _run_object(
     record: ObjectAssetRecord,
     request: _RoughMaskingStageRequest,
@@ -177,6 +186,8 @@ def _invalid(field: str, reason: str) -> ContractValidationError:
     return ContractValidationError(field, reason)
 
 
+# dry-run 매니페스트는 lane 상태가 dry_run이고 호출/객체 수가 모두 0이어야
+# 한다. 실제 모델 호출 없이 전처리가 스킵되었는지 확인하는 계약이다.
 def _require_dry_run_manifest(manifest: StartupManifest) -> None:
     if (
         manifest.detector_lane_status != DRY_RUN_LANE_STATUS
@@ -189,6 +200,8 @@ def _require_dry_run_manifest(manifest: StartupManifest) -> None:
         raise _invalid(field, reason)
 
 
+# 실제 실행 매니페스트는 lane 상태가 real_executed이고 객체가 하나 이상
+# 있어야 한다.
 def _require_real_manifest(manifest: StartupManifest) -> None:
     if manifest.detector_lane_status != REAL_LANE_STATUS:
         field = "preprocessing_manifest"
@@ -200,6 +213,9 @@ def _require_real_manifest(manifest: StartupManifest) -> None:
         raise _invalid(field, reason)
 
 
+# 전처리 단계의 bbox_xyxy로부터 객체 크롭 뷰를 합성한다. coordinate_transform은
+# 크롭 좌표를 원본 이미지 좌표로 되돌리는 데 쓰이므로, source_bbox 값이
+# bbox_xyxy와 어긋나면 하류의 좌표 변환이 모두 틀어진다.
 def _object_view(record: ObjectAssetRecord) -> ViewRecord:
     left, top, right, bottom = record.bbox_xyxy
     crop_left = float(round(left))

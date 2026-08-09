@@ -23,6 +23,8 @@ class RagQueryEvidence:
     rag_query_descriptors: tuple[str, ...]
     failure_reason: str | None = None
 
+    # Qwen 성공/실패 상태와 쿼리 용어/실패 사유 조합이 서로 모순되지 않는지
+    # 검증한다: 성공인데 용어가 없거나, 실패인데 용어가 있으면 안 된다.
     def __post_init__(self) -> None:
         """Reject query evidence that conflicts with its Qwen state."""
         match self.qwen_status:
@@ -85,11 +87,16 @@ class _RowOutcome:
     failure_reason: str | None = None
 
 
+# target과 accounting row를 묶어 TargetAccounting으로 만든다. orchestration이
+# 아래 *_row 팩토리 함수들로 만든 row를 target과 짝지을 때 호출한다.
 def account_target(target: RagTarget, row: RagAccountingRow) -> TargetAccounting:
     """Pair target metadata with one shared accounting row."""
     return TargetAccounting(target, row)
 
 
+# 모든 target에 정확히 하나의 terminal accounting row가 있는지 검증하는
+# 게이트. orchestration이 RAG 단계를 마무리하기 직전에 호출하며, 여기를
+# 통과하지 못하면 스테이지가 완료된 것으로 취급하지 않는다.
 def require_terminal_accounting(
     targets: Sequence[RagTarget],
     records: Sequence[TargetAccounting],
@@ -108,6 +115,9 @@ def require_terminal_accounting(
     return tuple(records)
 
 
+# 아래 completed_row ~ reopen_created_row까지는 모두 특정 RagAccountingStatus를
+# 고정해 _row에 위임하는 얇은 팩토리다. orchestration이 RAG 파이프라인의 각
+# 분기(성공/실패 사유/재오픈 등)에서 해당하는 팩토리를 골라 호출한다.
 def completed_row(target: RagTarget, evidence: RagQueryEvidence) -> RagAccountingRow:
     """Create a terminal completed row."""
     return _row(target, evidence, _RowOutcome(RagAccountingStatus.COMPLETED))
@@ -261,6 +271,8 @@ def reopen_created_row(
     return _row(target, evidence, _RowOutcome(RagAccountingStatus.REOPEN_CREATED))
 
 
+# 모든 *_row 팩토리가 공유하는 실제 조립 로직. outcome에 명시된 failure_reason이
+# 없으면 evidence의 것으로 대체한다.
 def _row(
     target: RagTarget,
     evidence: RagQueryEvidence,

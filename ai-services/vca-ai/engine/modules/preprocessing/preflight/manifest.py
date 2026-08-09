@@ -55,11 +55,18 @@ def _file_sha256(source_path: Path) -> str:
     return digest.hexdigest()
 
 
+# 이 이미지의 image_id를 결정론적으로 만든다. build_input_manifest에서
+# 이미지마다 호출된다.
 def _image_id(relative_path: str, file_sha256: str) -> ImageId:
+    # 경로와 내용 해시만으로 만들고 타임스탬프를 섞지 않으므로, 같은 입력으로
+    # preprocessing을 재실행해도 같은 image_id가 나온다. 이후 모든 스테이지가
+    # 이 값을 안정적인 조인 키로 사용한다.
     identity = f"{relative_path}\n{file_sha256}".encode()
     return ImageId(f"image-{sha256(identity).hexdigest()[:24]}")
 
 
+# 정렬된 이미지 레코드와 asset_policy, 소스 이미지 해시를 정규 문자열로 이어
+# 붙여 매니페스트 전체의 sha256을 계산한다. build_input_manifest에서 호출된다.
 def _manifest_sha256(
     asset_policy: AssetPolicy,
     source_hash: SourceImageManifestHash,

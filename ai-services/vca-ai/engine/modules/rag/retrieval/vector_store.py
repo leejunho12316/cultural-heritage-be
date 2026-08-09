@@ -4,20 +4,29 @@ from __future__ import annotations
 
 import json
 import shutil
-from typing import TYPE_CHECKING, TypedDict
+from hashlib import sha256
+from typing import TYPE_CHECKING, TypedDict, cast
 
 import numpy as np
 
+from modules.rag.retrieval.vector_index import VectorIndex
 from modules.shared import (
+    ContractValidationError,
     ensure_contained_write_path,
     ensure_no_symlink_leaf,
     ensure_no_symlink_path_components,
 )
+from modules.shared.json_object import parse_json_object_for_field
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from modules.rag.retrieval.vector_index import VectorIndex
+    from numpy.typing import NDArray
+
+    from modules.rag.corpus.document_index import DocumentChunk
+    from modules.rag.retrieval.vector_index import FloatMatrix
+
+_MANIFEST_READ_FIELD = "vector_index_manifest"
 
 VECTOR_INDEX_DIR_NAME = "vector_index"
 VECTOR_MANIFEST_NAME = "manifest.json"
@@ -45,6 +54,7 @@ class VectorManifestJson(TypedDict):
     model_id: str
     chunk_count: int
     embedding_dimension: int
+    corpus_hash: str
 
 
 def vector_index_dir(model_cache_root: Path) -> Path:
@@ -52,6 +62,116 @@ def vector_index_dir(model_cache_root: Path) -> Path:
     return model_cache_root / "rag" / VECTOR_INDEX_DIR_NAME
 
 
+# startup_runner._load_or_build_vector_index가 새로 임베딩을 계산하기 전에
+# 먼저 호출하는 캐시 조회 지점. 캐시 판정 기준(모델/청크 개수/코퍼스 해시)은
+# 아래 docstring 참고.
+def read_vector_index_artifacts(
+    model_cache_root: Path,
+    *,
+    expected_model_id: str,
+    expected_chunks: tuple[DocumentChunk, ...],
+) -> VectorIndex | None:
+    """Return the persisted vector index only if it exactly matches the corpus.
+
+    Any missing, unreadable, or mismatched artifact is treated as a cache
+    miss rather than an error: the caller falls back to re-embedding.
+    """
+    if not expected_chunks:
+        return None
+    root = vector_index_dir(model_cache_root)
+    _guard_existing_vector_paths(model_cache_root, root)
+    manifest = _matching_manifest(
+        root / VECTOR_MANIFEST_NAME,
+        expected_model_id=expected_model_id,
+        expected_chunk_count=len(expected_chunks),
+        expected_corpus_hash=_corpus_hash(expected_chunks),
+    )
+    if manifest is None:
+        return None
+    try:
+        embeddings = _read_embeddings(
+            root / VECTOR_EMBEDDINGS_NAME,
+            expected_rows=len(expected_chunks),
+            expected_dimension=manifest["embedding_dimension"],
+        )
+    except (OSError, ValueError):
+        return None
+    return VectorIndex(
+        chunks=expected_chunks, embeddings=embeddings, model_id=manifest["model_id"]
+    )
+
+
+# 저장된 manifest.json이 스키마/모델/청크개수/코퍼스해시 4가지 모두 기대값과
+# 일치할 때만 유효한 캐시로 인정한다. 하나라도 어긋나면 None을 반환해
+# read_vector_index_artifacts가 캐시 미스로 처리하게 한다.
+def _matching_manifest(
+    manifest_path: Path,
+    *,
+    expected_model_id: str,
+    expected_chunk_count: int,
+    expected_corpus_hash: str,
+) -> VectorManifestJson | None:
+    try:
+        payload = parse_json_object_for_field(
+            manifest_path.read_text(encoding="utf-8"), _MANIFEST_READ_FIELD
+        )
+    except (OSError, ContractValidationError):
+        return None
+    schema = payload.get("schema")
+    model_id = payload.get("model_id")
+    chunk_count = payload.get("chunk_count")
+    embedding_dimension = payload.get("embedding_dimension")
+    corpus_hash = payload.get("corpus_hash")
+    if not (
+        isinstance(schema, str)
+        and isinstance(model_id, str)
+        and isinstance(chunk_count, int)
+        and isinstance(embedding_dimension, int)
+        and isinstance(corpus_hash, str)
+    ):
+        return None
+    if (
+        schema != VECTOR_INDEX_SCHEMA
+        or model_id != expected_model_id
+        or chunk_count != expected_chunk_count
+        or corpus_hash != expected_corpus_hash
+    ):
+        return None
+    return {
+        "schema": schema,
+        "model_id": model_id,
+        "chunk_count": chunk_count,
+        "embedding_dimension": embedding_dimension,
+        "corpus_hash": corpus_hash,
+    }
+
+
+def _read_embeddings(
+    path: Path, *, expected_rows: int, expected_dimension: int
+) -> FloatMatrix:
+    array = cast("NDArray[np.float32]", np.load(path))
+    if array.shape != (expected_rows, expected_dimension):
+        message = "persisted vector index embeddings shape mismatch"
+        raise ValueError(message)
+    # array.tolist() converts the whole matrix to native Python floats in one
+    # C-level pass instead of boxing each element through a Python loop.
+    rows = cast("list[list[float]]", array.tolist())
+    return tuple(tuple(row) for row in rows)
+
+
+def _corpus_hash(chunks: tuple[DocumentChunk, ...]) -> str:
+    # Extracted PDF text can legitimately contain lone UTF-16 surrogates
+    # (a known pdfminer quirk on some fonts/encodings). This hash only
+    # needs a stable byte representation for cache invalidation, not
+    # standards-valid UTF-8, so unpaired surrogates are passed through
+    # rather than raising.
+    payload = "\n".join(f"{chunk.chunk_id}\t{chunk.snippet_text}" for chunk in chunks)
+    return sha256(payload.encode("utf-8", errors="surrogatepass")).hexdigest()
+
+
+# startup_runner._load_or_build_vector_index가 캐시 미스 뒤 새로 만든 인덱스를
+# 저장할 때 호출한다. stage(임시)+backup 디렉터리를 거쳐 원자적으로 교체하며,
+# 실패 시 이전 인덱스를 복구한다(아래 _publish_staged_vector_index 참고).
 def write_vector_index_artifacts(model_cache_root: Path, index: VectorIndex) -> None:
     """Persist embeddings and chunk metadata for inspection and reuse."""
     root = vector_index_dir(model_cache_root)
@@ -78,6 +198,9 @@ def write_vector_index_artifacts(model_cache_root: Path, index: VectorIndex) -> 
         raise
 
 
+# 기존 인덱스를 backup으로 옮기고 새로 만든 stage를 실제 경로로 교체한다.
+# 교체 도중 실패하면 backup을 원래 자리로 되돌려, 인덱스가 없는 상태로
+# 남지 않도록 한다.
 def _publish_staged_vector_index(
     root: Path, stage_root: Path, backup_root: Path
 ) -> None:
@@ -116,6 +239,7 @@ def _manifest(index: VectorIndex) -> VectorManifestJson:
         "model_id": index.model_id,
         "chunk_count": len(index.chunks),
         "embedding_dimension": dimension,
+        "corpus_hash": _corpus_hash(index.chunks),
     }
 
 

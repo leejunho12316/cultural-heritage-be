@@ -89,6 +89,7 @@ class _CliNamespace(argparse.Namespace):
         self.allow_unverified_model_hashes_local_only = False
 
 
+# 스타트업 CLI 인자 파서를 만든다. _request에서 사용된다.
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     _ = parser.add_argument("project_name")
@@ -109,6 +110,8 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+# CLI로 받은 project_name이 워크스페이스 로컬 단일 디렉터리 이름인지
+# 검증한다(경로 탈출 방지). _request에서 호출된다.
 def _project_name(raw_project_name: str) -> str:
     project_name = raw_project_name.strip()
     if not project_name:
@@ -127,6 +130,8 @@ def _project_name(raw_project_name: str) -> str:
     return project_name
 
 
+# 입력 이미지 폴더 경로를 워크스페이스 기준으로 절대 경로화하고 존재를
+# 검증한다. _request에서 호출된다.
 def _input_folder(raw_folder: Path, workspace_root: Path) -> Path:
     folder = raw_folder.expanduser()
     if not folder.is_absolute():
@@ -139,6 +144,8 @@ def _input_folder(raw_folder: Path, workspace_root: Path) -> Path:
     return resolved
 
 
+# 입력 폴더에서 지원하는 이미지 확장자 파일만 정렬해 골라낸다. 하나도 없으면
+# 예외를 던진다. _request에서 호출된다.
 def _image_paths(input_image_folder: Path) -> tuple[Path, ...]:
     images = tuple(
         path.resolve()
@@ -152,6 +159,8 @@ def _image_paths(input_image_folder: Path) -> tuple[Path, ...]:
     return images
 
 
+# 파싱된 스타트업 CLI 인자로부터 preprocessing 서브프로세스에 넘길 CLI 인자
+# 튜플을 조립한다. _request에서 StartupRequest를 만든 뒤 호출된다.
 def _preprocessing_arguments(
     parsed: _CliNamespace,
     request: StartupRequest,
@@ -178,6 +187,8 @@ def _preprocessing_arguments(
     return tuple(arguments)
 
 
+# CLI 인자를 파싱하고 검증해 완전한 StartupRequest를 만든다. run()에서
+# 실행 전 가장 먼저 호출되는 진입점이다.
 def _request(arguments: Sequence[str], workspace_root: Path) -> StartupRequest:
     parsed = _CliNamespace()
     _ = _parser().parse_args(arguments, namespace=parsed)
@@ -219,6 +230,8 @@ def _request(arguments: Sequence[str], workspace_root: Path) -> StartupRequest:
     )
 
 
+# 모든 스테이지를 실행하고 startup 리시트를 기록한 뒤, 선택적으로 RDB
+# 스냅샷을 저장한다. run()에서 요청 파싱이 성공한 뒤 호출된다.
 def _execute(
     request: StartupRequest,
     stage_runners: StartupStageRunners,
@@ -234,6 +247,7 @@ def _execute(
             request.model_cache_root,
             request.dry_run,
             request.verify_model_hashes,
+            request.output_root,
         ),
         stage_runners,
     )
@@ -257,15 +271,28 @@ def run(
     root = Path.cwd() if workspace_root is None else workspace_root
     try:
         request = _request(arguments, root)
-    except (ContractValidationError, PathSafetyError):
+    except (ContractValidationError, PathSafetyError) as error:
+        _print_startup_failure("startup request", error)
         return STARTUP_FAILURE_EXIT_CODE
     runners = _stage_runners(stage_runners, preprocessing_runner)
     try:
         return _execute(request, runners, storage_writer_factory)
-    except (PathSafetyError, StoragePersistenceError):
+    except (PathSafetyError, StoragePersistenceError) as error:
+        _print_startup_failure("startup execution", error)
         return STARTUP_FAILURE_EXIT_CODE
 
 
+# 실패 사유를 stderr에 한 줄로 출력한다. run()의 두 예외 처리 경로에서
+# 호출된다.
+def _print_startup_failure(stage: str, error: Exception) -> None:
+    print(  # noqa: T201
+        f"startup: failed {stage}: {type(error).__name__}: {error}",
+        file=sys.stderr,
+    )
+
+
+# 테스트/호출자가 넘긴 러너 오버라이드가 있으면 그것을, 없으면 기본
+# StartupStageRunners를 선택한다. run()에서 호출된다.
 def _stage_runners(
     stage_runners: StartupStageRunners | None,
     preprocessing_runner: PreprocessingRunner | None,

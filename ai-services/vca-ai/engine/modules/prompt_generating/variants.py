@@ -17,6 +17,9 @@ from .models import (
 
 RAG_REFINEMENT_PACK_ID: Final = "rag-refinement-v1"
 MAX_EXECUTABLE_PROMPT_LENGTH: Final = 120
+# 비시각적 어휘뿐 아니라 명령 주입(prompt injection) 문구도 걸러낸다:
+# source term은 RAG로 검색된 신뢰할 수 없는 외부 문장에서 오기 때문에,
+# 그 문장이 명령 주입을 실어 나를 수 있어서다.
 _BANNED_FRAGMENTS: Final = (
     "diagnos",
     "treatment",
@@ -38,7 +41,14 @@ _BANNED_FRAGMENTS: Final = (
     "instruction",
     "system prompt",
 )
-_ALLOWED_DESCRIPTOR_TERMS: Final = frozenset(
+# 카드 표시용 서술어 허용어휘와 이 안전 검사 허용어휘는 하나의 목록이어야
+# 한다 - concept card의 descriptor_terms가 여기서 안 걸러지면 카드에 실려
+# 있다는 이유만으로 이미 안전이 보장된 셈이라, 프롬프트로 렌더링할 때
+# 다시 걸러지면(더 좁은 목록) 실행 중 PromptSafetyError로 파이프라인
+# 전체가 죽는다(실제로 한 번 이렇게 두 목록이 따로 놀아서 겪었음). 그래서
+# modules.rag.operations.candidate_term_constants가 이 목록을 그대로
+# import해서 쓰고, 별도로 유지하지 않는다 - 여기가 유일한 출처다.
+ALLOWED_DESCRIPTOR_TERMS: Final = frozenset(
     {
         "white",
         "black",
@@ -61,12 +71,23 @@ _ALLOWED_DESCRIPTOR_TERMS: Final = frozenset(
         "smooth",
         "micro",
         "local",
+        "irregular",
+        "texture",
+        "shape",
+        "shapes",
+        "patch",
+        "patchy",
+        "patches",
+        "dark",
+        "horizontal",
+        "linear",
+        "streak",
     }
 )
-_ALLOWED_MATERIAL_TERMS: Final = frozenset(
+ALLOWED_MATERIAL_TERMS: Final = frozenset(
     {"stone", "metal", "ceramic", "paint", "wood", "plaster", "textile", "glass"}
 )
-_ALLOWED_CONTEXT_TERMS: Final = frozenset(
+ALLOWED_CONTEXT_TERMS: Final = frozenset(
     {"surface", "artifact", "area", "region", "localized"}
 )
 _FAMILY_TEXT: Final = {
@@ -164,11 +185,11 @@ def _render_prompt(card: ConceptCard, cue: VisualCue, lane: RagLane) -> str:
     family = card.concept_family
     if family is None:
         _unsafe("concept_family", "concept family is required")
-    _assert_safe_terms(card.descriptor_terms, _ALLOWED_DESCRIPTOR_TERMS)
+    _assert_safe_terms(card.descriptor_terms, ALLOWED_DESCRIPTOR_TERMS)
     cue_terms = _cue_terms(cue)
-    _assert_safe_terms(cue_terms, _ALLOWED_DESCRIPTOR_TERMS)
-    _assert_safe_terms(card.material_terms, _ALLOWED_MATERIAL_TERMS)
-    _assert_safe_terms(card.context_terms, _ALLOWED_CONTEXT_TERMS)
+    _assert_safe_terms(cue_terms, ALLOWED_DESCRIPTOR_TERMS)
+    _assert_safe_terms(card.material_terms, ALLOWED_MATERIAL_TERMS)
+    _assert_safe_terms(card.context_terms, ALLOWED_CONTEXT_TERMS)
     phrase = " ".join(
         _unique_terms(
             (*card.descriptor_terms, *cue_terms, _FAMILY_TEXT[family])
@@ -238,7 +259,16 @@ def render_lane_specific_variants(
 
 
 def validate_unique_prompt_texts(variants: tuple[PromptVariant, ...]) -> None:
-    """Block a batch containing duplicate executable prompt text."""
-    rendered = tuple(variant.generated_prompt for variant in variants)
-    if len(rendered) != len(set(rendered)):
-        _unsafe("generated_prompt", "duplicate rendered prompt text")
+    """Block duplicate executable prompt text for the same input target.
+
+    Uniqueness is scoped per rag_parent_candidate_id (one rough candidate -
+    one specific image/object/tile). Two different candidates - e.g. the
+    same kind of damage seen on two different images - can legitimately
+    render identical prompt text; that must not fail the whole project.
+    """
+    seen_by_target: dict[str, set[str]] = {}
+    for variant in variants:
+        seen = seen_by_target.setdefault(variant.rag_parent_candidate_id, set())
+        if variant.generated_prompt in seen:
+            _unsafe("generated_prompt", "duplicate rendered prompt text")
+        seen.add(variant.generated_prompt)

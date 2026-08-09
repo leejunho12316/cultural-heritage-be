@@ -127,6 +127,8 @@ def box_policy(request: AdapterRequest, prompt: PromptRecord) -> _BoxPolicy:
     )
 
 
+# OWLv2 프로세서로 프롬프트별 zero-shot 탐지를 실행하고 box_threshold로
+# 걸러진 박스를 bounded_detections로 ROI 클램프/상한 적용한다.
 def _owlv2_detections(
     request: AdapterRequest,
     image: Image.Image,
@@ -161,6 +163,8 @@ def _owlv2_detections(
     return tuple(detections)
 
 
+# Florence-2를 <CAPTION_TO_PHRASE_GROUNDING> 태스크로 실행해 프롬프트별
+# 박스를 얻는다. (아래 uniform score 관련 주석 참고)
 def _florence2_detections(
     request: AdapterRequest,
     image: Image.Image,
@@ -195,12 +199,17 @@ def _florence2_detections(
             image_size=(request.image_width_px, request.image_height_px),
         )[task_prompt]
         boxes = answer["bboxes"]
+        # Florence-2 phrase grounding은 박스별 confidence를 내지 않으므로
+        # 점수를 모두 1.0으로 채운다. 그 결과 bounded_detections의 상한 컷은
+        # 다른 두 레인과 달리 점수 정렬이 아닌 모델이 반환한 순서를 그대로 따른다.
         detections.extend(
             bounded_detections([1.0] * len(boxes), boxes, box_policy(request, prompt))
         )
     return tuple(detections)
 
 
+# GroundingDINO를 box_threshold/text_threshold 두 임계값으로 실행하고
+# 결과를 bounded_detections로 정리한다.
 def _grounded_detections(
     request: AdapterRequest,
     image: Image.Image,

@@ -29,6 +29,8 @@ class ComponentPlan:
     detection_crop_box: tuple[int, int, int, int]
 
 
+# 크롭 내부 좌표계인 component의 bbox를 원본 detection의 오프셋만큼 더해
+# 원본 이미지 좌표계로 되돌린다. component_plans에서 컴포넌트마다 호출된다.
 def _component_detection(
     detection: DetectionBox,
     component: MaskComponent,

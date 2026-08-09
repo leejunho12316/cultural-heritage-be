@@ -46,6 +46,8 @@ class CandidateRagSidecarInputs:
         default_factory=lambda: MappingProxyType({})
     )
 
+    # Qwen 결과를 mapping과 디렉터리 경로 두 가지로 동시에 주는 모호한 입력을
+    # 막는다. 정확히 하나만 지정해야 resolved_qwen_results가 결정적으로 동작한다.
     def __post_init__(self) -> None:
         """Reject ambiguous Qwen bridge sources before sidecar construction."""
         if self.qwen_bridge_results_path is not None and self.qwen_results:
@@ -56,6 +58,9 @@ class CandidateRagSidecarInputs:
                 reason,
             )
 
+    # candidate_sidecars.build_candidate_rag_sidecars가 실제 Qwen 결과를 얻을 때
+    # 호출하는 지연 로딩 지점. 두 입력 방식(명시적 mapping vs 디렉터리 경로) 중
+    # 어느 쪽이 쓰였는지 여기서 한 번만 분기한다.
     def resolved_qwen_results(self) -> Mapping[CandidateId, QwenBridgeResult]:
         """Return explicit Qwen results or parse the supplied artifact directory."""
         if self.qwen_bridge_results_path is None:

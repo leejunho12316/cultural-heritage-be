@@ -25,6 +25,9 @@ JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject = dict[str, JsonValue]
 
 
+# relations.py의 _relation_group이 호출한다. C-004 브리지 입력(hybrid_descriptor
+# + relation_authority_input)을 가진 후보들에 대해서만 공유 RelationAuthorityOutcome
+# 레코드를 만든다(둘 중 하나라도 없으면 건너뜀).
 def relation_outcomes(
     relation_class: RelationClass,
     candidates: Sequence[AnomalyCandidate],
@@ -50,6 +53,7 @@ def relation_outcomes(
     return tuple(outcomes)
 
 
+# serialization.py의 result_payload가 relation_groups를 직렬화할 때 호출한다.
 def relation_outcome_payload(outcome: RelationAuthorityOutcome) -> JsonObject:
     """Render a shared relation outcome into deterministic JSON fields."""
     return {
@@ -64,6 +68,8 @@ def relation_outcome_payload(outcome: RelationAuthorityOutcome) -> JsonObject:
     }
 
 
+# relation_outcome_payload에서 호출된다. hybrid_descriptor를 표시용 프로즈 없이
+# JSON으로 직렬화한다.
 def hybrid_descriptor_payload(descriptor: HybridDescriptor) -> JsonObject:
     """Render a shared hybrid descriptor without display-only prose."""
     return {
@@ -83,11 +89,14 @@ def hybrid_descriptor_payload(descriptor: HybridDescriptor) -> JsonObject:
     }
 
 
+# hybrid_descriptor_payload에서 export_citations 목록을 직렬화할 때 호출된다.
 def export_citation_payload(citation: ExportCitationBridge) -> JsonObject:
     """Render one export citation bridge record."""
     return {"citation_id": citation.citation_id, "status": citation.status}
 
 
+# relation_outcome_payload에서 호출된다. 관계 판정에 실제로 쓰인 구조화 입력
+# 필드들을 직렬화한다.
 def relation_input_payload(relation_input: RelationAuthorityInput) -> JsonObject:
     """Render the shared relation-authority input fields used for a decision."""
     return {
@@ -104,6 +113,8 @@ def relation_input_payload(relation_input: RelationAuthorityInput) -> JsonObject
     }
 
 
+# anomaly_grouping/io.py의 _optional_hybrid_descriptor가 호출한다. runner JSON의
+# hybrid_descriptor 객체를 공유 타입으로 파싱한다.
 def parse_hybrid_descriptor(payload: JsonObject) -> HybridDescriptor:
     """Parse one shared hybrid descriptor from runner JSON."""
     return HybridDescriptor(
@@ -125,6 +136,8 @@ def parse_hybrid_descriptor(payload: JsonObject) -> HybridDescriptor:
     )
 
 
+# anomaly_grouping/io.py의 _optional_relation_input이 호출한다. 이미 파싱된
+# descriptor와 함께 relation_authority_input 객체를 공유 타입으로 파싱한다.
 def parse_relation_authority_input(
     payload: JsonObject,
     descriptor: HybridDescriptor,
@@ -148,6 +161,7 @@ def parse_relation_authority_input(
     )
 
 
+# parse_hybrid_descriptor에서 export_citations 배열의 항목마다 호출된다.
 def _export_citation(payload: JsonObject) -> ExportCitationBridge:
     return ExportCitationBridge(
         citation_id=_string(payload, "citation_id"),

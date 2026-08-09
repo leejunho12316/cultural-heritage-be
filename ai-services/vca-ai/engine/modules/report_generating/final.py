@@ -25,6 +25,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+# runner.py의 run_report_generation이 trace 검증 통과 후에 호출하는 최종
+# 한국어 리포트 생성 진입점. trace 영수증 무결성이 깨지면 예외를 던지고 아무것도
+# 쓰지 않는다.
 def generate_final_report(run_root: Path) -> Path:
     """Write Korean evidence-only output only after trace receipt integrity passes."""
     trace_error = trace_receipt_integrity_error(run_root)
@@ -56,6 +59,8 @@ def generate_final_report(run_root: Path) -> Path:
     return final_root
 
 
+# generate_final_report에서 호출된다. trace 단계가 이미 기록한 metadata.json을
+# 다시 TraceSource로 재구성해, HTML 렌더링에 동일한 검증된 데이터를 재사용한다.
 def _source_from_metadata(metadata: JsonObject) -> TraceSource:
     source_payload: JsonObject = {
         "schema": TRACE_SOURCE_SCHEMA,
@@ -71,6 +76,7 @@ def _source_from_metadata(metadata: JsonObject) -> TraceSource:
     return parse_trace_source(source_payload)
 
 
+# _source_from_metadata에서 metadata의 중첩 객체 필드를 꺼낼 때 쓰는 헬퍼.
 def _object(payload: JsonObject, field: str) -> JsonObject:
     value = payload.get(field)
     if not isinstance(value, dict):

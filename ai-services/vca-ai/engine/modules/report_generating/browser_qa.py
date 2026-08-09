@@ -34,6 +34,9 @@ class _CliNamespace(argparse.Namespace):
         self.out_dir = Path()
 
 
+# 독립 실행 브라우저 QA CLI 진입점(__main__에서 호출). 실제 브라우저를 띄우지
+# 않고 trace/final 정적 검증 결과만으로 결정적인 receipt를 만든다(브랜치명이
+# 시사하듯 실제 렌더링/뷰포트 캡처는 하지 않음).
 def main(arguments: Sequence[str] | None = None) -> int:
     """Emit deterministic browser-surface receipt for a report run root."""
     parsed = _CliNamespace()
@@ -57,6 +60,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
     return int(ExitCode.OK) if passed else int(ExitCode.INCOMPLETE_OR_FAILURE)
 
 
+# main에서 호출된다. 요청된 뷰포트와 검증 결과를 담은 receipt payload를
+# 만든다. 실제 브라우저 렌더링은 하지 않았음을 필드로 명시한다.
 def _receipt(parsed: _CliNamespace, passed: bool) -> JsonObject:
     viewports: list[JsonValue] = []
     viewports.extend(parsed.viewports)

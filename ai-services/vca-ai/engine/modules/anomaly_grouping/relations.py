@@ -4,36 +4,36 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
-from modules.anomaly_grouping.geometry import area_ratio, containment, iou, overlaps
-from modules.anomaly_grouping.ids import relation_group_id, reopen_event_id
+from modules.anomaly_grouping.geometry import (
+    mask_area_ratio,
+    mask_containment,
+    mask_iou,
+    overlaps,
+)
+from modules.anomaly_grouping.ids import relation_group_id
 from modules.anomaly_grouping.models import (
     AnomalyCandidate,
-    FinalReopenRejection,
-    MergePhase,
-    PreviousSuppression,
     RelationClass,
     RelationGroup,
     RelationMergeRequest,
     RelationMergeResult,
-    ReopenEvent,
 )
 from modules.anomaly_grouping.relation_results import candidate_results
 from modules.anomaly_grouping.shared_contracts import relation_outcomes
-from modules.shared import RagAccountingStatus
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from modules.shared import RelationAuthorityInput
 
-    from modules.shared import CandidateId, RelationAuthorityInput
-
-_REOPEN_REASON: Final = "co_located_distinct_after_suppression"
 _DUPLICATE_IOU_THRESHOLD: Final = 0.75
 _REFINEMENT_CONTAINMENT_THRESHOLD: Final = 0.80
 _REFINEMENT_AREA_RATIO_THRESHOLD: Final = 0.35
 
 
+# pipeline.py의 run_anomaly_grouping이 호출하는 유일한 병합 진입점(예전
+# pre-RAG 그룹핑은 제거됨). 후보 쌍을 분류해 관계 그룹을 만들고, 병합 클래스로
+# 판정된 그룹은 마스크 union으로 합쳐 최종 유지 상태를 산출한다.
 def merge_post_rag_relations(request: RelationMergeRequest) -> RelationMergeResult:
-    """Merge post-RAG candidates without geometry-only deletion."""
+    """Classify candidate pairs and merge mask-matching groups by pixel union."""
     candidates = tuple(
         sorted(request.candidates, key=lambda candidate: candidate.candidate_id)
     )
@@ -42,16 +42,14 @@ def merge_post_rag_relations(request: RelationMergeRequest) -> RelationMergeResu
         for left, right in _pairs(candidates)
         if (group := _relation_group(left, right)) is not None
     )
-    reopen_events, final_rejections = _reopen_outputs(request, relation_groups)
     return RelationMergeResult(
-        request.phase,
         relation_groups,
-        candidate_results(candidates, relation_groups),
-        reopen_events,
-        final_rejections,
+        candidate_results(candidates, relation_groups, request.mask_output_dir),
     )
 
 
+# merge_post_rag_relations에서 같은 이미지 안의 후보 쌍마다 호출된다. 부모/자식
+# 순서를 정하고 _classify로 관계를 분류해, 관계가 없으면 None을 반환한다.
 def _relation_group(
     left: AnomalyCandidate,
     right: AnomalyCandidate,
@@ -74,113 +72,33 @@ def _relation_group(
     )
 
 
+# 관계 판정의 핵심 규칙 - 기준은 마스크, bbox는 값싼 1차 필터일 뿐이다.
+# bbox가 겹치지 않으면(=인접하지 않으면) 아예 무관계다. bbox가 겹치는데 개념이
+# 다르면 CO_LOCATED_DISTINCT_ANOMALY(별개, 병합 안 함)로 남는다. bbox가 겹치고
+# 개념도 같으면 반드시 병합되고, 마스크 IoU/포함율로 어떤 종류의 병합인지만
+# 세분화한다(DUPLICATE > REFINEMENT > 그 외 ADJACENT).
 def _classify(
     parent: AnomalyCandidate,
     child: AnomalyCandidate,
 ) -> RelationClass | None:
-    concept_match = _concept_match(parent, child)
-    descriptor_match = _descriptor_match(parent, child)
-    pair_iou = iou(parent.bbox, child.bbox)
-    child_containment = containment(child.bbox, parent.bbox)
-    if pair_iou >= _DUPLICATE_IOU_THRESHOLD and concept_match and descriptor_match:
+    if not overlaps(parent.bbox, child.bbox):
+        return None
+    if not (_concept_match(parent, child) and _descriptor_match(parent, child)):
+        return RelationClass.CO_LOCATED_DISTINCT_ANOMALY
+    if mask_iou(parent.mask, child.mask) >= _DUPLICATE_IOU_THRESHOLD:
         return RelationClass.SAME_ANOMALY_DUPLICATE
     if (
-        child_containment >= _REFINEMENT_CONTAINMENT_THRESHOLD
-        and area_ratio(child.bbox, parent.bbox) <= _REFINEMENT_AREA_RATIO_THRESHOLD
+        mask_containment(child.mask, parent.mask) >= _REFINEMENT_CONTAINMENT_THRESHOLD
+        and mask_area_ratio(child.mask, parent.mask) <= _REFINEMENT_AREA_RATIO_THRESHOLD
     ):
-        if concept_match and descriptor_match:
-            return RelationClass.SAME_ANOMALY_REFINEMENT
-        return RelationClass.CONTEXT_CONTAINS
-    if overlaps(parent.bbox, child.bbox):
-        return RelationClass.CO_LOCATED_DISTINCT_ANOMALY
-    return None
+        return RelationClass.SAME_ANOMALY_REFINEMENT
+    return RelationClass.SAME_ANOMALY_ADJACENT
 
 
-def _reopen_outputs(
-    request: RelationMergeRequest,
-    relation_groups: tuple[RelationGroup, ...],
-) -> tuple[tuple[ReopenEvent, ...], tuple[FinalReopenRejection, ...]]:
-    suppressions = {
-        suppression.candidate_id: suppression
-        for suppression in request.previous_suppressions
-    }
-    reopened = frozenset(request.already_reopened_candidate_ids)
-    events: list[ReopenEvent] = []
-    rejections: list[FinalReopenRejection] = []
-    handled_candidate_ids: set[CandidateId] = set()
-    for relation in relation_groups:
-        match relation.relation_class:
-            case RelationClass.CO_LOCATED_DISTINCT_ANOMALY:
-                pass
-            case (
-                RelationClass.SAME_ANOMALY_DUPLICATE
-                | RelationClass.SAME_ANOMALY_REFINEMENT
-                | RelationClass.CONTEXT_CONTAINS
-            ):
-                continue
-        suppression = _relation_suppression(relation, suppressions)
-        if suppression is None:
-            continue
-        if suppression.candidate_id in handled_candidate_ids:
-            continue
-        handled_candidate_ids.add(suppression.candidate_id)
-        match request.phase:
-            case MergePhase.FINAL_RELATION_MERGE:
-                rejections.append(
-                    _rejection(suppression, RagAccountingStatus.REOPEN_FORBIDDEN_FINAL)
-                )
-            case MergePhase.INITIAL_RELATION_MERGE:
-                if suppression.candidate_id in reopened:
-                    rejections.append(
-                        _rejection(suppression, RagAccountingStatus.REOPEN_SKIPPED)
-                    )
-                    continue
-                events.append(
-                    ReopenEvent(
-                        reopen_event_id(
-                            suppression.candidate_id,
-                            suppression.parent_candidate_id,
-                            suppression.same_anomaly_group_id,
-                            _REOPEN_REASON,
-                        ),
-                        suppression.candidate_id,
-                        suppression.parent_candidate_id,
-                        suppression.same_anomaly_group_id,
-                        _REOPEN_REASON,
-                    )
-                )
-    return tuple(events), tuple(rejections)
-
-
-def _relation_suppression(
-    relation: RelationGroup,
-    suppressions: Mapping[CandidateId, PreviousSuppression],
-) -> PreviousSuppression | None:
-    relation_candidate_ids = frozenset(
-        (relation.child_candidate_id, relation.parent_candidate_id)
-    )
-    for suppression in suppressions.values():
-        suppression_pair = frozenset(
-            (suppression.candidate_id, suppression.parent_candidate_id)
-        )
-        if relation_candidate_ids == suppression_pair:
-            return suppression
-    return None
-
-
-def _rejection(
-    suppression: PreviousSuppression,
-    status: RagAccountingStatus,
-) -> FinalReopenRejection:
-    return FinalReopenRejection(
-        suppression.candidate_id,
-        suppression.parent_candidate_id,
-        suppression.same_anomaly_group_id,
-        _REOPEN_REASON,
-        status,
-    )
-
-
+# _relation_group에서 호출된다. 두 후보 중 면적이 더 큰 쪽을 parent로 정해
+# reasons 문자열과 containment/area_ratio 계산 방향의 기준을 고정한다. 병합이
+# 확정된 뒤에는 이 parent/child 구분에 최종 의미가 없다 - relation_results.py가
+# 병합 그룹의 대표를 별도로(최소 candidate_id) 정하고 마스크는 항상 union이다.
 def _parent_child(
     left: AnomalyCandidate,
     right: AnomalyCandidate,
@@ -192,16 +110,24 @@ def _parent_child(
     return first, second
 
 
+# merge_post_rag_relations에서 비교할 후보 쌍(조합)을 만든다.
 def _pairs(
     candidates: tuple[AnomalyCandidate, ...],
 ) -> tuple[tuple[AnomalyCandidate, AnomalyCandidate], ...]:
+    # Bbox geometry (overlap prefilter) is only meaningful within one image's
+    # pixel coordinate space - never compare candidates from different
+    # images, or unrelated images could be "merged" by geometric coincidence.
     return tuple(
         (left, right)
         for index, left in enumerate(candidates)
         for right in candidates[index + 1 :]
+        if left.image_id == right.image_id
     )
 
 
+# _classify에서 사용. C-004 relation_authority_input이 있으면 그 구조화된
+# concept_family_compatible 값을 신뢰하고, 없으면 concept_family 문자열 일치로
+# 대체한다.
 def _concept_match(left: AnomalyCandidate, right: AnomalyCandidate) -> bool:
     return _structured_compatibility(
         left.evidence.relation_authority_input,
@@ -211,6 +137,8 @@ def _concept_match(left: AnomalyCandidate, right: AnomalyCandidate) -> bool:
     )
 
 
+# _concept_match와 대칭되는 함수. descriptor_tokens 교집합 존재 여부를 기본
+# 대체값으로 쓰고, C-004 구조화 입력이 있으면 그것을 우선한다.
 def _descriptor_match(left: AnomalyCandidate, right: AnomalyCandidate) -> bool:
     left_tokens = frozenset(left.evidence.descriptor_tokens)
     right_tokens = frozenset(right.evidence.descriptor_tokens)
@@ -225,6 +153,9 @@ def _descriptor_match(left: AnomalyCandidate, right: AnomalyCandidate) -> bool:
     )
 
 
+# _concept_match/_descriptor_match가 공유하는 공통 로직: 두 후보 중 하나라도
+# C-004 relation_authority_input을 가지면 구조화된 필드값을 쓰고, 둘 다 없으면
+# 호출자가 넘긴 fallback(문자열 비교 결과)을 쓴다.
 def _structured_compatibility(
     left: RelationAuthorityInput | None,
     right: RelationAuthorityInput | None,
@@ -237,13 +168,17 @@ def _structured_compatibility(
     return all(getattr(value, field_name) for value in inputs)
 
 
+# _relation_group에서 RelationGroup.reasons에 담을 사람이 읽을 수 있는 근거
+# 문자열(관계 클래스, 마스크 IoU/포함율 수치)을 만든다.
 def _reasons(
     parent: AnomalyCandidate,
     child: AnomalyCandidate,
     relation_class: RelationClass,
 ) -> tuple[str, ...]:
+    if relation_class is RelationClass.CO_LOCATED_DISTINCT_ANOMALY:
+        return (relation_class.value, "bbox_overlap", "concept_mismatch")
     return (
         relation_class.value,
-        f"iou={iou(parent.bbox, child.bbox):.3f}",
-        f"containment={containment(child.bbox, parent.bbox):.3f}",
+        f"mask_iou={mask_iou(parent.mask, child.mask):.3f}",
+        f"mask_containment={mask_containment(child.mask, parent.mask):.3f}",
     )

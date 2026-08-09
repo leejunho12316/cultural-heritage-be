@@ -23,6 +23,9 @@ from modules.preprocessing.views.tiling import (
 from modules.shared import BUDGET_THRESHOLDS, validate_active_detector_lanes
 
 
+# prefix와 부분 문자열들을 해시해 결정론적 view/object/tile id를 만든다.
+# 같은 입력이면 항상 같은 id가 나와야 하므로 plan_views 전체에서
+# id 생성에 이 함수만 사용한다.
 def _stable_id(prefix: str, *parts: str) -> str:
     digest = sha256("|".join((prefix, *parts)).encode("utf-8")).hexdigest()[:24]
     return f"{prefix}-{digest}"
@@ -37,6 +40,8 @@ def _box_parts(bbox: BoundingBox) -> tuple[str, str, str, str]:
     )
 
 
+# 타일의 네 변 중 객체 bbox 경계와 정확히 맞닿은 변의 비율을 구한다.
+# _ranking에서 타일 순위 점수의 한 요소로 쓰인다.
 def _boundary_overlap(tile: BoundingBox, object_bbox: BoundingBox) -> float:
     contacts = (
         tile.left == object_bbox.left,
@@ -47,6 +52,9 @@ def _boundary_overlap(tile: BoundingBox, object_bbox: BoundingBox) -> float:
     return sum(contacts) / len(contacts)
 
 
+# 경계 겹침, 텍스처/색상 분산, 미커버 영역 보너스, 후보 불확실성/희소성을
+# 합산해 타일 하나의 순위 점수와 근거를 만든다. plan_views에서 객체별로
+# 계획된 타일마다 호출된다.
 def _ranking(object_target: ObjectTarget, tile: BoundingBox) -> TileRankingMetadata:
     hints = object_target.ranking_hints
     boundary_overlap = _boundary_overlap(tile, object_target.bbox)

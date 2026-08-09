@@ -12,6 +12,7 @@ from modules.report_generating.models import (
     ReportGeneratingRequest,
     RunSummary,
     TraceCandidate,
+    TraceCandidateBbox,
     TraceSource,
     VerificationReceipt,
 )
@@ -28,6 +29,7 @@ __all__ = (
     "ReportGeneratingRequest",
     "RunSummary",
     "TraceCandidate",
+    "TraceCandidateBbox",
     "TraceSource",
     "VerificationReceipt",
     "generate_final_report",

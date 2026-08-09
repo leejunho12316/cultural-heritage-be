@@ -50,6 +50,9 @@ class QueryTerms:
         if any(not term.strip() for term in self.english_terms):
             _raise_contract("english_terms", "must not contain blanks")
 
+    # 관찰된 용어(코퍼스/매핑 테이블 등에서 온)와 영어 용어를 하나의 검색
+    # 토큰 목록으로 합친다. lexical_retrieve/vector_retrieve 양쪽 검색 경로가
+    # 이 프로퍼티를 통해서만 실제 검색 문자열을 얻는다.
     @property
     def lexical_tokens(self) -> tuple[str, ...]:
         """Return case-folded tokens in stable first-seen order."""

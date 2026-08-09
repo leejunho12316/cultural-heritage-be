@@ -10,6 +10,10 @@ DEFAULT_OVERLAP_SENTENCES = 1
 MIN_TARGET_CHARS = 80
 
 
+# 문장 경계를 지키면서 target_chars 근처에서 청크를 끊고, 문맥 손실을 줄이기
+# 위해 overlap_sentences개 문장을 다음 청크와 겹치게 한다.
+# document_index._page_chunks/_legacy_record_chunks가 청크 텍스트를 만들 때
+# 호출한다.
 def chunk_page_text(
     text: str,
     *,
@@ -37,13 +41,16 @@ def chunk_page_text(
     start = 0
     while start < len(sentences):
         end = _window_end(sentences, start, target_chars, max_chars)
-        chunks.append(" ".join(sentences[start:end]))
+        chunk = " ".join(sentences[start:end])
+        chunks.append(chunk)
         if end == len(sentences):
             break
         start = max(start + 1, end - overlap_sentences)
     return tuple(chunks)
 
 
+# 마침표/느낌표/물음표 기준으로 문장을 나눈다. 구분자가 하나도 없으면 전체
+# 텍스트를 문장 하나로 취급한다(빈 튜플을 반환하지 않음).
 def _sentences(text: str) -> tuple[str, ...]:
     normalized = " ".join(text.split())
     if not normalized:
@@ -63,6 +70,8 @@ def _sentences(text: str) -> tuple[str, ...]:
     return tuple(parts) or (normalized,)
 
 
+# start에서 시작해 target_chars에 도달할 때까지(또는 max_chars를 넘기 직전까지)
+# 문장을 그리디하게 채워 청크의 끝 인덱스를 정한다. 최소 한 문장은 항상 포함한다.
 def _window_end(
     sentences: tuple[str, ...], start: int, target_chars: int, max_chars: int
 ) -> int:
@@ -79,6 +88,8 @@ def _window_end(
     return max(start + 1, end)
 
 
+# 문장 하나가 max_chars보다 길 때 단어 경계를 최대한 지키며 여러 조각으로
+# 나눈다. 단어가 하나뿐이라 더 쪼갤 수 없으면 문자 단위로 강제 절단한다.
 def _bounded_units(text: str, max_chars: int) -> tuple[str, ...]:
     if len(text) <= max_chars:
         return (text,)

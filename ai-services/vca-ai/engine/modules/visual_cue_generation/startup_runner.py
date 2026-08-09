@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -50,15 +51,23 @@ def run_visual_cue_generation_stage(request: _VisualCueStageRequest) -> int:
             request.device,
         )
         _ = generate_qwen_bridge_results(inputs, renderer, backend)
-    except (ContractValidationError, OSError):
+    except (ContractValidationError, OSError) as error:
+        print(  # noqa: T201
+            f"visual_cue_generation: failed: {type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
         return int(ExitCode.INCOMPLETE_OR_FAILURE)
     return int(ExitCode.OK)
 
 
 def _skip_visual_cues() -> bool:
+    # Qwen 가중치가 없는 환경(CI 등)을 위한 탈출구다. 스킵해도 ExitCode.OK를
+    # 반환해 파이프라인이 막히지 않는다.
     return os.environ.get("VCA_SKIP_VISUAL_CUES", "false") == "true"
 
 
+# 전처리 매니페스트의 lane 상태가 현재 dry_run/real 모드와 일치하는지
+# 확인한다. run_visual_cue_generation_stage 시작 시 호출된다.
 def _require_manifest_status(request: _VisualCueStageRequest) -> None:
     manifest = load_startup_manifest(request.paths.preprocessing)
     if request.dry_run:
@@ -73,6 +82,8 @@ def _require_manifest_status(request: _VisualCueStageRequest) -> None:
         raise ContractValidationError(field, reason)
 
 
+# asset_root는 preprocessing 경로에서 두 단계 상위 디렉터리로 계산한다.
+# 스테이지 경로 구조가 바뀌면 이 상대 경로 가정이 조용히 깨질 수 있다.
 def _generation_inputs(request: _VisualCueStageRequest) -> QwenBridgeGenerationInputs:
     shared_asset_root = request.paths.preprocessing.parent.parent
     return QwenBridgeGenerationInputs(

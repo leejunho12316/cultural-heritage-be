@@ -65,6 +65,8 @@ def seed_paths_from_preprocessing_object(
     )
 
 
+# 같은 lane, 같은 object_id를 갖는 RANKED_OBJECT_TILE 뷰만 통과시킨다.
+# build_lane_roi_seed_requests가 타일 요청을 필터링할 때 사용한다.
 def _is_matching_tile(route: RoiRoutingInput, view: ViewRecord) -> bool:
     return (
         view.kind is ViewKind.RANKED_OBJECT_TILE

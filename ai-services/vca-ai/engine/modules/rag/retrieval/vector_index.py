@@ -61,6 +61,8 @@ class InMemoryTextEmbedder:
         return _normalize_vector(self.query_vectors[text])
 
 
+# 코퍼스 청크 전체를 임베딩해 인메모리 벡터 인덱스를 만든다.
+# startup_runner._load_or_build_vector_index가 캐시 미스일 때 호출한다.
 def build_vector_index(
     chunks: tuple[DocumentChunk, ...], embedder: TextEmbedder
 ) -> VectorIndex:
@@ -78,6 +80,9 @@ def build_vector_index(
     return VectorIndex(chunks=chunks, embeddings=embeddings, model_id=embedder.model_id)
 
 
+# RAG 스테이지가 실제로 쓰는 검색 함수(retrieval.lexical_retrieve는 비활성
+# 경로). 코사인 유사도로 top_k개를 정렬해 반환하며, startup_runner가 각
+# 프롬프트 쿼리마다 호출한다.
 def vector_retrieve(
     index: VectorIndex, query_text: str, embedder: TextEmbedder, *, top_k: int
 ) -> tuple[RetrievalSnippet, ...]:
@@ -102,6 +107,9 @@ def vector_retrieve(
     )
 
 
+# 청크 하나를 RetrievalSnippet으로 감싼다. matched_terms는 임베딩 유사도와는
+# 별개로, 표시용 하이라이트를 위해 아래 _matched_terms가 어휘 일치로 따로
+# 계산한다(순위 자체는 임베딩 점수로만 결정됨).
 def _snippet(chunk: DocumentChunk, score: float, query_text: str) -> RetrievalSnippet:
     citation = CorpusCitation(
         citation_id=chunk.citation.citation_id,
@@ -170,6 +178,8 @@ def _validate_vector(vector: FloatVector) -> None:
         raise ContractValidationError(field, reason)
 
 
+# 두 벡터가 이미 정규화되어 있으므로(embed_passages/embed_query가 항상
+# 정규화된 벡터를 반환) 단순 내적이 곧 코사인 유사도가 된다.
 def _dot(left: FloatVector, right: FloatVector) -> float:
     if len(left) != len(right):
         field = "embedding_vector"

@@ -67,6 +67,8 @@ def foreground_mask_from_rgb(
     return np.any(rgb < white_threshold, axis=2)
 
 
+# 시작 픽셀에서부터 8방향 flood-fill로 연결된 전경 픽셀 좌표들을 모은다.
+# connected_mask_components에서 아직 방문하지 않은 전경 픽셀을 만날 때마다 호출된다.
 def _collect_component(
     mask: NDArray[np.bool_], visited: NDArray[np.bool_], start_x: int, start_y: int
 ) -> list[tuple[int, int]]:

@@ -30,6 +30,9 @@ def _seed_record(lane: RagLane, prompt_text: str, order: int) -> PromptRecord:
     )
 
 
+# static_object_detection_pack의 각 레코드를 만든다. _seed_record와 달리
+# rough_target_anchor_only=False로, 손상 부위가 아닌 유물 객체 자체를
+# 탐지하기 위한 고정 프롬프트임을 나타낸다.
 def _object_record(lane: RagLane, prompt_text: str, order: int) -> PromptRecord:
     prompt_id = f"{STATIC_OBJECT_DETECTION_PACK_ID}-{lane.value}-{order:02d}"
     return PromptRecord(
@@ -48,6 +51,9 @@ def _object_record(lane: RagLane, prompt_text: str, order: int) -> PromptRecord:
     )
 
 
+# 의도적으로 작게 고정된 목록이다 (5개 프롬프트 x 3개 lane). 이 고정된
+# 풀 때문에 프로젝트 전역에서 RAG 검색이 극소수의 쿼리로 수렴한다;
+# 풀을 늘리면 이 팩뿐 아니라 RAG 쿼리 다양성 전반에 파급 효과가 있다.
 static_seed_minimal_pack: Final = PromptPack(
     prompt_pack_id=STATIC_SEED_MINIMAL_PACK_ID,
     prompt_role=PromptRole.STATIC_SEED,

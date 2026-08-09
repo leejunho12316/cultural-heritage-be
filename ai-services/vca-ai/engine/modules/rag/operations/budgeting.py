@@ -52,6 +52,8 @@ class ReopenHashContext:
     runtime_metadata: RuntimeMetadata
 
 
+# 계획된 카운트가 예산 임계값을 넘는지 계산해 승인 검토가 필요한지 판정한다.
+# orchestration이 RAG 후속 작업 예산 승인 흐름 진입 전에 호출한다.
 def build_rag_budget_inputs(
     planned_counts: BudgetCounts,
     accounting_rows: tuple[RagAccountingRow, ...],
@@ -67,6 +69,8 @@ def build_rag_budget_inputs(
     )
 
 
+# 재오픈으로 추가된 카운트를 기존 계획과 합산해 예산 임계값 재초과 여부를
+# 판정한다. build_rag_budget_inputs의 재오픈 버전이며 orchestration이 호출한다.
 def build_rag_reopen_inputs(
     reopened_candidate_ids: tuple[CandidateId, ...],
     initial_planned_counts: BudgetCounts,
@@ -90,6 +94,9 @@ def build_rag_reopen_inputs(
     )
 
 
+# 재오픈 요청의 재현성/감사를 위해 공유 해시 입력을 조립한다.
+# build_rag_reopen_inputs 이후 orchestration의 승인 아티팩트 생성 단계에서
+# 호출한다.
 def build_reopen_request_hash_input(
     context: ReopenHashContext,
     reopen_inputs: RagReopenInputs,

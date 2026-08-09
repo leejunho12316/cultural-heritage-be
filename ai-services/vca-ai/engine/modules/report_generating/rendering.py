@@ -19,6 +19,8 @@ FINAL_REPORT_DISCLAIMER: Final = (
 )
 
 
+# trace.py의 generate_trace_report가 호출한다. 모든 후보로 이동하는 트레이스
+# 랜딩 페이지(report/index.html)를 렌더링한다.
 def trace_index_html(source: TraceSource) -> str:
     """Render the trace landing page with all candidate navigation."""
     candidate_links = "".join(
@@ -38,6 +40,8 @@ def trace_index_html(source: TraceSource) -> str:
     return _document("Trace Report", body)
 
 
+# trace.py의 generate_trace_report가 후보마다 호출한다. 진단적 주장 없이
+# 후보 하나의 근거(provenance)만 담은 개별 페이지를 렌더링한다.
 def candidate_html(candidate: TraceCandidate) -> str:
     """Render one candidate's provenance without diagnostic claims."""
     body = (
@@ -48,6 +52,7 @@ def candidate_html(candidate: TraceCandidate) -> str:
     return _document(f"Candidate {candidate.candidate_id}", body)
 
 
+# candidate_html과 final_index_html이 공유하는 후보 상세 필드 렌더링 로직.
 def _candidate_provenance_html(candidate: TraceCandidate) -> str:
     citations = "".join(_citation_html(record) for record in candidate.citations)
     fields = (
@@ -71,6 +76,7 @@ def _candidate_provenance_html(candidate: TraceCandidate) -> str:
         ("reopen", str(candidate.reopen)),
         ("coverage_metrics", str(candidate.coverage_metrics)),
         ("skip_reason", str(candidate.skip_reason)),
+        ("Qwen observation", candidate.qwen_report_display_text or "없음"),
     )
     return (
         f"<dl>{_details_html(fields)}</dl><h2>Citation export status</h2>"
@@ -78,6 +84,8 @@ def _candidate_provenance_html(candidate: TraceCandidate) -> str:
     )
 
 
+# final.py의 generate_final_report가 호출한다. 검증된 trace metadata를 바탕으로
+# 최종 한국어 근거 전용 리포트(final_report/index.html)를 렌더링한다.
 def final_index_html(source: TraceSource) -> str:
     """Render a Korean evidence-only final report from verified trace metadata."""
     candidate_rows = "".join(
@@ -102,6 +110,8 @@ def final_index_html(source: TraceSource) -> str:
     return _document("최종 한국어 보고서", body)
 
 
+# _candidate_provenance_html에서 인용마다 호출된다. None 필드는 걸러내고
+# 존재하는 값만 나열한다.
 def _citation_html(record: CitationRecord) -> str:
     field_values = (
         ("status", record.status),
@@ -123,6 +133,8 @@ def _citation_html(record: CitationRecord) -> str:
     )
 
 
+# trace_index_html과 final_index_html이 공유하는 scale/tile 메타데이터
+# 렌더링 로직.
 def _source_metadata_html(source: TraceSource) -> str:
     return _details_html(
         (

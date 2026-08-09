@@ -19,6 +19,7 @@ class CorpusDocumentStatus(StrEnum):
 
     INCLUDED_TEXT_PDF = "included_text_pdf"
     EXCLUDED_NO_OCR = "excluded_no_ocr"
+    EXCLUDED_GARBLED_TEXT = "excluded_garbled_text"
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,15 +73,14 @@ class CorpusRecord:
             case CorpusDocumentStatus.INCLUDED_TEXT_PDF:
                 if self.text is None or not self.text.strip():
                     _raise_contract("text", "included text PDFs require non-blank text")
-            case CorpusDocumentStatus.EXCLUDED_NO_OCR:
+            case (
+                CorpusDocumentStatus.EXCLUDED_NO_OCR
+                | CorpusDocumentStatus.EXCLUDED_GARBLED_TEXT
+            ):
                 if self.text is not None:
-                    _raise_contract(
-                        "text", "excluded no-OCR PDFs must not contain text"
-                    )
+                    _raise_contract("text", "excluded PDFs must not contain text")
                 if self.pages:
-                    _raise_contract(
-                        "pages", "excluded no-OCR PDFs must not contain pages"
-                    )
+                    _raise_contract("pages", "excluded PDFs must not contain pages")
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,17 +99,28 @@ class CorpusAccounting:
     attempted_pdfs: int
     included_text_pdfs: int
     excluded_no_ocr: int
+    excluded_garbled_text: int
 
     def __post_init__(self) -> None:
         """Reject negative or internally inconsistent accounting totals."""
-        if min(self.attempted_pdfs, self.included_text_pdfs, self.excluded_no_ocr) < 0:
+        counts = (
+            self.attempted_pdfs,
+            self.included_text_pdfs,
+            self.excluded_no_ocr,
+            self.excluded_garbled_text,
+        )
+        if min(counts) < 0:
             _raise_contract("accounting", "counts must be non-negative")
-        if self.attempted_pdfs != self.included_text_pdfs + self.excluded_no_ocr:
+        if self.attempted_pdfs != (
+            self.included_text_pdfs + self.excluded_no_ocr + self.excluded_garbled_text
+        ):
             _raise_contract(
                 "accounting", "attempted PDFs must equal included plus excluded"
             )
 
 
+# 외부(문서 코퍼스 어댑터/캐시)에서 온 미검증 메타데이터 한 행을 검증된
+# CorpusRecord로 변환한다. Corpus.from_metadata가 각 행마다 호출한다.
 def parse_corpus_record(metadata: CorpusMetadataRow) -> CorpusRecord:
     """Parse one external metadata row into a validated immutable record."""
     try:
@@ -145,11 +156,16 @@ class Corpus:
             seen_document_ids.add(record.document_id)
             seen_paths.add(record.relative_path)
 
+    # 코퍼스를 만드는 유일한 공개 진입점. startup_runner._locked_corpus_vector_index
+    # 가 startup_corpus_rows로 읽은 원시 메타데이터를 여기로 넘긴다.
     @classmethod
     def from_metadata(cls, rows: tuple[CorpusMetadataRow, ...]) -> Self:
         """Parse complete external metadata before exposing a corpus."""
         return cls(tuple(parse_corpus_record(row) for row in rows))
 
+    # 인덱싱 가능한(OCR/깨짐 없이 텍스트 추출 성공한) PDF만 골라낸다.
+    # 현재는 아래 accounting 프로퍼티가 포함 문서 수를 셀 때만 내부적으로
+    # 사용한다(문서 청킹 자체는 document_index.py가 record 상태를 직접 본다).
     @property
     def lexical_inputs(self) -> tuple[LexicalDocumentInput, ...]:
         """Return included PDFs in the original metadata order."""
@@ -169,16 +185,27 @@ class Corpus:
                             text=text,
                         )
                     )
-                case CorpusDocumentStatus.EXCLUDED_NO_OCR:
+                case (
+                    CorpusDocumentStatus.EXCLUDED_NO_OCR
+                    | CorpusDocumentStatus.EXCLUDED_GARBLED_TEXT
+                ):
                     continue
         return tuple(inputs)
 
+    # 코퍼스 상태를 즉석에서 다시 세어 캐시된 카운트 없이 항상 최신 값을
+    # 돌려준다. 별도로 저장/캐시되지 않는 파생값이라는 점에 유의.
     @property
     def accounting(self) -> CorpusAccounting:
         """Return counts derived solely from the immutable corpus records."""
         included_count = len(self.lexical_inputs)
+        garbled_count = sum(
+            1
+            for record in self.records
+            if record.status is CorpusDocumentStatus.EXCLUDED_GARBLED_TEXT
+        )
         return CorpusAccounting(
             attempted_pdfs=len(self.records),
             included_text_pdfs=included_count,
-            excluded_no_ocr=len(self.records) - included_count,
+            excluded_no_ocr=len(self.records) - included_count - garbled_count,
+            excluded_garbled_text=garbled_count,
         )

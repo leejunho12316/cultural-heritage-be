@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -92,7 +93,11 @@ def main(arguments: Sequence[str] | None = None) -> int:
         PromptArtifactInputError,
         PreprocessingAssetInputError,
         ContractValidationError,
-    ):
+    ) as error:
+        print(  # noqa: T201
+            f"mask_refining: failed: {type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
         return 2
     return 0
 

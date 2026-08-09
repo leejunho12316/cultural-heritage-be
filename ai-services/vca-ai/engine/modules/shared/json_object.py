@@ -13,6 +13,11 @@ type JsonObject = dict[str, JsonValue]
 
 _CONTROL_CHARACTER_LIMIT: Final = 0x20
 _UNICODE_ESCAPE_LENGTH: Final = 4
+_HIGH_SURROGATE_START: Final = 0xD800
+_HIGH_SURROGATE_END: Final = 0xDBFF
+_LOW_SURROGATE_START: Final = 0xDC00
+_LOW_SURROGATE_END: Final = 0xDFFF
+_SURROGATE_PAIR_OFFSET: Final = 0x10000
 _JSON_LITERALS: Final = (("true", True), ("false", False), ("null", None))
 _SIMPLE_ESCAPES: Final = {
     '"': '"',
@@ -119,12 +124,41 @@ def _escape(text: str, position: int, field: str) -> tuple[str, int]:
         return simple, position + 1
     if character != "u":
         return _invalid(field, "contains an invalid escape")
-    hexadecimal = text[position + 1 : position + 1 + _UNICODE_ESCAPE_LENGTH]
+    code_point, position = _unicode_escape(text, position + 1, field)
+    if _HIGH_SURROGATE_START <= code_point <= _HIGH_SURROGATE_END:
+        code_point, position = _low_surrogate_pair(text, position, code_point)
+    return chr(code_point), position
+
+
+def _unicode_escape(text: str, position: int, field: str) -> tuple[int, int]:
+    hexadecimal = text[position : position + _UNICODE_ESCAPE_LENGTH]
     if len(hexadecimal) != _UNICODE_ESCAPE_LENGTH or any(
         digit not in hexdigits for digit in hexadecimal
     ):
         _invalid(field, "contains an invalid unicode escape")
-    return chr(int(hexadecimal, 16)), position + 1 + _UNICODE_ESCAPE_LENGTH
+    return int(hexadecimal, 16), position + _UNICODE_ESCAPE_LENGTH
+
+
+def _low_surrogate_pair(text: str, position: int, high: int) -> tuple[int, int]:
+    # JSON strings encode astral-plane characters (code points above U+FFFF)
+    # as a UTF-16 surrogate pair: two \uXXXX escapes that must be recombined
+    # into one code point. Recombining them here - rather than emitting each
+    # escape as its own chr() - is what keeps a lone (unpaired) surrogate
+    # from ever reaching downstream hashing/tokenization consumers.
+    if text[position : position + 2] != "\\u" or len(text) < position + 6:
+        return high, position
+    low_hexadecimal = text[position + 2 : position + 6]
+    if any(digit not in hexdigits for digit in low_hexadecimal):
+        return high, position
+    low = int(low_hexadecimal, 16)
+    if not (_LOW_SURROGATE_START <= low <= _LOW_SURROGATE_END):
+        return high, position
+    combined = (
+        _SURROGATE_PAIR_OFFSET
+        + ((high - _HIGH_SURROGATE_START) << 10)
+        + (low - _LOW_SURROGATE_START)
+    )
+    return combined, position + 6
 
 
 def _literal(text: str, position: int, field: str) -> tuple[JsonScalar, int]:

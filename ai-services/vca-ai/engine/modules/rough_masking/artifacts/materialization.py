@@ -64,6 +64,8 @@ def _raise_contract(field: str, reason: str) -> None:
     raise ContractValidationError(field, reason)
 
 
+# bbox 좌표가 유효한 범위인지 검증한다 (유한값, 순서, ROI 경계 이내).
+# _validate_output에서 accepted/rejected 레코드 모두에 대해 호출된다.
 def _validate_bbox(
     request: AdapterRequest, bbox_xyxy: tuple[float, float, float, float]
 ) -> None:
@@ -77,6 +79,8 @@ def _validate_bbox(
         _raise_contract("bbox_outside_roi", "bbox outside ROI view")
 
 
+# 품질 지표들이 [0,1] 구간과 음이 아닌 정수 범위를 벗어나지 않는지 검증한다.
+# _validate_output에서 호출되며, 저장 전 마지막 안전망 역할을 한다.
 def _validate_quality(output: MaskOutput) -> None:
     values = (
         output.quality_score,
@@ -95,11 +99,15 @@ def _validate_quality(output: MaskOutput) -> None:
             _raise_contract("quality_metric", "quality count must be non-negative")
 
 
+# 출력에 쓰인 프롬프트가 요청에 포함된 locked seed 프롬프트인지 확인한다.
+# 임의 프롬프트로 조작된 결과가 기록되는 것을 막는다.
 def _validate_prompt(request: AdapterRequest, output: MaskOutput) -> None:
     if output.prompt not in request.prompts:
         _raise_contract("prompt", "prompt_not_locked_seed")
 
 
+# 하나의 러너 출력(accepted 또는 rejected)에 대해 bbox/품질/프롬프트 검증을
+# 모두 수행하고, accepted인 경우 PNG/JPEG 시그니처까지 확인한다.
 def _validate_output(request: AdapterRequest, output: MaskOutput) -> None:
     _validate_bbox(request, output.bbox_xyxy)
     _validate_quality(output)
@@ -114,6 +122,7 @@ def _validate_output(request: AdapterRequest, output: MaskOutput) -> None:
         _raise_contract("rough_overlay_jpeg", "invalid JPEG signature")
 
 
+# records_json이 lane_output_dir 하위에 있는지 확인한다 (경로 이탈 방지).
 def _validate_paths(request: AdapterRequest) -> None:
     lane_root = request.lane_output_dir.resolve()
     records_path = request.records_json.resolve()
@@ -135,6 +144,8 @@ def _quality_fields(output: MaskOutput) -> dict[str, JsonValue]:
     }
 
 
+# accepted 마스크 출력을 JSON 레코드로 직렬화한다 (mask/overlay 경로, 품질 지표 포함).
+# 저장 후 rough candidate 정규화 단계에서 이 레코드를 다시 읽는다.
 def _accepted_record(
     request: AdapterRequest,
     output: AnomalyMaskOutput,
@@ -157,6 +168,7 @@ def _accepted_record(
     return record
 
 
+# rejected 마스크 출력을 진단용 JSON 레코드로 직렬화한다 (reject_reason 포함).
 def _rejected_record(
     request: AdapterRequest, output: RejectedMaskOutput
 ) -> dict[str, JsonValue]:

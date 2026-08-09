@@ -15,7 +15,9 @@ from modules.orchestration.receipts import (
     STAGE_NAMES,
     StageReceiptPayload,
     StartupStatus,
+    progress_payload,
     stage_payload,
+    write_startup_progress,
 )
 from modules.orchestration.stage_runner_contracts import (
     ProjectStageRequest,
@@ -77,6 +79,7 @@ class StageExecutionRequest:
     model_cache_root: Path
     dry_run: bool
     verify_model_hashes: bool
+    output_root: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +101,7 @@ def execute_startup_stages(
     active_request = request
     for stage_name in EXECUTED_STAGE_NAMES:
         stage_progress.print_started(stage_name)
+        _write_progress(request, stages, running_stage=stage_name)
         status, exit_code, reason = _run_stage(stage_name, active_request, runners)
         stage_progress.print_outcome(stage_name, status, exit_code, reason)
         stages.append(
@@ -126,13 +130,43 @@ def execute_startup_stages(
                         None,
                         skipped_stage.get("reason"),
                     )
+                _write_progress(request, stages, running_stage=None, failed=True)
                 return StageExecutionResult(
                     status, stage_name, _failure_exit_code(exit_code), stages
                 )
+    _write_progress(request, stages, running_stage=None)
     return StageExecutionResult(StartupStatus.COMPLETED, None, 0, stages)
 
 
+# 지금까지의 스테이지 진행 상황으로 progress.json payload를 만들어 기록한다.
+# execute_startup_stages에서 각 스테이지 시작/종료 시점마다 호출된다.
+def _write_progress(
+    request: StageExecutionRequest,
+    stages_so_far: list[StageReceiptPayload],
+    *,
+    running_stage: str | None,
+    failed: bool = False,
+) -> None:
+    all_stages_done = len(stages_so_far) == len(STAGE_NAMES)
+    if failed:
+        run_status = "failed"
+    elif running_stage is None and all_stages_done:
+        run_status = "completed"
+    else:
+        run_status = "running"
+    payload = progress_payload(
+        request.project_name, run_status, running_stage, stages_so_far
+    )
+    write_startup_progress(request.output_root, payload)
+
+
+# preprocessing 완료 직후, device="auto" 요청을 실제로 확정된 device 값으로
+# 치환해 이후 스테이지에 전달한다. execute_startup_stages에서 preprocessing이
+# COMPLETED로 끝났을 때만 호출된다.
 def _with_preprocessing_device(request: StageExecutionRequest) -> StageExecutionRequest:
+    # device가 "auto"면 preprocessing이 실행되어야 실제 백엔드가 정해지므로,
+    # 이후 스테이지가 쓸 수 있도록 preprocessing이 방금 쓴 manifest에서
+    # 그 값을 다시 읽어온다.
     if request.dry_run:
         return request
     manifest_path = (
@@ -172,6 +206,9 @@ def mask_refining_arguments(request: StageExecutionRequest) -> tuple[str, ...]:
     return tuple(arguments)
 
 
+# 스테이지 이름에 따라 preprocessing / mask_refining / 그 외 프로젝트 스테이지
+# 실행 경로로 분기하고, 실행 중 발생한 예외를 FAILED 결과로 변환한다.
+# execute_startup_stages의 스테이지 루프에서 매 스테이지마다 호출된다.
 def _run_stage(
     stage_name: str,
     request: StageExecutionRequest,
@@ -200,11 +237,13 @@ def _run_stage(
         return (
             StartupStatus.FAILED,
             STARTUP_FAILURE_EXIT_CODE,
-            f"{stage_name} raised {type(error).__name__}",
+            f"{stage_name} raised {type(error).__name__}: {error}",
         )
     return outcome
 
 
+# mask_refining은 dry-run 계약이 없어 dry-run이면 건너뛰고, 아니면 CLI
+# 러너를 실행한다. _run_stage에서 stage_name이 "mask_refining"일 때 호출된다.
 def _run_mask_refining(
     request: StageExecutionRequest,
     runners: StartupStageRunners,
@@ -214,6 +253,9 @@ def _run_mask_refining(
     return _exit_outcome(runners.mask_refining(mask_refining_arguments(request)))
 
 
+# rag/prompt_generating 등 프로젝트 단위 스테이지를 실행한다. dry-run이고
+# 해당 스테이지가 mask_refining 산출물에 의존하면 건너뛴다.
+# _run_stage에서 preprocessing/mask_refining을 제외한 스테이지에 대해 호출된다.
 def _run_project_stage(
     stage_name: str,
     request: StageExecutionRequest,
@@ -256,6 +298,8 @@ def _failure_exit_code(exit_code: int | None) -> int:
     return exit_code
 
 
+# 스테이지 이름을 StartupStageRunners의 해당 콜러블로 매핑한다.
+# 알 수 없는 스테이지 이름이면 예외를 발생시킨다. _run_project_stage에서 호출된다.
 def _project_runner(
     stage_name: str, runners: StartupStageRunners
 ) -> ProjectStageRunner:
@@ -278,6 +322,9 @@ def _invalid_stage_name(stage_name: str) -> NoReturn:
     raise ContractValidationError(field, stage_name)
 
 
+# 어떤 스테이지가 실패했을 때, 그 뒤에 남은 스테이지들을 모두 SKIPPED
+# payload로 채워 리시트에 기록한다. execute_startup_stages의 실패 처리 경로에서
+# 호출된다.
 def _remaining_stage_payloads(
     paths: StagePathMap, failed_stage: str
 ) -> list[StageReceiptPayload]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
 from modules.anomaly_grouping.models import (
@@ -12,8 +13,7 @@ from modules.anomaly_grouping.models import (
     AnomalyGroupingResult,
     BoundingBox,
     CandidateEvidence,
-    MergePhase,
-    PreviousSuppression,
+    MaskReference,
 )
 from modules.anomaly_grouping.serialization import result_payload
 from modules.anomaly_grouping.shared_contracts import (
@@ -26,13 +26,14 @@ from modules.shared import CandidateId, ContractValidationError, RagAccountingSt
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from pathlib import Path
 
     from modules.shared import HybridDescriptor, RelationAuthorityInput
 
 _BBOX_COORDINATE_COUNT: Final = 4
 
 
+# 독립 실행 CLI(runner.py)의 진입점에서 호출되어, 요청 JSON 파일을 타입화된
+# AnomalyGroupingRequest로 변환한다.
 def read_request(path: Path) -> AnomalyGroupingRequest:
     """Read and parse one anomaly grouping request JSON file."""
     raw_payload = cast("JsonValue", json.loads(path.read_text(encoding="utf-8")))
@@ -44,6 +45,8 @@ def read_request(path: Path) -> AnomalyGroupingRequest:
     return parse_request(payload)
 
 
+# runner.py에서 결과를 결정적(정렬된 키, 압축된 구분자) JSON으로 기록할 때
+# 사용한다.
 def write_result(path: Path, result: AnomalyGroupingResult) -> None:
     """Write one deterministic anomaly grouping result JSON file."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -53,6 +56,8 @@ def write_result(path: Path, result: AnomalyGroupingResult) -> None:
     )
 
 
+# read_request가 호출하는 핵심 파싱 로직. 신뢰할 수 없는 JSON 경계에서 스키마
+# 버전과 필수 필드를 검증하며, 실패 시 ContractValidationError를 던진다.
 def parse_request(payload: Mapping[str, JsonValue]) -> AnomalyGroupingRequest:
     """Parse a request payload at the untrusted JSON boundary."""
     if _string(payload, "schema") != ANOMALY_GROUPING_REQUEST_SCHEMA:
@@ -60,38 +65,43 @@ def parse_request(payload: Mapping[str, JsonValue]) -> AnomalyGroupingRequest:
         reason = "unsupported anomaly grouping request"
         raise ContractValidationError(field_name, reason)
     return AnomalyGroupingRequest(
-        _merge_phase(payload),
-        _strings(payload, "seed_lane_priority"),
-        _candidates(payload, "pre_rag_candidates"),
-        _candidates(payload, "post_rag_candidates"),
-        _suppressions(payload),
-        tuple(
-            CandidateId(value)
-            for value in _strings(payload, "already_reopened_candidate_ids")
-        ),
+        _candidates(payload),
+        Path(_string(payload, "mask_output_dir")),
     )
 
 
-def _candidates(
-    payload: Mapping[str, JsonValue], field_name: str
-) -> tuple[AnomalyCandidate, ...]:
-    return tuple(_candidate(item) for item in _objects(payload, field_name))
+def _candidates(payload: Mapping[str, JsonValue]) -> tuple[AnomalyCandidate, ...]:
+    return tuple(_candidate(item) for item in _objects(payload, "candidates"))
 
 
+# 후보 하나의 JSON 표현을 AnomalyCandidate로 변환한다.
 def _candidate(payload: Mapping[str, JsonValue]) -> AnomalyCandidate:
     return AnomalyCandidate(
         CandidateId(_string(payload, "candidate_id")),
+        _string(payload, "image_id"),
         _string(payload, "source_object_id"),
         _string(payload, "source_view_id"),
         _string(payload, "seed_lane"),
         _string(payload, "seed_prompt"),
         _bbox(payload),
+        _mask(payload),
         _evidence(payload),
-        _candidate_id_or_none(payload, "explicit_pre_rag_parent_id"),
         _string_or_none(payload, "duplicate_suppression_key"),
     )
 
 
+# _candidate에서 mask 필드를 MaskReference로 변환한다.
+def _mask(payload: Mapping[str, JsonValue]) -> MaskReference:
+    mask = payload.get("mask")
+    if not isinstance(mask, dict):
+        field_name = "mask"
+        reason = "must be an object"
+        raise ContractValidationError(field_name, reason)
+    return MaskReference(_string(mask, "path"), _string(mask, "sha256"))
+
+
+# _candidate에서 evidence 필드를 CandidateEvidence로 변환한다. hybrid_descriptor
+# 유무에 따라 relation_authority_input(C-004 입력) 파싱 여부가 갈린다.
 def _evidence(payload: Mapping[str, JsonValue]) -> CandidateEvidence:
     evidence = payload.get("evidence")
     if evidence is None:
@@ -114,6 +124,7 @@ def _evidence(payload: Mapping[str, JsonValue]) -> CandidateEvidence:
     )
 
 
+# _candidate에서 bbox_xyxy 4개 숫자를 검증해 BoundingBox로 만든다.
 def _bbox(payload: Mapping[str, JsonValue]) -> BoundingBox:
     values = _numbers(payload, "bbox_xyxy")
     if len(values) != _BBOX_COORDINATE_COUNT:
@@ -121,17 +132,6 @@ def _bbox(payload: Mapping[str, JsonValue]) -> BoundingBox:
         reason = "must contain four numbers"
         raise ContractValidationError(field_name, reason)
     return BoundingBox(*values)
-
-
-def _suppressions(payload: Mapping[str, JsonValue]) -> tuple[PreviousSuppression, ...]:
-    return tuple(
-        PreviousSuppression(
-            CandidateId(_string(item, "candidate_id")),
-            CandidateId(_string(item, "parent_candidate_id")),
-            _string(item, "same_anomaly_group_id"),
-        )
-        for item in _objects(payload, "previous_suppressions")
-    )
 
 
 def _objects(
@@ -173,13 +173,8 @@ def _string_or_none(payload: Mapping[str, JsonValue], field_name: str) -> str | 
     return value
 
 
-def _candidate_id_or_none(
-    payload: Mapping[str, JsonValue], field_name: str
-) -> CandidateId | None:
-    value = _string_or_none(payload, field_name)
-    return CandidateId(value) if value is not None else None
-
-
+# _evidence에서 hybrid_descriptor(C-004 브리지 입력)가 있으면 파싱하고, 없으면
+# None을 반환한다. relation_authority_input 파싱 가능 여부를 결정한다.
 def _optional_hybrid_descriptor(
     payload: Mapping[str, JsonValue],
 ) -> HybridDescriptor | None:
@@ -193,6 +188,8 @@ def _optional_hybrid_descriptor(
     return parse_hybrid_descriptor(value)
 
 
+# _evidence에서 relation_authority_input을 파싱한다. hybrid_descriptor가 먼저
+# 파싱되어 있어야만 유효하며, 없는데 값이 오면 계약 오류를 낸다.
 def _optional_relation_input(
     payload: Mapping[str, JsonValue],
     descriptor: HybridDescriptor | None,
@@ -214,15 +211,7 @@ def _optional_relation_input(
     return parse_relation_authority_input(value, descriptor)
 
 
-def _merge_phase(payload: Mapping[str, JsonValue]) -> MergePhase:
-    raw_phase = _string(payload, "phase")
-    try:
-        return MergePhase(raw_phase)
-    except ValueError as error:
-        field_name = "phase"
-        raise ContractValidationError(field_name, raw_phase) from error
-
-
+# _evidence에서 rag_status 문자열을 RagAccountingStatus enum으로 변환한다.
 def _rag_status(payload: Mapping[str, JsonValue]) -> RagAccountingStatus:
     raw_status = _string_default(
         payload,
@@ -234,11 +223,6 @@ def _rag_status(payload: Mapping[str, JsonValue]) -> RagAccountingStatus:
     except ValueError as error:
         field_name = "rag_status"
         raise ContractValidationError(field_name, raw_status) from error
-
-
-def _strings(payload: Mapping[str, JsonValue], field_name: str) -> tuple[str, ...]:
-    value = payload.get(field_name)
-    return _string_sequence(value, field_name)
 
 
 def _strings_default(

@@ -33,6 +33,8 @@ class PromptArtifactInputError(ValueError):
         super().__init__(f"{field}: {reason}")
 
 
+# prompt_generating 출력 디렉터리의 manifest.json에서 schema 필드를
+# 읽는다. read_prompt_variants가 입력 계약을 확인하는 첫 단계로 호출한다.
 def _manifest_schema(path: Path) -> str:
     try:
         decoded = parse_json_object(path.read_text(encoding="utf-8"))
@@ -63,6 +65,10 @@ def _strings(record: JsonRecord, field: str) -> tuple[str, ...]:
     return tuple(item for item in value if isinstance(item, str))
 
 
+# JSON 레코드 한 줄을 PromptVariant로 복원한다. prompt_role이
+# rag_refinement가 아니거나 model_prompt_variant가 model_lane과
+# 어긋나면 거부한다 - mask_refining은 시드 프롬프트가 아니라
+# RAG로 정제된 프롬프트만 받아들여야 한다.
 def _variant(record: JsonRecord) -> PromptVariant:
     try:
         lane = RagLane(_string(record, "model_lane"))

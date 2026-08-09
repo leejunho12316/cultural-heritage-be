@@ -79,6 +79,9 @@ class PillowQwenViewRenderer:
             ),
         )
 
+    # 렌더링된 이미지를 크기 제한을 적용해 PNG로 저장하고, 그 결과를
+    # QwenInputView 레코드로 반환한다. render()가 두 뷰 각각에 대해
+    # 호출한다.
     def _write_view(
         self,
         request: ViewRenderRequest,
@@ -117,6 +120,8 @@ def _open_mask(path: Path) -> Image.Image:
         return image.convert("L")
 
 
+# 후보 bbox 둘레에 PADDING_PX만큼 여백을 더하되 원본 이미지 경계를
+# 넘지 않도록 clamp한다. 두 번째 Qwen 뷰(주변 맥락 포함 crop)에 쓰인다.
 def _padded_bbox(request: ViewRenderRequest) -> tuple[float, float, float, float]:
     left, top, right, bottom = request.candidate.bbox_xyxy
     return (
@@ -127,13 +132,18 @@ def _padded_bbox(request: ViewRenderRequest) -> tuple[float, float, float, float
     )
 
 
+# 실수 좌표의 crop 상자를 PIL이 요구하는 정수 픽셀 상자로 변환한다.
 def _pixel_crop_box(
     crop_xyxy: tuple[float, float, float, float],
 ) -> tuple[int, int, int, int]:
     left, top, right, bottom = crop_xyxy
+    # 반올림이 아니라 바깥쪽으로 확장(floor/ceil)한다: 안쪽으로 줄이면
+    # 패딩된 bbox가 포함하려던 mask나 crop 내용이 잘릴 수 있다.
     return math.floor(left), math.floor(top), math.ceil(right), math.ceil(bottom)
 
 
+# 렌더링된 이미지가 MAX_AREA_PX를 넘으면 비율을 유지한 채 축소한다.
+# QwenInputView.__post_init__이 강제하는 면적 상한과 짝을 이루는 로직이다.
 def _bounded_image(image: Image.Image) -> Image.Image:
     area = image.width * image.height
     if area <= MAX_AREA_PX:

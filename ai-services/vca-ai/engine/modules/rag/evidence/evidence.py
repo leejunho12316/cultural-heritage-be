@@ -26,6 +26,8 @@ class RelationEvidenceLinks:
     duplicate_suppression_key: str
 
 
+# 카드/Qwen 브리지/인용 증거를 하나의 공유 HybridDescriptor로 합친다.
+# relations/anomaly_grouping 쪽에서 관계 근거를 만들 때 호출한다.
 def build_hybrid_descriptor(
     cards: tuple[RagVisualConceptCard, ...],
     qwen_bridge: QwenBridgeResult,
@@ -48,6 +50,9 @@ def build_hybrid_descriptor(
     )
 
 
+# HybridDescriptor와 accounting row, 관계 링크를 묶어 공유 계약인
+# RelationAuthorityInput을 만든다. concept_family_compatible/descriptor_compatible을
+# 항상 True로 고정하는 점에 유의 - 실제 호환성 판정은 이 함수의 책임이 아니다.
 def build_relation_authority_input(
     accounting_row: RagAccountingRow,
     hybrid_descriptor: HybridDescriptor,
@@ -69,6 +74,8 @@ def build_relation_authority_input(
     )
 
 
+# 카드 목록에서 concept_family가 채워진 첫 카드를 대표값으로 쓴다.
+# 하나도 없으면 unknown_visual_anomaly로 대체한다.
 def _concept_family(cards: tuple[RagVisualConceptCard, ...]) -> str:
     for card in cards:
         family = card.concept_family
@@ -77,6 +84,7 @@ def _concept_family(cards: tuple[RagVisualConceptCard, ...]) -> str:
     return "unknown_visual_anomaly"
 
 
+# 카드들을 렌더링한 프롬프트 변형에서 source_terms를 모아 중복 없이 반환한다.
 def _visual_tokens(cards: tuple[RagVisualConceptCard, ...]) -> tuple[str, ...]:
     terms: list[str] = []
     for card in cards:
@@ -85,6 +93,8 @@ def _visual_tokens(cards: tuple[RagVisualConceptCard, ...]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(terms))
 
 
+# Qwen이 제공한 원문 용어를 그대로 쓰지 않고 실행 가능한 프롬프트 형태로
+# 검증/정규화한다.
 def _safe_qwen_terms(terms: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(validate_executable_prompt(term) for term in terms)
 
@@ -106,6 +116,9 @@ def _provenance_strength(
     return "weak"
 
 
+# Qwen 성공/실패에 따라 고정된 플래그 조합을 반환한다. structured_only는 항상
+# 포함되어, 이 경로가 구조화된 필드만 쓰고 프롬프트·자유서술 텍스트는 쓰지
+# 않는다는 것을 명시한다.
 def _evidence_flags(qwen_bridge: QwenBridgeResult) -> tuple[str, ...]:
     match qwen_bridge.status:
         case QwenBridgeStatus.SUCCESS:

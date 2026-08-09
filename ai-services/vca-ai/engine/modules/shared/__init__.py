@@ -53,6 +53,7 @@ from modules.shared.constants import (
     VOCABULARY_VERSION,
 )
 from modules.shared.errors import ContractValidationError, PathSafetyError
+from modules.shared.file_lock import exclusive_file_lock
 from modules.shared.hash_inputs import (
     DryRunHashInput,
     LaneConfigVersion,
@@ -225,6 +226,7 @@ __all__ = (
     "ensure_safe_run_root",
     "ensure_source_document_is_not_write_target",
     "evaluate_final_success",
+    "exclusive_file_lock",
     "field_usage",
     "followup_request_hash",
     "is_terminal_rag_status",

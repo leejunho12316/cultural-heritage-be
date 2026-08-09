@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import TYPE_CHECKING, NoReturn, Protocol
 
 from modules.prompt_generating import (
@@ -52,20 +53,28 @@ def run_prompt_generating_stage(request: _PromptGeneratingStageRequest) -> int:
         if request.dry_run and not cards_path.is_file():
             return int(ExitCode.OK)
         cards = _read_cards(cards_path)
-        if not cards:
-            field = "rag_visual_concept_cards"
-            reason = "must contain at least one card"
-            _raise_contract(field, reason)
+        # 카드가 0장이어도(문헌 근거를 못 찾은 경우) 더 이상 여기서 전체 run을
+        # 실패시키지 않는다 - RAG 근거 없이도 리포트는 나가야 한다는 결정.
+        # mask_refining이 이 빈 variants를 받으면 정제할 게 없으니 rough 후보를
+        # 그대로 통과시키고(passthrough_records.jsonl), anomaly_grouping이 그걸
+        # 읽어 RAG 근거 없는 후보로나마 리포트에 반영한다.
         variants = tuple(
             variant for card in cards for variant in render_rag_prompt_variants(card)
         )
         validate_unique_prompt_texts(variants)
         _write_prompt_artifacts(request.paths.prompt_generating, cards, variants)
-    except (ContractValidationError, OSError, PromptSafetyError):
+    except (ContractValidationError, OSError, PromptSafetyError) as error:
+        print(  # noqa: T201
+            f"prompt_generating: failed: {type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
         return int(ExitCode.INCOMPLETE_OR_FAILURE)
     return int(ExitCode.OK)
 
 
+# rag 단계가 만든 concept card jsonl 파일을 줄 단위로 읽어 파싱한다.
+# run_prompt_generating_stage에서 호출되며, 파일이 없으면
+# ContractValidationError로 실패를 명확히 알린다.
 def _read_cards(path: Path) -> tuple[RagVisualConceptCard, ...]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -76,10 +85,13 @@ def _read_cards(path: Path) -> tuple[RagVisualConceptCard, ...]:
     return tuple(_card(parse_json_object(line)) for line in lines if line.strip())
 
 
+# JSON 레코드 한 줄을 RagVisualConceptCard로 변환한다. 각 필드는
+# 아래의 _string/_strings/_visual_cue 등 검증 헬퍼에 위임한다.
 def _card(record: JsonObject) -> RagVisualConceptCard:
     return RagVisualConceptCard(
         concept_card_id=_string(record, "concept_card_id"),
         rag_parent_candidate_id=_string(record, "rag_parent_candidate_id"),
+        image_id=_string(record, "image_id"),
         concept_family=_concept_family(record.get("concept_family")),
         descriptor_terms=_strings(record, "descriptor_terms"),
         material_terms=_strings(record, "material_terms"),
@@ -92,6 +104,8 @@ def _card(record: JsonObject) -> RagVisualConceptCard:
     )
 
 
+# concept card에 중첩된 visual_cue 객체를 파싱한다. 각 enum 값이 닫힌
+# 어휘집합을 벗어나면 ValueError를 ContractValidationError로 바꿔 올린다.
 def _visual_cue(record: JsonObject) -> VisualCue:
     try:
         return VisualCue(
@@ -109,6 +123,9 @@ def _visual_cue(record: JsonObject) -> VisualCue:
         raise ContractValidationError(field, reason) from error
 
 
+# PromptVariant를 jsonl 출력 스키마로 직렬화한다. 이 딕셔너리의 필드명은
+# mask_refining의 execution/prompts.py가 그대로 다시 읽어 들이는 계약이므로
+# 이름을 바꾸면 하위 단계가 깨진다.
 def _prompt_payload(variant: PromptVariant) -> JsonObject:
     metadata = variant.metadata
     return {
@@ -126,6 +143,9 @@ def _prompt_payload(variant: PromptVariant) -> JsonObject:
     }
 
 
+# 이 단계의 최종 산출물(프롬프트 변형 jsonl + manifest.json)을 함께
+# 기록한다. run_prompt_generating_stage에서 호출되며, mask_refining이
+# 읽는 prompt_generating 출력 디렉터리 계약을 이룬다.
 def _write_prompt_artifacts(
     output_dir: Path,
     cards: tuple[RagVisualConceptCard, ...],
@@ -155,6 +175,9 @@ def _write_jsonl(path: Path, rows: tuple[JsonObject, ...]) -> None:
     _write_text_atomic(path, payload)
 
 
+# 임시 파일에 먼저 쓰고 replace로 교체하는 원자적 쓰기 패턴이다. 실패
+# 시 임시 파일을 정리하고, 대상 경로가 심볼릭 링크가 아닌지도 먼저
+# 검증해 안전하게 덮어쓴다.
 def _write_text_atomic(path: Path, payload: str) -> None:
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     _ = ensure_no_symlink_leaf(path, "prompt artifact leaf is a symlink")

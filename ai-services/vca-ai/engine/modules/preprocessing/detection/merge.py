@@ -46,6 +46,9 @@ def _area(detection: DetectionBox) -> float:
     return (detection.x1 - detection.x0) * (detection.y1 - detection.y0)
 
 
+# 두 박스가 실제로 겹치거나, 가장자리가 가까운 거리 안에서 충분한 변 겹침을
+# 공유하면 같은 물체로 본다. _union_detection_candidates에서 같은 프롬프트를
+# 공유하는 후보끼리 병합 여부를 판단할 때 호출된다.
 def _are_connected(
     left: DetectionBox, right: DetectionBox, options: DetectionMergeOptions
 ) -> bool:
@@ -70,6 +73,8 @@ def _are_connected(
     return is_horizontally_adjacent or is_vertically_adjacent
 
 
+# 두 박스의 IoU(교집합/합집합)를 계산한다. _nms_detection_candidates에서
+# 중복 판정에 쓰인다.
 def _iou(left: DetectionBox, right: DetectionBox) -> float:
     intersection = _box_intersection_area(left, right)
     union = _area(left) + _area(right) - intersection
@@ -84,6 +89,9 @@ def _box_intersection_area(left: DetectionBox, right: DetectionBox) -> float:
     return max(width, 0.0) * max(height, 0.0)
 
 
+# 더 작은 박스 기준으로 교집합이 차지하는 비율을 계산한다. 한 박스가 다른
+# 박스에 거의 포함되는 경우(컨테인먼트)를 IoU와 별도로 잡아내기 위해
+# _nms_detection_candidates에서 사용된다.
 def _smaller_box_coverage(left: DetectionBox, right: DetectionBox) -> float:
     smaller_area = min(_area(left), _area(right))
     if smaller_area <= 0.0:
@@ -98,6 +106,8 @@ def merge_detection_candidates(
     options: DetectionMergeOptions = DEFAULT_DETECTION_MERGE_OPTIONS,
 ) -> tuple[DetectionBox, ...]:
     """Deduplicate same-prompt boxes before SAM2 materialization."""
+    # 호출부 시그니처를 안정적으로 유지하기 위해 받는 값들이며, 아래 두
+    # 전략 중 어느 쪽도 이미지 크기나 스케일 마커 겹침으로 필터링하지 않는다.
     _ = image_size, scale_marker_bbox
     match options.strategy:
         case DetectionMergeStrategy.NMS:
@@ -106,6 +116,9 @@ def merge_detection_candidates(
             return _union_detection_candidates(detections, options)
 
 
+# "union" 전략: 같은 프롬프트를 공유하며 연결된 박스들을 하나의 그룹으로
+# 묶어 그 그룹을 감싸는 박스로 합친다. merge_detection_candidates에서
+# strategy가 UNION일 때 호출된다.
 def _union_detection_candidates(
     filtered_detections: tuple[DetectionBox, ...], options: DetectionMergeOptions
 ) -> tuple[DetectionBox, ...]:
@@ -155,6 +168,9 @@ def _union_detection_candidates(
     )
 
 
+# "nms" 전략: 점수가 높은 순으로 훑으며 IoU나 포함 비율이 임계값을 넘는
+# 같은 프롬프트 중복 박스를 제거한다. merge_detection_candidates에서
+# strategy가 NMS일 때 호출된다.
 def _nms_detection_candidates(
     filtered_detections: tuple[DetectionBox, ...], options: DetectionMergeOptions
 ) -> tuple[DetectionBox, ...]:

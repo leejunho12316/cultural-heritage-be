@@ -1,5 +1,7 @@
 """Map query prompts and explicit evidence terms into safe card fields."""
 
+from typing import TYPE_CHECKING
+
 from modules.prompt_generating import (
     BoundaryRelation,
     ColorBucket,
@@ -21,8 +23,37 @@ from modules.rag.operations.candidate_term_constants import (
     TABLE_GARBAGE_PHRASES,
     TABLE_GARBAGE_TERMS,
 )
+from modules.rag.qwen import qwen_bridge_query_terms
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from modules.shared import CandidateId, QwenBridgeResult
 
 
+# 후보 고유 Qwen 서술어(selected_terms/extracted_descriptors)를 결정론적인
+# 정렬·중복제거 튜플로 만든다. rag.qwen.qwen_bridge_query_terms()(기존 함수,
+# ALLOWED_DESCRIPTOR_TERMS로 걸러지지 않고 anomaly-class 토큰만 제거된 넓은
+# 어휘)를 그대로 재사용한다 - 여기서 다시 필터링하지 않는다. startup_runner의
+# 질의 생성과 candidate_sidecars의 쿼리 조인이 이 함수 하나를 공유해서 같은
+# 시그니처를 계산하도록 보장한다. Qwen 데이터가 없거나 실패 상태면 빈 튜플을
+# 돌려줘, 호출부가 오늘과 동일한(시드 프롬프트 공유) 동작으로 폴백하게 한다.
+def qwen_query_signature(
+    candidate_id: "CandidateId",
+    qwen_results: "Mapping[CandidateId, QwenBridgeResult]",
+) -> tuple[str, ...]:
+    """Return a stable per-candidate signature from Qwen query-driving terms."""
+    bridge = qwen_results.get(candidate_id)
+    if bridge is None:
+        return ()
+    terms = qwen_bridge_query_terms(bridge)
+    if terms is None:
+        return ()
+    return tuple(sorted(set(terms.lexical_tokens)))
+
+
+# 프롬프트 텍스트에서 FAMILY_KEYWORDS와 일치하는 첫 anomaly family를 찾는다.
+# candidate_sidecars._build_candidate가 카드 생성 전에 호출한다.
 def concept_family(prompt_text: str) -> VisualConceptFamily:
     """Return the allowlisted anomaly family encoded by prompt text."""
     text = prompt_text.casefold()
@@ -32,6 +63,9 @@ def concept_family(prompt_text: str) -> VisualConceptFamily:
     return VisualConceptFamily.UNKNOWN_VISUAL_ANOMALY
 
 
+# 검색 결과의 matched_terms와 시각 단서를 합쳐 카드용 서술어를 만든다.
+# concept_family 토큰은 서술어와 중복되지 않도록 차단(blocked)한다.
+# candidate_sidecars._card가 카드 조립 시 호출한다.
 def descriptor_terms(
     result: PromptRagResultRecord,
     cue: VisualCue,
@@ -45,6 +79,8 @@ def descriptor_terms(
     )
 
 
+# 허용된 문맥 용어를 뽑되 "area"는 제외하고 "surface"를 항상 덧붙여, 결과가
+# 절대 비지 않도록 보장한다. candidate_sidecars._card가 호출한다.
 def context_terms(result: PromptRagResultRecord) -> tuple[str, ...]:
     """Return safe non-empty context terms for prompt rendering."""
     terms = tuple(
@@ -55,6 +91,8 @@ def context_terms(result: PromptRagResultRecord) -> tuple[str, ...]:
     return tuple(dict.fromkeys((*terms, "surface")))
 
 
+# 검색 결과에서만 재질 용어를 추론한다(추측·기본값 없음).
+# candidate_sidecars._card가 호출한다.
 def material_terms(result: PromptRagResultRecord) -> tuple[str, ...]:
     """Infer allowlisted materials from retrieval evidence only."""
     return safe_terms(
@@ -64,6 +102,9 @@ def material_terms(result: PromptRagResultRecord) -> tuple[str, ...]:
     )
 
 
+# Qwen 결과가 없을 때 검색 결과만으로 결정적인 대체 시각 단서를 만든다.
+# 신뢰도는 0.65로 고정된다. candidate_sidecars._first_prompt_ready_card가
+# explicit_cue가 없는 경우에만 호출한다.
 def retrieval_visual_cue(
     result: PromptRagResultRecord, family: VisualConceptFamily
 ) -> VisualCue | None:
@@ -84,6 +125,8 @@ def retrieval_visual_cue(
     )
 
 
+# 이미 허용된 서술어 값들로부터 시각 단서를 만든다. qwen_visual_cues가 Qwen의
+# selected_terms/extracted_descriptors를 안전한 VisualCue로 변환할 때 호출한다.
 def visual_cue_from_descriptor_terms(
     values: tuple[str, ...], confidence: float
 ) -> VisualCue | None:
@@ -104,6 +147,8 @@ def visual_cue_from_descriptor_terms(
     )
 
 
+# 이미 만들어진(주로 Qwen발) 시각 단서에서 실행 불가능한 잔여값을 정리한다.
+# candidate_sidecars._first_prompt_ready_card가 explicit_cue가 있을 때 호출한다.
 def normalize_visual_cue(cue: VisualCue) -> VisualCue:
     """Remove non-actionable compatibility leftovers from explicit cues."""
     reasons = _drop_smooth_when_not_alone(cue.reasons)
@@ -121,6 +166,9 @@ def normalize_visual_cue(cue: VisualCue) -> VisualCue:
     )
 
 
+# 표/수치 데이터가 OCR로 잘못 추출된 스니펫을 걸러낸다(반복 구문, 숫자
+# 비율 등 휴리스틱 사용). candidate_sidecars._first_prompt_ready_card가 결과를
+# 카드 후보로 쓸지 판단할 때 먼저 호출한다.
 def is_usable_retrieval_result(result: PromptRagResultRecord) -> bool:
     """Reject table-like OCR fragments that cannot support visual prompts."""
     tokens = tuple(
@@ -146,6 +194,9 @@ def is_usable_retrieval_result(result: PromptRagResultRecord) -> bool:
     )
 
 
+# 색상/형태/질감 중 하나라도 UNKNOWN이 아니면 프롬프트를 구별할 수 있는
+# 단서로 본다. candidate_sidecars와 qwen_visual_cues 양쪽이 카드/단서 채택
+# 여부를 최종 결정할 때 호출한다.
 def is_actionable_visual_cue(cue: VisualCue) -> bool:
     """Return whether a cue contains prompt-discriminative visual evidence."""
     if cue.color_bucket is not ColorBucket.UNKNOWN:
@@ -160,6 +211,8 @@ def is_actionable_visual_cue(cue: VisualCue) -> bool:
     )
 
 
+# VisualCue 필드들(색상/형태/질감)을 descriptor_terms가 쓸 수 있는 문자열
+# 토큰으로 되돌린다. HOLE_PIT은 hole/pit 두 토큰으로 확장되는 점에 유의.
 def _visual_cue_descriptor_terms(cue: VisualCue) -> tuple[str, ...]:
     terms: list[str] = []
     if cue.color_bucket is not ColorBucket.UNKNOWN:
@@ -181,6 +234,8 @@ def _visual_cue_descriptor_terms(cue: VisualCue) -> tuple[str, ...]:
     return _drop_smooth_when_not_alone(tuple(dict.fromkeys(terms)))
 
 
+# "smooth"는 다른 서술어와 함께 나오면 정보가 없으므로 제거하고, 유일한
+# 서술어일 때만 남긴다.
 def _drop_smooth_when_not_alone(terms: tuple[str, ...]) -> tuple[str, ...]:
     if len(terms) <= 1:
         return terms
@@ -192,6 +247,9 @@ def _is_numeric_like(token: str) -> bool:
     return bool(parts) and all(part.isdecimal() for part in parts)
 
 
+# 이 모듈의 모든 term 추출 함수가 공유하는 핵심 필터: 허용 목록(allowlist)에
+# 있고 차단 목록에 없는 토큰만 통과시킨다. 이 파일 전체의 "안전한 용어만
+# 쓴다"는 불변식이 여기 한 곳에 모여 있다.
 def safe_terms(
     values: tuple[str, ...],
     allowed: frozenset[str],
@@ -207,6 +265,9 @@ def safe_terms(
     return tuple(dict.fromkeys(terms))
 
 
+# concept family 이름을 안전 용어 필터의 blocked 인자로 쓰기 위해 토큰화한다.
+# descriptor_terms/retrieval_visual_cue가 서술어에 anomaly class 이름 자체가
+# 섞여 들어가는 것을 막기 위해 호출한다.
 def family_tokens(family: VisualConceptFamily) -> tuple[str, ...]:
     """Split a concept family into tokens excluded from descriptors."""
     return tuple(family.value.split("_"))

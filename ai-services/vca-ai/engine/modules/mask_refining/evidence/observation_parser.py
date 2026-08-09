@@ -22,9 +22,14 @@ from modules.rough_masking.artifacts.records import (
 )
 
 _QUERY_FIELD_PATTERN: Final = re.compile(r"^[a-z0-9][a-z0-9 -]{0,63}$")
+# 프롬프트에서 마크다운 코드펜스로 감싸지 말라고 지시하지만, 모델이
+# 그래도 종종 감싸서 응답할 때가 있다; 그 이유만으로 실패 처리하지 않고
+# 방어적으로 코드펜스를 제거한다.
 _JSON_FENCE_PREFIXES: Final = ("```json", "```JSON", "```")
 
 
+# 이 파일 전역에서 쓰는 실패 결과 생성 헬퍼다. 파싱 과정의 각 검증
+# 지점에서 조기 반환할 때 호출되어 실패 사유를 QwenEvidenceResult로 감싼다.
 def _failure(
     views: tuple[QwenInputView, ...], code: EvidenceFailureCode, reason: str
 ) -> QwenEvidenceResult:
@@ -33,6 +38,8 @@ def _failure(
     return failure_result(context, failure)
 
 
+# JSON 필드가 문자열 배열인지 검증한다. 형식이 맞지 않으면 예외 대신
+# None을 반환해 호출자가 MISSING/INVALID 실패로 변환하도록 한다.
 def _strings(record: JsonRecord, field: str) -> tuple[str, ...] | None:
     raw = record.get(field)
     if not isinstance(raw, list):
@@ -45,6 +52,9 @@ def _strings(record: JsonRecord, field: str) -> tuple[str, ...] | None:
     return tuple(values)
 
 
+# selected_terms/extracted_descriptors처럼 다시 쿼리로 쓰일 문자열
+# 필드를 검증한다. 소문자로 정규화하고 _QUERY_FIELD_PATTERN을 벗어나면
+# None을 반환해 안전하지 않은 값을 걸러낸다.
 def _query_strings(record: JsonRecord, field: str) -> tuple[str, ...] | None:
     values = _strings(record, field)
     if values is None:
@@ -63,6 +73,8 @@ def _string(record: JsonRecord, field: str) -> str | None:
     return raw if isinstance(raw, str) and raw.strip() else None
 
 
+# morphology 필드를 문자열로 확인한 뒤 normalize_qwen_morphology로
+# 닫힌 형태 어휘집합에 맞게 정규화한다.
 def _morphology(record: JsonRecord) -> str | None:
     raw: JsonValue | None = record.get("morphology")
     if not isinstance(raw, str):
@@ -70,6 +82,8 @@ def _morphology(record: JsonRecord) -> str | None:
     return normalize_qwen_morphology(raw)
 
 
+# Qwen의 원본 출력에서 감싸진 마크다운 코드펜스를 제거해 순수 JSON
+# 문자열만 남긴다. parse_observation이 JSON 파싱 전에 호출한다.
 def _single_record_payload(raw_output: str) -> str:
     stripped = raw_output.strip()
     if not stripped.endswith("```"):

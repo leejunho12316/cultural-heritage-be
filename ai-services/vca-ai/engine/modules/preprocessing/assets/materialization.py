@@ -62,6 +62,8 @@ def copy_raw_assets(manifest: InputManifest) -> None:
         _ = copy2(image.original_path, target)
 
 
+# 한 객체의 mask/bbox_crop/alpha_cutout/detection_overlay 산출물 경로를
+# 만들고 상위 디렉터리를 준비한다. write_detection_assets에서 객체마다 호출된다.
 def _asset_paths(run_root: Path, image_id: str, object_id: str) -> dict[str, Path]:
     object_root = run_root / "assets" / "objects" / image_id / object_id
     tile_root = run_root / "assets" / "tiles" / image_id / object_id
@@ -83,6 +85,8 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+# 산출물 경로가 run_root 밖으로 벗어나지 않았는지 검증하고 sha256 무결성
+# 레코드를 만든다. write_detection_assets에서 각 산출물을 저장한 뒤 호출된다.
 def _asset_record(
     run_root: Path, path: Path, media_type: str
 ) -> MaterializedAssetRecord:
@@ -99,6 +103,11 @@ def _asset_record(
     )
 
 
+# 검출 결과 식별 필드(bbox, image_id, lane, prompt_id, score, 원본 이미지
+# 해시)를 정규화해 하나의 candidate_id 해시로 만든다. 이 값은
+# ObjectAssetRecord.candidate_id로만 쓰이며, 파이프라인 전체에서 통용되는
+# candidate_id(rough_masking이 별도로 재계산)와는 다른 값이다.
+# write_detection_assets에서 검출된 객체마다 호출된다.
 def _candidate_id(
     context: MaterializationContext, image_id: str, detection: DetectionBox
 ) -> str:

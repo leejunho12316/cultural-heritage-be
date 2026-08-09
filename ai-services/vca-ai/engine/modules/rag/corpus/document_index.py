@@ -63,6 +63,9 @@ class DocumentIndexJsonRecord(TypedDict):
     title: str
 
 
+# 코퍼스 레코드를 인용 가능한 청크 단위로 쪼갠다. startup_runner
+# ._locked_corpus_vector_index가 벡터 인덱스를 만들기 전에 호출하며, 실제
+# 임베딩 대상은 여기서 만든 chunks다.
 def build_document_index(corpus: Corpus, max_snippet_chars: int) -> DocumentIndex:
     """Build deterministic cited chunks from existing corpus records."""
     if max_snippet_chars < MIN_SNIPPET_CHARS:
@@ -75,6 +78,9 @@ def build_document_index(corpus: Corpus, max_snippet_chars: int) -> DocumentInde
     return DocumentIndex(corpus_id=DOCUMENT_CORPUS_ID, chunks=tuple(chunks))
 
 
+# retrieval.lexical_retrieve와 마찬가지로 실제 startup 파이프라인에서는 쓰이지
+# 않는다(청크 검색은 vector_index.vector_retrieve가 담당). 자체 단위 테스트
+# 전용 경로다.
 def chunks_to_lexical_inputs(
     chunks: tuple[DocumentChunk, ...],
 ) -> tuple[LexicalDocumentInput, ...]:
@@ -89,6 +95,9 @@ def chunks_to_lexical_inputs(
     )
 
 
+# chunks_to_lexical_inputs와 마찬가지로 비활성 경로: 실제 startup 파이프라인은
+# vector_index.vector_retrieve를 쓰고, 이 함수는 자체 단위 테스트에서만
+# 실행된다.
 def retrieval_snippets_from_chunks(
     chunks: tuple[DocumentChunk, ...],
     terms: QueryTerms,
@@ -128,6 +137,9 @@ def document_index_records(
     )
 
 
+# 레코드 상태로 분기: 페이지 단위 텍스트가 있으면 페이지별로 청킹하고,
+# (예전 캐시 형식처럼) 페이지 정보 없이 전체 텍스트만 있으면
+# _legacy_record_chunks로 대체한다. build_document_index가 레코드마다 호출한다.
 def _record_chunks(
     record: CorpusRecord,
     max_snippet_chars: int,
@@ -137,7 +149,10 @@ def _record_chunks(
             if record.pages:
                 return _page_chunks(record, max_snippet_chars)
             return _legacy_record_chunks(record, max_snippet_chars)
-        case CorpusDocumentStatus.EXCLUDED_NO_OCR:
+        case (
+            CorpusDocumentStatus.EXCLUDED_NO_OCR
+            | CorpusDocumentStatus.EXCLUDED_GARBLED_TEXT
+        ):
             return ()
 
 
@@ -155,6 +170,9 @@ def _page_chunks(
     return tuple(chunks)
 
 
+# 페이지 단위 텍스트가 없는 레코드용 대체 경로(page_number=None인 청크를
+# 만든다). 새로 추출된 코퍼스는 항상 pages를 채우므로, 이 경로는 주로 예전
+# 캐시 형식과의 하위 호환을 위해 존재한다.
 def _legacy_record_chunks(
     record: CorpusRecord,
     max_snippet_chars: int,

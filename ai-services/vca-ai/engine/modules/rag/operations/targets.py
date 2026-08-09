@@ -104,6 +104,8 @@ class RagTarget:
     skip_reason: str | None
 
 
+# orchestration이 자동 트리거(예: 예산/커버리지 규칙)로 결정한 후속 target을
+# 만든다. user_requested_target과 함께 aggregate_targets로 합쳐진다.
 def automatic_target(
     resolution: TargetResolution,
     followup_reason: str,
@@ -117,6 +119,8 @@ def automatic_target(
     )
 
 
+# 사용자가 명시적으로 요청한 후속 target을 만든다. 요청의 selector가 이미
+# resolution.selected_parent와 일치한다고 가정하지 않고 여기서 다시 대조한다.
 def user_requested_target(
     request: UserFollowupRequest,
     resolution: TargetResolution,
@@ -140,6 +144,9 @@ def user_requested_target(
     )
 
 
+# 자동/사용자 요청 두 target 목록을 각자의 followup_mode가 맞는지 검증한 뒤
+# 순서를 바꾸지 않고 이어붙인다. orchestration이 실행할 전체 target 집합을
+# 확정할 때 호출한다.
 def aggregate_targets(
     automatic_targets: Sequence[RagTarget],
     user_requested_targets: Sequence[RagTarget],

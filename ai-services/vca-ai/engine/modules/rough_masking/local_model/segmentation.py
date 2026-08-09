@@ -92,6 +92,9 @@ def _encode_artifacts(
     return mask_buffer.getvalue(), overlay_buffer.getvalue()
 
 
+# 전처리 단계의 객체 마스크를 ROI 이미지 크기에 맞춰 자르고 리샘플링한다.
+# 이진 마스크를 유지하기 위해 NEAREST 리샘플링을 사용해야 한다(보간 시
+# 경계가 흐려져 품질 지표가 왜곡된다).
 def _object_foreground_mask(
     settings: LocalInferenceSettings, image_size: tuple[int, int]
 ) -> NDArray[np.bool_]:
@@ -125,6 +128,9 @@ def segment_detections(
             multimask_output=False,
         )
         mask = np.asarray(masks[0]) > 0
+        # SAM2는 탐지 박스만으로 프롬프트되므로 박스 내부의 배경까지 마스크에
+        # 포함될 수 있다. 품질 지표가 객체 내부 픽셀만 보도록 점수 계산 전에
+        # 알려진 객체 실루엣으로 마스크를 클리핑한다.
         mask = mask & object_foreground
         if not np.any(mask):
             continue

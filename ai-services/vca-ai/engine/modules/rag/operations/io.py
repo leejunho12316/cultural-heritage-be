@@ -14,6 +14,9 @@ from modules.shared import (
 type SidecarValidator = Callable[[JsonObject], None]
 
 
+# 예산/재오픈 사이드카(budgeting.py 산출물)를 원자적으로 기록한다. 대상 파일명이
+# RAG_SIDECAR_FILENAMES 허용 목록에 없으면 거부하고, 쓰기 전/후 두 번 validator를
+# 돌려 임시 파일이 왕복 검증(round-trip)까지 통과해야 실제 경로로 교체한다.
 def write_rag_sidecar_atomic(
     target: Path,
     payload: JsonObject,

@@ -33,6 +33,8 @@ class LaneRuntime(Protocol):
         ...
 
 
+# "cpu"/"mps"/"cuda"/"cuda:N" 형식만 허용한다. build_lane_runtime에서
+# 런타임을 선택하기 전에 호출된다.
 def _validate_accelerator_device(device: str) -> None:
     normalized = device.lower()
     if normalized in {"cpu", "mps", "cuda"}:
@@ -50,6 +52,9 @@ class _BaseLaneRuntime:
     sam2_entry: ModelInventoryEntry
     device: str
 
+    # ROI 뷰의 coordinate_transform에서 source_bbox를 꺼내 로컬 추론 설정에
+    # 싣는다. object_mask_path와 transform이 반드시 함께 있어야 하며, 이
+    # bbox는 이후 _object_foreground_mask에서 크롭 좌표계로 그대로 쓰인다.
     def _settings(self, request: AdapterRequest) -> LocalInferenceSettings:
         transform = request.view.coordinate_transform
         if request.object_mask_path is None or transform is None:

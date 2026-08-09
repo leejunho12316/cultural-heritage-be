@@ -70,6 +70,8 @@ def _invalid(field: str, reason: str) -> ContractValidationError:
     return ContractValidationError(field, reason)
 
 
+# 상대 경로면 workspace_root 기준으로 붙이고 절대 경로로 정규화한다.
+# parse_run_request에서 run_root/이미지 경로를 해석할 때 호출된다.
 def _resolve_from_workspace(workspace_root: Path, raw_path: str) -> Path:
     candidate = Path(raw_path).expanduser()
     if not candidate.is_absolute():
@@ -77,11 +79,15 @@ def _resolve_from_workspace(workspace_root: Path, raw_path: str) -> Path:
     return candidate.resolve()
 
 
+# --run-root와 --project-name이 모두 없을 때 쓸, 타임스탬프 기반의 기본
+# 출력 경로를 만든다. parse_run_request에서 호출된다.
 def _default_run_root(workspace_root: Path, clock: Clock) -> Path:
     timestamp = clock().astimezone().strftime("%Y%m%d-%H%M%S-%f")
     return workspace_root / "output" / "preprocessing" / timestamp
 
 
+# --project-name이 워크스페이스 로컬 단일 디렉터리 이름인지 검증한다.
+# parse_run_request에서 호출된다.
 def _project_name(raw_project_name: str | None) -> str | None:
     if raw_project_name is None:
         return None
@@ -98,6 +104,8 @@ def _project_name(raw_project_name: str | None) -> str | None:
     return project_name
 
 
+# 명시적 이미지 인자가 없을 때, --project-name 디렉터리 안의 파일들을
+# 정렬해 입력 이미지 후보로 사용한다. parse_run_request에서 호출된다.
 def _project_images(workspace_root: Path, project_name: str | None) -> tuple[Path, ...]:
     if project_name is None:
         return ()
@@ -111,6 +119,8 @@ def _project_images(workspace_root: Path, project_name: str | None) -> tuple[Pat
     )
 
 
+# 원시 CLI 인자를 플래그/값-옵션/이미지 경로 세 그룹으로 나눈다. 알 수 없는
+# "--" 옵션은 여기서 바로 예외로 거부한다. parse_run_request에서 호출된다.
 def _split_arguments(
     arguments: Sequence[str],
 ) -> tuple[tuple[str, ...], tuple[tuple[str, str], ...], tuple[str, ...]]:
@@ -145,11 +155,14 @@ def _split_arguments(
     return tuple(selected_flags), tuple(selected_options), tuple(image_paths)
 
 
+# 같은 옵션이 여러 번 주어지면 마지막 값이 이긴다. parse_run_request와
+# _parse_limit에서 옵션 값을 조회할 때 호출된다.
 def _last_option(options: tuple[tuple[str, str], ...], name: str) -> str | None:
     values = tuple(value for option, value in options if option == name)
     return values[-1] if values else None
 
 
+# --limit 값을 정수로 파싱하고 음수를 거부한다. parse_run_request에서 호출된다.
 def _parse_limit(options: tuple[tuple[str, str], ...]) -> int | None:
     raw_limit = _last_option(options, "--limit")
     if raw_limit is None:

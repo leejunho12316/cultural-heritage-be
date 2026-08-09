@@ -33,6 +33,8 @@ if TYPE_CHECKING:
 FINAL_VISIBLE_FIELDS = ("최종 한국어 보고서", "비진단", "Evidence Trace")
 
 
+# runner.py의 run_report_generation과 browser_qa.py가 호출한다. 최종 리포트가
+# trace 무결성까지 포함해 유효한지 검증하고 receipt.json을 남긴다.
 def verify_final_report(run_root: Path) -> VerificationReceipt:
     """Verify evidence-only final artifacts and persist a receipt."""
     final_root = run_root / "final_report"
@@ -54,6 +56,8 @@ def verify_final_report(run_root: Path) -> VerificationReceipt:
     return receipt
 
 
+# verify_final_report가 호출하는 핵심 검증 로직. 경로 검사, 상위 trace
+# 리포트의 재무결성 검사, 최종 metadata/HTML 계약 검사를 순서대로 수행한다.
 def _final_static_error(run_root: Path, final_root: Path) -> str | None:
     index_path = final_root / "index.html"
     metadata_path = final_root / "metadata.json"
@@ -75,6 +79,8 @@ def _final_static_error(run_root: Path, final_root: Path) -> str | None:
     )
 
 
+# verify_final_report가 호출한다. 최종 리포트 파일들의 다이제스트를 계산해
+# receipt에 담는다.
 def final_digests(final_root: Path) -> JsonObject:
     """Return final report artifact digests used by receipts."""
     metadata_path = final_root / "metadata.json"
@@ -94,6 +100,8 @@ def _read_final_metadata(path: Path) -> JsonObject | str:
         return "final metadata is unreadable"
 
 
+# _final_static_error에서 호출된다. final_report 디렉터리가 run_root를
+# 벗어나거나 심볼릭 링크이거나 필수 파일이 없는 경우를 걸러낸다.
 def _final_path_error(
     run_root: Path,
     final_root: Path,
@@ -115,6 +123,9 @@ def _final_path_error(
     )
 
 
+# _final_static_error에서 호출된다. final_report/metadata.json이 trace 쪽
+# metadata/receipt 다이제스트 및 final_success 값과 정확히 일치하는지 검사해,
+# 최종 리포트가 검증된 trace와 몰래 어긋나지 않았음을 보장한다.
 def _final_metadata_error(run_root: Path, metadata: JsonObject) -> str | None:
     trace_metadata_path = run_root / "report" / "metadata.json"
     trace_receipt_path = run_root / "report" / "verification" / "receipt.json"
@@ -155,6 +166,8 @@ def _final_metadata_error(run_root: Path, metadata: JsonObject) -> str | None:
     )
 
 
+# _final_static_error에서 호출된다. 최종 index.html이 필수 한국어 문구를
+# 담고 trace 리포트로의 링크를 유지하며 내부 링크가 깨지지 않았는지 검사한다.
 def _final_html_error(run_root: Path, index_path: Path) -> str | None:
     content = index_path.read_text(encoding="utf-8")
     return first_error(

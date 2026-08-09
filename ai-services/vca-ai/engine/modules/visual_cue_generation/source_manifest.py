@@ -32,6 +32,8 @@ def source_assets_by_image(
     return assets
 
 
+# run_root_asset_path가 asset_root 내부의 실제 파일을 가리키는지 확인하고,
+# 매니페스트에 기록된 file_sha256과 실제 해시가 일치하는지 검증한다.
 def _asset(raw_image: dict[str, JsonValue], asset_root: Path) -> AssetReference:
     raw_path = _string(raw_image, "run_root_asset_path")
     path = Path(raw_path)

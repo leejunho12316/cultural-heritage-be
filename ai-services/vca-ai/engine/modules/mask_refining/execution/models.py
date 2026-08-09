@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 
     from modules.preprocessing import ViewRecord
     from modules.prompt_generating import PromptRecord, PromptVariant
-    from modules.rough_masking import DetectorRunner
+    from modules.rough_masking import DetectorRunner, RawDetectorCandidate
+    from modules.rough_masking.artifacts.assets import AssetReference
     from modules.shared import DetectorLane, RagLane
 
 
@@ -69,6 +70,8 @@ class JoinedRefinementAssets:
     image_width_px: int
     image_height_px: int
     view: ViewRecord
+    original_image_width_px: int | None = None
+    original_image_height_px: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,15 +108,51 @@ class RefinementRunnerFactory(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class PostRefinementQwenEvidence:
+    """Report-safe post-refinement Qwen observation for one accepted candidate."""
+
+    final_success: bool
+    report_display_text: str
+    confidence: float | None
+
+
+class PostRefinementQwenEvidenceFactory(Protocol):
+    """Produces post-refinement Qwen evidence for one refined candidate."""
+
+    def __call__(
+        self,
+        candidate: RawDetectorCandidate,
+        source_asset: AssetReference | None,
+        assets: JoinedRefinementAssets,
+        lane_output_dir: Path,
+    ) -> PostRefinementQwenEvidence:
+        """Return non-null evidence; never raises for a missing source asset."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
 class AcceptedRefinedCandidate:
-    """Accepted refined mask candidate fields exported to startup consumers."""
+    """Accepted refined mask candidate fields exported to startup consumers.
+
+    `mask` is the refined SAM2 mask restored to original-image pixel space
+    (see runner._restore_original_mask) - it is the mask anomaly_grouping
+    should use as ground truth. It is None only when the original image
+    dimensions were unavailable and restoration could not be performed; that
+    case is a rough_masking mask fallback for the startup layer to handle,
+    not a mask_refining concern.
+    """
 
     candidate_id: str
     image_id: str
     source_object_id: str
     source_view_id: str
     bbox_xyxy: tuple[float, float, float, float]
+    original_bbox_xyxy: tuple[float, float, float, float]
     prompt: str
+    qwen_final_success: bool
+    qwen_report_display_text: str
+    qwen_confidence: float | None
+    mask: AssetReference | None = None
 
 
 @dataclass(frozen=True, slots=True)

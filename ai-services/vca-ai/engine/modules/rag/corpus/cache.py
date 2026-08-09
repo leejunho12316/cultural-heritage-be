@@ -30,6 +30,11 @@ class CacheFallback:
             raise ContractValidationError(field, reason)
 
 
+# 캐시/사이드카 파일을 어디에 쓸지 결정하는 공용 안전 게이트. 읽기 전용
+# source_document_root 안에는 절대 쓰지 못하게 하고, 지정된 fallback.root
+# 밖으로도 벗어나지 못하게 이중으로 검사한다.
+# document_corpus.resolve_extraction_cache_target과 startup_corpus_cache의
+# 캐시/지문 경로 계산이 호출한다.
 def safe_cache_target(source_document_root: Path, fallback: CacheFallback) -> Path:
     """Return a resolved fallback target only when shared path safety permits it."""
     resolved_allowed_root = fallback.allowed_root.expanduser().resolve()

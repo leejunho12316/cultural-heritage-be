@@ -55,6 +55,10 @@ def qwen_bridge_results_path(rag_run_directory: Path) -> Path:
     return rag_run_directory / QWEN_BRIDGE_RESULTS_ARTIFACT
 
 
+# Qwen 추론 결과를 rough_record_path/record 인덱스 구조를 그대로 반영하는
+# 디렉터리 트리에 후보별 파일로 기록한다. candidate_sidecar_models가 나중에
+# qwen_bridge_results_path를 통해 이 디렉터리를 읽는다. 전체를 임시 디렉터리에
+# 먼저 쓴 뒤 통째로 교체해 원자성을 보장한다.
 def write_qwen_bridge_results(
     rag_run_directory: Path,
     rows: tuple[QwenBridgeCandidateArtifact, ...],
@@ -89,6 +93,10 @@ def write_qwen_bridge_results(
     return artifact_path
 
 
+# write_qwen_bridge_results가 만든 디렉터리를 candidate_id로 색인된 맵으로
+# 되돌린다. 예전 단일 JSONL 파일 형식(path가 디렉터리가 아니라 파일인 경우)도
+# _read_legacy_jsonl_results로 지원한다.
+# CandidateRagSidecarInputs.resolved_qwen_results가 호출한다.
 def read_qwen_bridge_results(path: Path) -> Mapping[CandidateId, QwenBridgeResult]:
     """Parse a run-local Qwen result directory into candidate-keyed rows."""
     if path.is_file():
@@ -110,6 +118,7 @@ def read_qwen_bridge_results(path: Path) -> Mapping[CandidateId, QwenBridgeResul
     return MappingProxyType(results)
 
 
+# 디렉터리 트리 형식 이전에 쓰던 단일 JSONL 파일을 읽기 위한 하위 호환 경로.
 def _read_legacy_jsonl_results(path: Path) -> Mapping[CandidateId, QwenBridgeResult]:
     results: dict[CandidateId, QwenBridgeResult] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -134,6 +143,9 @@ def _validate_unique_candidate_paths(
         _raise_contract("qwen_bridge_result", "must have unique output paths")
 
 
+# rough_record_path의 디렉터리 구조와 record 인덱스를 그대로 반영해 후보별
+# 결과 파일 경로를 만든다. write/read 양쪽이 동일한 규칙을 써야 서로 찾을 수
+# 있다.
 def _candidate_file_path(artifact_path: Path, row: QwenBridgeCandidateArtifact) -> Path:
     record_path = _safe_relative_path(row.rough_record_path)
     if row.rough_record_index < 0:
@@ -170,6 +182,8 @@ def _safe_relative_path(path: str) -> Path:
     return relative_path
 
 
+# JSONL 한 줄을 검증된 QwenBridgeResult로 파싱한다. 필드 집합/스키마 버전이
+# 어긋나면 예외를 던진다(다른 리더 함수들처럼 조용히 건너뛰지 않는다).
 def _parse_row(line: str, artifact_file: Path) -> QwenBridgeResult:
     payload = _json_object(line, artifact_file)
     _validate_fields(payload)

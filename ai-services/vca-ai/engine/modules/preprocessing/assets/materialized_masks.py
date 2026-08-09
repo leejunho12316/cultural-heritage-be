@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from modules.preprocessing.assets.mask_components import MaskComponent
 
 
+# bool 배열을 0/255 흑백 PNG로 변환하고 원본 이미지 크기로 리사이즈한다.
+# 마스크 경계가 흐려지지 않도록 NEAREST 보간을 사용한다.
+# component_mask_image에서 호출된다.
 def _mask_image(
     mask_array: NDArray[np.bool_], source_size: tuple[int, int]
 ) -> Image.Image:
@@ -30,6 +33,8 @@ def component_mask_image(
     return _mask_image(component_mask, image_size)
 
 
+# crop_box 내부 좌표계인 컴포넌트 마스크를 crop_box의 offset만큼 이동시켜
+# 원본 이미지 크기의 전체 마스크 배열에 붙여넣는다. component_mask_image에서 호출된다.
 def _full_component_mask_array(
     component: MaskComponent,
     image_size: tuple[int, int],

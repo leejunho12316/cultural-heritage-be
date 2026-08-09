@@ -24,6 +24,9 @@ if TYPE_CHECKING:
     from modules.rag.evidence.concept_cards import RagVisualConceptCard
 
 
+# build_candidate_rag_sidecars의 결과를 evidence/카드 JSONL 2개와 매니페스트로
+# 디스크에 기록한다. startup_runner.run_rag_stage가 스테이지 마지막 단계로
+# 호출한다.
 def write_candidate_rag_sidecars(
     output_dir: Path,
     result: CandidateRagSidecarResult,
@@ -61,6 +64,8 @@ def _write_jsonl(path: Path, rows: tuple[JsonObject, ...]) -> None:
     _write_text_atomic(path, payload)
 
 
+# 임시 파일에 쓴 뒤 rename으로 교체하는 원자적 쓰기 패턴. 실패 시 임시 파일을
+# 정리하고 예외를 다시 던진다.
 def _write_text_atomic(path: Path, payload: str) -> None:
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     _ = ensure_no_symlink_leaf(path, "sidecar leaf is a symlink")
@@ -100,6 +105,7 @@ def _card_payload(card: RagVisualConceptCard) -> JsonObject:
         ),
         "context_terms": list(card.context_terms),
         "descriptor_terms": list(card.descriptor_terms),
+        "image_id": card.image_id,
         "material_terms": list(card.material_terms),
         "provenance_strength": card.provenance_strength,
         "rag_parent_candidate_id": card.rag_parent_candidate_id,

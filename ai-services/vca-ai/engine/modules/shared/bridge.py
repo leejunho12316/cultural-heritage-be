@@ -33,8 +33,8 @@ class RelationAuthorityOutcomeState(StrEnum):
 
     SAME_ANOMALY_DUPLICATE = "same_anomaly_duplicate"
     SAME_ANOMALY_REFINEMENT = "same_anomaly_refinement"
+    SAME_ANOMALY_ADJACENT = "same_anomaly_adjacent"
     CO_LOCATED_DISTINCT_ANOMALY = "co_located_distinct_anomaly"
-    CONTEXT_CONTAINS = "context_contains"
 
 
 _NON_TERMINAL_RAG_STATUSES: Final = frozenset(

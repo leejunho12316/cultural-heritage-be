@@ -82,12 +82,15 @@ def _number(
     return (value, None) if math.isfinite(value) else (None, invalid)
 
 
+# accepted=False 레코드는 점수 없이 거절 사유만 전달하고, 그 외에는 score 필드를
+# 숫자로 검증한다. _candidate_parts 파이프라인의 첫 단계다.
 def _score(record: dict[str, JsonValue]) -> tuple[float | None, str | None]:
     if record.get("accepted") is False:
         return None, f"record_rejected:{record.get('reject_reason', 'unspecified')}"
     return _number(record.get("score"), "score_missing", "score_invalid")
 
 
+# 레코드의 image 필드가 요청 뷰의 image_id와 일치하는지 확인한다.
 def _image(
     request: AdapterRequest, record: dict[str, JsonValue]
 ) -> tuple[str | None, str | None]:
@@ -97,6 +100,7 @@ def _image(
     return image, None
 
 
+# bbox_xyxy를 파싱하고 좌표 순서·범위·이미지 경계를 검증한다.
 def _bbox(
     request: AdapterRequest, record: dict[str, JsonValue]
 ) -> tuple[tuple[float, float, float, float] | None, str | None]:
@@ -119,6 +123,7 @@ def _bbox(
     return (left, top, right, bottom), None
 
 
+# mask_semantics가 anomaly_region인지 확인한 뒤 mask/overlay 자산을 정규화한다.
 def _assets(
     request: AdapterRequest, record: dict[str, JsonValue]
 ) -> tuple[tuple[AssetReference, AssetReference] | None, str | None]:
@@ -140,6 +145,8 @@ def _assets(
     return (mask, overlay), None
 
 
+# 레코드의 prompt 텍스트를 요청에 잠긴 seed 프롬프트 목록과 대조하고,
+# prompt_pack_id·generation_lane까지 일치하는지 확인한다.
 def _prompt(
     request: AdapterRequest, record: dict[str, JsonValue]
 ) -> tuple[PromptRecord | None, str | None]:
@@ -156,6 +163,8 @@ def _prompt(
     return matched, None
 
 
+# score/image/bbox/assets/prompt 검증을 순서대로 실행하는 파이프라인이며,
+# 첫 실패 지점에서 즉시 진단 코드를 반환한다. normalize_candidate에서 호출된다.
 def _candidate_parts(
     request: AdapterRequest, record: dict[str, JsonValue]
 ) -> tuple[CandidateParts | None, str | None]:

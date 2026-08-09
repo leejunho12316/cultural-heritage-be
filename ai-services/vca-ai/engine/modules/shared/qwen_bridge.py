@@ -36,6 +36,13 @@ _QWEN_ANOMALY_CLASS_TOKENS: Final = frozenset(
     }
 )
 _MORPHOLOGY_DESCRIPTOR_TOKENS: Final = frozenset({"flaking", "hole", "pit"})
+# Qwen이 불확실할 때 실제로 내보내는 무의미한 자리표시자 값들 - 검색 쿼리에
+# 그대로 섞여 들어가면 벡터 검색을 흐리기만 한다(실측: 'unknown'이
+# extracted_descriptors에 그대로 나온 사례 확인됨). anomaly-class 차단
+# 목록과는 다른 이유(진단이 아니라 "값 없음")로 항상 걸러진다.
+_NON_DESCRIPTIVE_PLACEHOLDER_TOKENS: Final = frozenset(
+    {"unknown", "none", "n/a", "na", "unclear", "unspecified", "unidentified"}
+)
 
 
 class QwenBridgeStatus(StrEnum):
@@ -141,7 +148,7 @@ def _validate_confidence(confidence: float | None) -> None:
 def _sanitize_qwen_query_terms(
     terms: tuple[str, ...], *, preserve_morphology_tokens: bool = False
 ) -> tuple[str, ...]:
-    blocked_tokens = _QWEN_ANOMALY_CLASS_TOKENS
+    blocked_tokens = _QWEN_ANOMALY_CLASS_TOKENS | _NON_DESCRIPTIVE_PLACEHOLDER_TOKENS
     if preserve_morphology_tokens:
         blocked_tokens = blocked_tokens - _MORPHOLOGY_DESCRIPTOR_TOKENS
     sanitized: list[str] = []

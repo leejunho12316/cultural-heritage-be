@@ -56,6 +56,8 @@ def stage_paths(workspace_root: Path, project_name: str) -> StagePathMap:
     )
 
 
+# 워크스페이스 안으로 경로가 벗어나지 않는지 검증한 뒤 스테이지별 출력 경로를
+# 반환한다. stage_paths에서 각 스테이지마다 호출된다.
 def _safe_stage_path(workspace_root: Path, module_name: str, project_name: str) -> Path:
     return ensure_safe_run_root(
         workspace_root, workspace_root / "output" / module_name / project_name

@@ -29,6 +29,10 @@ class RetrievalResult:
     coverage_metrics: tuple[CoverageMetric, ...]
 
 
+# 코퍼스 문서에 대해 키워드 일치 기반의 결정적 검색을 수행한다. 다만 실제
+# startup 파이프라인은 이 함수 대신 retrieval.vector_index.vector_retrieve
+# (임베딩 코사인 유사도)를 사용하므로, 이 함수는 자체 단위 테스트에서만
+# 실행되는 비활성 경로다.
 def lexical_retrieve(
     documents: tuple[LexicalDocumentInput, ...],
     terms: QueryTerms,
@@ -58,6 +62,8 @@ def lexical_retrieve(
     )
 
 
+# 문서 하나를 토큰 일치 횟수로 채점해 RetrievalSnippet으로 만든다.
+# lexical_retrieve가 각 후보 문서에 대해 호출한다.
 def _snippet(
     document: LexicalDocumentInput,
     tokens: tuple[str, ...],
@@ -86,6 +92,8 @@ def _snippet(
     )
 
 
+# 매칭된 문서 비율로 RetrievalResult에 실릴 커버리지 지표를 계산한다.
+# lexical_retrieve의 반환값 구성에 쓰인다.
 def _coverage_metrics(
     total_documents: int,
     matched_documents: int,

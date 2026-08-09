@@ -17,6 +17,8 @@ RAG_SIDECAR_FILENAMES: Final = frozenset(
 )
 
 
+# RagBudgetInputs를 write_rag_sidecar_atomic이 쓸 JSON 페이로드로 직렬화한다.
+# validate_rag_budget_sidecar_payload가 기대하는 스키마와 정확히 짝을 이룬다.
 def budget_sidecar_payload(inputs: RagBudgetInputs) -> JsonObject:
     """Serialize RAG budget inputs without approval artifact fields."""
     return {
@@ -30,6 +32,8 @@ def budget_sidecar_payload(inputs: RagBudgetInputs) -> JsonObject:
     }
 
 
+# RagReopenInputs를 write_rag_sidecar_atomic이 쓸 JSON 페이로드로 직렬화한다.
+# validate_rag_reopen_sidecar_payload가 기대하는 스키마와 정확히 짝을 이룬다.
 def reopen_sidecar_payload(inputs: RagReopenInputs) -> JsonObject:
     """Serialize RAG reopen inputs without approval artifact fields."""
     return {
@@ -47,6 +51,8 @@ def reopen_sidecar_payload(inputs: RagReopenInputs) -> JsonObject:
     }
 
 
+# write_rag_sidecar_atomic이 임시 파일을 실제 경로로 교체하기 전, budget_sidecar
+# _payload가 만든 페이로드가 예상 스키마와 정확히 일치하는지 검증한다.
 def validate_rag_budget_sidecar_payload(payload: JsonObject) -> None:
     """Validate a RAG budget sidecar payload shape."""
     _expect_schema(payload, "rag_budget_inputs_v1")
@@ -64,6 +70,8 @@ def validate_rag_budget_sidecar_payload(payload: JsonObject) -> None:
     _validate_rows_payload(payload["terminal_accounting_rows"])
 
 
+# write_rag_sidecar_atomic이 임시 파일을 실제 경로로 교체하기 전, reopen_sidecar
+# _payload가 만든 페이로드가 예상 스키마와 정확히 일치하는지 검증한다.
 def validate_rag_reopen_sidecar_payload(payload: JsonObject) -> None:
     """Validate a RAG reopen sidecar payload shape."""
     _expect_schema(payload, "rag_reopen_inputs_v1")

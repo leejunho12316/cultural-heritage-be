@@ -68,6 +68,8 @@ def seed_thresholds(lane: DetectorLane) -> SeedThresholds:
     return _SEED_THRESHOLDS[lane]
 
 
+# 전달된 prompt_pack이 유일하게 허용된 locked seed 팩(static_seed_minimal_pack)과
+# 정확히 일치하는지 검증한다. build_seed_request의 첫 단계로, drift를 막는다.
 def _validate_seed_pack(prompt_pack: PromptPack) -> None:
     if prompt_pack.prompt_pack_id != STATIC_SEED_MINIMAL_PACK_ID:
         field = "prompt_pack_id"

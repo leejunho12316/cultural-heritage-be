@@ -66,6 +66,8 @@ def _merge_strategy(raw: str) -> DetectionMergeStrategy:
         raise ContractValidationError(field, reason) from error
 
 
+# "all"은 이미지 개수 제한 없음(None)을 뜻하는 예약어이고, 그 외는 정수로
+# 파싱한다. split_real_options에서 --max-images 값을 해석할 때 호출된다.
 def _max_images(raw: str) -> int | None:
     if raw == "all":
         return None
@@ -89,7 +91,7 @@ def split_real_options(
     max_detections_raw = raw_options.get("--max-detections")
     options = RealPreprocessingOptions(
         model_cache_root=Path(raw_options.get("--model-cache-root", "models")),
-        max_images=_max_images(raw_options.get("--max-images", "1")),
+        max_images=_max_images(raw_options.get("--max-images", "all")),
         max_detections=None if max_detections_raw is None else int(max_detections_raw),
         detector_input_size=None
         if "--detector-input-size" not in raw_options

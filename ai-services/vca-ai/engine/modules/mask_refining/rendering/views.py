@@ -90,6 +90,9 @@ class FileQwenViewRenderer:
             ),
         )
 
+    # 실제 이미지를 디코딩하지 않고, 후보/좌표 정보를 담은 결정적인
+    # placeholder PNG 바이트를 만들어 저장한다. 테스트·픽스처 용도의
+    # FileQwenViewRenderer 전용이며 production 경로에서는 쓰이지 않는다.
     def _write_view(
         self,
         request: ViewRenderRequest,
@@ -118,6 +121,8 @@ class FileQwenViewRenderer:
         )
 
 
+# 후보 bbox에 PADDING_PX 여백을 더하고 원본 이미지 경계로 clamp한다.
+# production_views.py의 동명 함수와 같은 역할을 하는 placeholder 버전이다.
 def _padded_bbox(request: ViewRenderRequest) -> tuple[float, float, float, float]:
     left, top, right, bottom = request.candidate.bbox_xyxy
     return (
@@ -134,6 +139,9 @@ class _ViewContractFailure:
     reason: str
 
 
+# 뷰 파일 하나에 대해 경로 이탈, 파일 누락, 해시 불일치, 미디어
+# 타입, PNG 시그니처를 순서대로 검사한다. view_contract_failure가
+# 두 뷰 각각에 대해 호출한다.
 def _view_asset_failure(
     view: QwenInputView, asset_root: Path
 ) -> _ViewContractFailure | None:

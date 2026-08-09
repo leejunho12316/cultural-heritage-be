@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 HREF_PATTERN = re.compile(r'href="([^"]+)"')
 
 
+# trace_verification.py/final_verification.py가 receipt.json을 기록하기 직전에
+# 호출한다.
 def receipt_payload(receipt: VerificationReceipt) -> JsonObject:
     """Serialize a typed verification receipt."""
     return {
@@ -30,6 +32,9 @@ def receipt_payload(receipt: VerificationReceipt) -> JsonObject:
     }
 
 
+# trace_verification_checks.py/final_verification.py가 HTML 페이지의 내부
+# 링크가 모두 root 안에서 실제 존재하는 파일을 가리키는지 검사할 때 쓴다.
+# http(s)/앵커 링크는 검사 대상에서 제외한다.
 def links_resolve(root: Path, page: Path) -> bool:
     """Return whether every local href remains inside root and exists."""
     for href in links(page.read_text(encoding="utf-8")):
@@ -41,6 +46,7 @@ def links_resolve(root: Path, page: Path) -> bool:
     return True
 
 
+# links_resolve와 trace_verification_checks.py가 호출한다.
 def links(content: str) -> tuple[str, ...]:
     """Extract local href values from static report HTML."""
     return tuple(HREF_PATTERN.findall(content))
@@ -100,6 +106,8 @@ def mismatch(actual: str, expected: str, reason: str) -> str | None:
     return reason if actual != expected else None
 
 
+# 모든 검증 함수(trace/final)가 공통으로 쓰는 패턴: 여러 개별 검사 결과 중
+# None이 아닌 첫 실패 사유만 골라 반환한다.
 def first_error(errors: tuple[str | None, ...]) -> str | None:
     """Return the first verifier error in evaluation order."""
     for error in errors:

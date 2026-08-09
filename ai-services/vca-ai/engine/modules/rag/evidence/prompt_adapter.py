@@ -8,6 +8,8 @@ from modules.prompt_generating import (
 from modules.rag.evidence.concept_cards import RagVisualConceptCard
 
 
+# RAG 소유 카드를 prompt_generating 모듈이 이해하는 ConceptCard로 변환한다.
+# render_rag_prompt_variants가 렌더링 직전에 호출한다.
 def adapt_to_prompt_concept_card(card: RagVisualConceptCard) -> ConceptCard:
     """Convert a RAG concept card into the prompt-generation model."""
     return ConceptCard(
@@ -22,6 +24,9 @@ def adapt_to_prompt_concept_card(card: RagVisualConceptCard) -> ConceptCard:
     )
 
 
+# RAG 카드 한 장으로부터 실행 가능한 프롬프트 변형들을 만든다. 실제 렌더링
+# 로직은 prompt_generating 쪽 소유이며, 여기서는 어댑터 역할만 한다.
+# candidate_sidecars._dedupe_cards/evidence.py._visual_tokens 등에서 호출된다.
 def render_rag_prompt_variants(
     card: RagVisualConceptCard,
 ) -> tuple[PromptVariant, ...]:

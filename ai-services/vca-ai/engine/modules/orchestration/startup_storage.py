@@ -120,7 +120,11 @@ def persist_startup_storage(
     )
 
 
+# RDB 스냅샷에 기록할 실제 device 값을 결정한다. persist_startup_storage에서
+# 호출된다.
 def _resolved_device(request: _StartupStorageRequest) -> str | None:
+    # "auto"는 preprocessing이 실행되어 manifest에 기록해야 실제 백엔드가
+    # 정해지므로, 확정되지 않은 요청값 대신 그 값을 스냅샷에 기록해야 한다.
     if request.device != "auto":
         return request.device
     if request.dry_run:
@@ -142,6 +146,8 @@ def _resolved_device(request: _StartupStorageRequest) -> str | None:
     return device
 
 
+# 스테이지 실행 결과를 FE에 보여줄 (현재 스테이지, 진행률%) 쌍으로 변환한다.
+# persist_startup_storage에서 스냅샷을 쓰기 전에 호출된다.
 def _run_progress(result: _StartupStorageResult) -> tuple[str | None, int]:
     match result.status:
         case StartupStatus.COMPLETED:

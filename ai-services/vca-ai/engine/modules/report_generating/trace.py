@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+# runner.py의 run_report_generation이 첫 단계로 호출한다. trace 인덱스 HTML,
+# 후보별 개별 페이지, metadata.json을 run_root 아래에 기록한다.
 def generate_trace_report(run_root: Path, source: TraceSource) -> Path:
     """Write trace HTML, metadata, and candidate pages below a run root."""
     report_root = ensure_no_symlink_leaf(
@@ -56,6 +58,8 @@ def generate_trace_report(run_root: Path, source: TraceSource) -> Path:
     return report_root
 
 
+# generate_trace_report에서 호출된다. metadata.json에 기록할 전체 페이로드를
+# 만든다(이후 final.py와 verification 모듈들이 이 구조를 그대로 재파싱한다).
 def _metadata(
     run_root: Path,
     source: TraceSource,
@@ -97,6 +101,8 @@ def _metadata(
     }
 
 
+# _metadata에서 후보마다 호출된다. TraceCandidate를 metadata.json의 후보
+# 항목 하나로 직렬화한다.
 def _candidate_metadata(candidate: TraceCandidate) -> JsonObject:
     return {
         "candidate_id": candidate.candidate_id,
@@ -131,6 +137,20 @@ def _candidate_metadata(candidate: TraceCandidate) -> JsonObject:
         "reopen": candidate.reopen,
         "coverage_metrics": list(candidate.coverage_metrics),
         "skip_reason": candidate.skip_reason,
+        "bbox": None
+        if candidate.bbox is None
+        else {
+            "x_min": candidate.bbox.x_min,
+            "y_min": candidate.bbox.y_min,
+            "x_max": candidate.bbox.x_max,
+            "y_max": candidate.bbox.y_max,
+        },
+        "polygon": None
+        if candidate.polygon is None
+        else [[point[0], point[1]] for point in candidate.polygon],
+        "qwen_final_success": candidate.qwen_final_success,
+        "qwen_report_display_text": candidate.qwen_report_display_text,
+        "qwen_confidence": candidate.qwen_confidence,
     }
 
 

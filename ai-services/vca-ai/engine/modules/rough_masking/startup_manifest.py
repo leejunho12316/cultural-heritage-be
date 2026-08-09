@@ -160,6 +160,8 @@ def _bounding_box(raw: JsonObject) -> BoundingBox:
     )
 
 
+# field_name이 비어 있으면 item 자체를 자산 객체로 취급한다(tiles 리스트의
+# 원소처럼 이미 자산 딕셔너리인 경우). 그 외에는 item[field_name]을 조회한다.
 def _asset(item: JsonObject, field_name: str) -> MaterializedAssetRecord:
     raw = item if not field_name else _json_object(item.get(field_name), field_name)
     return MaterializedAssetRecord(

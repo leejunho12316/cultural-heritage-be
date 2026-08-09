@@ -25,6 +25,9 @@ from modules.prompt_generating.seeds import (
     static_seed_minimal_pack,
 )
 from modules.prompt_generating.variants import (
+    ALLOWED_CONTEXT_TERMS,
+    ALLOWED_DESCRIPTOR_TERMS,
+    ALLOWED_MATERIAL_TERMS,
     MAX_EXECUTABLE_PROMPT_LENGTH,
     RAG_REFINEMENT_PACK_ID,
     render_lane_specific_variants,
@@ -33,6 +36,9 @@ from modules.prompt_generating.variants import (
 )
 
 __all__ = (
+    "ALLOWED_CONTEXT_TERMS",
+    "ALLOWED_DESCRIPTOR_TERMS",
+    "ALLOWED_MATERIAL_TERMS",
     "MAX_EXECUTABLE_PROMPT_LENGTH",
     "RAG_REFINEMENT_PACK_ID",
     "STATIC_FALLBACK_ABLATION_PACK_ID",

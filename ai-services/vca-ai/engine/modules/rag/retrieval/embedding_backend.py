@@ -39,6 +39,8 @@ class _ModelOutput(Protocol):
 class _Model(Protocol):
     def eval(self) -> None: ...
 
+    def to(self, device: str) -> _Model: ...
+
     def __call__(self, **inputs: torch.Tensor) -> _ModelOutput: ...
 
 
@@ -57,14 +59,22 @@ class LocalTransformerTextEmbedder:
     tokenizer: _Tokenizer
     model: _Model
     model_id: str
+    device: str
 
+    # 로컬 모델 캐시(모델 인벤토리)에서만 임베딩 모델을 로드한다(네트워크 접근
+    # 없음). startup_runner._startup_embedder가 스테이지 시작 시 한 번 호출한다.
     @classmethod
-    def from_model_cache(cls, model_cache_root: Path) -> LocalTransformerTextEmbedder:
+    def from_model_cache(
+        cls, model_cache_root: Path, device: str
+    ) -> LocalTransformerTextEmbedder:
         """Load the configured embedding model from the local model cache only."""
         entry = _embedding_model_entry(model_cache_root)
         _validate_embedding_model_entry(model_cache_root, entry)
-        return _load_local_transformer(entry)
+        return _load_local_transformer(entry, device)
 
+    # 코퍼스 청크 전체를 임베딩한다. 한 번에 다 넣지 않고 128개씩 배치로 나눠
+    # 처리해 큰 코퍼스에서도 메모리 사용량을 억제한다.
+    # build_vector_index가 인덱스를 새로 만들 때 호출한다.
     def embed_passages(self, texts: tuple[str, ...]) -> FloatMatrix:
         """Embed document chunks with the passage prefix used by E5 models."""
         passages = tuple(f"passage: {text}" for text in texts)
@@ -75,17 +85,21 @@ class LocalTransformerTextEmbedder:
             )
         return tuple(vectors)
 
+    # 검색 쿼리 하나를 임베딩한다. vector_retrieve가 매 쿼리마다 호출한다.
     def embed_query(self, text: str) -> FloatVector:
         """Embed one query with the query prefix used by E5 models."""
         vectors = self._embed((f"query: {text}",))
         return vectors[0]
 
+    # 토큰화 → 모델 forward → 평균 풀링 → 정규화까지 한 배치를 처리하는 공유
+    # 구현. embed_passages/embed_query 둘 다 이 메서드로 수렴한다.
     def _embed(self, texts: tuple[str, ...]) -> FloatMatrix:
         import torch  # noqa: PLC0415
 
         encoded = self.tokenizer(
             texts, padding=True, truncation=True, return_tensors="pt"
         )
+        encoded = {key: value.to(self.device) for key, value in encoded.items()}
         with torch.inference_mode():
             output = self.model(**encoded)
         pooled = _mean_pool(output.last_hidden_state, encoded["attention_mask"])
@@ -93,8 +107,10 @@ class LocalTransformerTextEmbedder:
         return _float_matrix(matrix)
 
 
+# local_files_only=True로 강제해 허깅페이스 허브 접근을 원천 차단한다.
+# from_model_cache가 검증(_validate_embedding_model_entry) 이후에 호출한다.
 def _load_local_transformer(
-    entry: _EmbeddingModelEntry,
+    entry: _EmbeddingModelEntry, device: str
 ) -> LocalTransformerTextEmbedder:
     from transformers import AutoModel, AutoTokenizer  # noqa: PLC0415
 
@@ -108,13 +124,17 @@ def _load_local_transformer(
         use_safetensors=True,
     )
     model.eval()
+    model = model.to(device)
     return LocalTransformerTextEmbedder(
         tokenizer=tokenizer,
         model=model,
         model_id=f"{entry.repo_id}@{entry.revision}",
+        device=device,
     )
 
 
+# 모델 인벤토리 JSON에서 RAG_TEXT_EMBEDDING_MODEL_KEY 항목을 찾아온다.
+# from_model_cache가 로드 대상 모델 메타데이터를 확정할 때 호출한다.
 def _embedding_model_entry(model_cache_root: Path) -> _EmbeddingModelEntry:
     inventory_path = model_cache_root / "inventory" / "model_inventory.json"
     raw = parse_json_object_for_field(
@@ -133,7 +153,9 @@ def _embedding_model_entry(model_cache_root: Path) -> _EmbeddingModelEntry:
     raise ContractValidationError(field, reason)
 
 
-def _entry_from_json(item: JsonObject, model_cache_root: Path) -> _EmbeddingModelEntry:
+def _entry_from_json(
+    item: JsonObject, model_cache_root: Path
+) -> _EmbeddingModelEntry:
     key = _string_field(item, "key")
     return _EmbeddingModelEntry(
         key=key,
@@ -168,6 +190,9 @@ def _validate_expected_model(entry: _EmbeddingModelEntry) -> None:
         raise ContractValidationError(field, RAG_TEXT_EMBEDDING_REPO_ID)
 
 
+# 리비전이 고정된 커밋 해시/sha256 다이제스트인지 검증한다. "latest" 같은
+# 움직이는 태그를 금지해, 다른 실행/환경에서 몰래 다른 가중치가 로드되는
+# 것을 막는다.
 def _validate_pinned_revision(entry: _EmbeddingModelEntry) -> None:
     if _PINNED_REVISION.fullmatch(entry.revision) is None:
         field = f"model_inventory.models.{entry.key}.revision"
@@ -203,6 +228,8 @@ def _has_symlink_component(path: Path, stop: Path) -> bool:
         current = current.parent
 
 
+# E5 계열 모델은 [CLS] 토큰이 아니라 attention mask로 가중 평균한 토큰
+# 임베딩(mean pooling)을 문장 벡터로 쓴다. 패딩 토큰은 mask=0이라 자동 제외된다.
 def _mean_pool(hidden: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     expanded_mask = mask.unsqueeze(-1).expand(hidden.size()).float()
     summed = (hidden * expanded_mask).sum(dim=1)

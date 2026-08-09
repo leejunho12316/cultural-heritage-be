@@ -13,6 +13,9 @@ from modules.shared import ContractValidationError, DetectorLane
 OVERLAP_RATIO = 0.33
 
 
+# 레인별로 스케일 단위(scale_unit_px) 대비 시도할 타일 한 변의 배수를
+# 큰 것부터 순서대로 정의한다. tile_size_and_history에서 스케일 인식이
+# high/medium일 때 타일 크기를 좁혀가며 호출된다.
 def _span_values(lane: DetectorLane) -> tuple[float, ...]:
     match lane:
         case DetectorLane.OWLV2_SAM2:
@@ -27,6 +30,9 @@ def _span_values(lane: DetectorLane) -> tuple[float, ...]:
             raise ContractValidationError(field, reason)
 
 
+# 레인별로 가장 큰 객체(largest_area)에 허용하는 목표 타일 개수 상한을
+# 정의한다. target_count에서 객체 크기 비율에 곱해 실제 목표 개수를 낼 때
+# 호출된다.
 def _largest_target(lane: DetectorLane) -> int:
     match lane:
         case DetectorLane.OWLV2_SAM2:
@@ -41,6 +47,9 @@ def _largest_target(lane: DetectorLane) -> int:
             raise ContractValidationError(field, reason)
 
 
+# 한 축(가로 또는 세로)을 따라 OVERLAP_RATIO만큼 겹치는 타일 시작 좌표들을
+# 생성하고, 마지막 타일이 끝까지 닿도록 종료 위치를 보정한다.
+# tile_boxes에서 가로/세로 각각에 대해 호출된다.
 def _positions(start: float, length: float, tile_size: float) -> tuple[float, ...]:
     if tile_size >= length:
         return (start,)

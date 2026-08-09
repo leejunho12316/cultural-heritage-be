@@ -23,6 +23,9 @@ def _uint(data: bytes) -> int:
     return int.from_bytes(data, byteorder="big")
 
 
+# PNG 시그니처 이후를 청크 단위로 순회하며 (타입, 데이터)로 파싱하고, CRC가
+# 맞지 않거나 길이가 데이터 범위를 벗어나면 None을 반환한다.
+# _png_is_readable에서 호출된다.
 def _png_chunks(data: bytes) -> tuple[tuple[bytes, bytes], ...] | None:
     position = len(PNG_SIGNATURE)
     chunks: list[tuple[bytes, bytes]] = []
@@ -43,6 +46,8 @@ def _png_chunks(data: bytes) -> tuple[tuple[bytes, bytes], ...] | None:
     return tuple(chunks)
 
 
+# PNG 바이트가 시그니처, IHDR/IEND 청크 구조, 압축 해제 가능한 IDAT까지
+# 구조적으로 온전한지 검사한다. readable_mime_type에서 호출된다.
 def _png_is_readable(data: bytes) -> bool:
     if not data.startswith(PNG_SIGNATURE):
         return False
@@ -72,6 +77,8 @@ def _png_is_readable(data: bytes) -> bool:
     return True
 
 
+# JPEG SOI/EOI 마커와 SOF 프레임 세그먼트를 찾아 폭/높이가 유효한
+# 프레임이 있는지 확인한다. readable_mime_type에서 호출된다.
 def _jpeg_is_readable(data: bytes) -> bool:
     if not data.startswith(b"\xff\xd8") or not data.endswith(b"\xff\xd9"):
         return False
@@ -93,6 +100,8 @@ def _jpeg_is_readable(data: bytes) -> bool:
     return False
 
 
+# GIF 헤더 시그니처와 폭/높이, 이미지 디스크립터(",")와 트레일러(";")
+# 존재 여부로 구조적 온전성을 확인한다. readable_mime_type에서 호출된다.
 def _gif_is_readable(data: bytes) -> bool:
     if not data.startswith((b"GIF87a", b"GIF89a")) or len(data) < GIF_MINIMUM_LENGTH:
         return False

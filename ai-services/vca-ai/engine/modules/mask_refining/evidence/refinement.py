@@ -54,6 +54,8 @@ def _failure_result(
     return failure_result(context, failure)
 
 
+# 자산 하나(원본 이미지 또는 mask)의 경로 이탈, 파일 누락, 해시 불일치를
+# 검사한다. _candidate_asset_failure가 source/mask 각각에 대해 호출한다.
 def _asset_error(
     root: Path, relative_path: str, expected_hash: str, label: str
 ) -> str | None:
@@ -75,6 +77,8 @@ def _asset_failure(diagnostic: str, code: EvidenceFailureCode) -> EvidenceFailur
     return EvidenceFailure(code, diagnostic, EvidenceStage.ASSET_VALIDATION)
 
 
+# 후보의 원본 이미지와 rough mask 자산을 각각 _asset_error로 검증한다.
+# _candidate_error가 렌더링 전 첫 관문으로 호출한다.
 def _candidate_asset_failure(
     request: QwenRefinementRequest, root: Path
 ) -> EvidenceFailure | None:
@@ -97,6 +101,9 @@ def _candidate_asset_failure(
     return None
 
 
+# mask PNG 시그니처와 bbox 기하(유한값, 순서, 원본 이미지 범위 내
+# 여부)를 검증한다. 자산 검증을 통과한 뒤 _candidate_error가 이어서
+# 호출한다.
 def _candidate_geometry_failure(
     request: QwenRefinementRequest, root: Path
 ) -> EvidenceFailure | None:
@@ -132,6 +139,8 @@ def _candidate_error(
     )
 
 
+# renderer/backend의 provenance와 device 지원 여부를 백엔드 호출 전에
+# 검사한다. 여기를 통과해야만 최종 production 성공으로 인정될 수 있다.
 def _pre_backend_failure(
     request: QwenRefinementRequest,
     renderer: QwenViewRenderer,
@@ -161,6 +170,8 @@ def _pre_backend_failure(
     return None
 
 
+# renderer.render를 호출하고, 경로 이탈이나 이미지 디코딩 실패를
+# 예외 대신 타입이 있는 EvidenceFailure로 변환해 반환한다.
 def _render_candidate_views(
     request: QwenRefinementRequest, renderer: QwenViewRenderer
 ) -> tuple[QwenInputView, ...] | EvidenceFailure:

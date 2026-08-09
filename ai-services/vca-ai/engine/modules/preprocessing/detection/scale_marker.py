@@ -65,6 +65,8 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+# 스케일 마커를 찾지 못했을 때의 표준 ScaleMetadata(UNAVAILABLE)를 만든다.
+# _detect_scale의 각 실패 분기에서 호출된다.
 def _unavailable(reason: str) -> ScaleMetadata:
     return ScaleMetadata(
         scale_marker_detected=False,
@@ -85,6 +87,9 @@ def _invalid_scale_state() -> ContractValidationError:
     return ContractValidationError(field, reason)
 
 
+# 1차원 bool 배열에서 연속된 True 구간의 길이를 모두 구하고,
+# MIN_DARK_RUN_PX보다 짧은 구간은 잡음으로 보고 버린다. _detect_scale에서
+# 마커 중앙 행의 눈금 간격을 추정할 때 호출된다.
 def _runs(values: NDArray[np.bool_]) -> tuple[int, ...]:
     lengths: list[int] = []
     current = 0
@@ -99,6 +104,8 @@ def _runs(values: NDArray[np.bool_]) -> tuple[int, ...]:
     return tuple(length for length in lengths if length >= MIN_DARK_RUN_PX)
 
 
+# 후보 행 인덱스 배열을 연속 구간별로 묶어 (시작, 끝) 튜플들로 반환한다.
+# _detect_scale에서 어두운 픽셀 비율이 마커스러운 행들을 클러스터링할 때 호출된다.
 def _row_clusters(rows: NDArray[np.int64]) -> tuple[tuple[int, int], ...]:
     clusters: list[tuple[int, int]] = []
     if len(rows) == 0:
@@ -117,6 +124,8 @@ def _row_clusters(rows: NDArray[np.int64]) -> tuple[tuple[int, int], ...]:
     return tuple(clusters)
 
 
+# 이미지 하단 밴드에서 어두운 가로 세그먼트를 찾아 스케일 마커 여부와
+# 위치, 단위 픽셀 간격을 추정한다. prepare_detector_input에서 호출된다.
 def _detect_scale(image: Image.Image) -> ScaleMetadata:
     rgb = np.asarray(image.convert("RGB"))
     height, width, _ = rgb.shape
@@ -168,6 +177,8 @@ def _white_background() -> tuple[int, int, int]:
     return 255, 255, 255
 
 
+# 검출된 마커 bbox에 padding_ratio만큼 여유를 두고 이미지 경계 안으로
+# 잘라낸다. prepare_detector_input에서 마커를 지울 영역을 정할 때 호출된다.
 def _expand_bbox(
     bbox: BoundingBox, image: Image.Image, options: ScaleRemovalOptions
 ) -> BoundingBox:

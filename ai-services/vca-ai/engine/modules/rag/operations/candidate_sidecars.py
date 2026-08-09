@@ -15,6 +15,7 @@ from modules.rag.operations.candidate_card_terms import (
     is_usable_retrieval_result,
     material_terms,
     normalize_visual_cue,
+    qwen_query_signature,
     retrieval_visual_cue,
 )
 from modules.rag.operations.candidate_sidecar_artifacts import (
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from modules.prompt_generating import VisualConceptFamily, VisualCue
-    from modules.shared import CandidateId
+    from modules.shared import CandidateId, QwenBridgeResult
 
 __all__ = (
     "RAG_CANDIDATE_EVIDENCE_SIDECAR",
@@ -73,21 +74,30 @@ class _CandidateBuildOutcome:
 
 @dataclass(frozen=True, slots=True)
 class _CandidateSidecarSources:
-    queries: Mapping[tuple[str, str], tuple[PromptQueryRecord, ...]]
+    queries: Mapping[tuple[str, str, tuple[str, ...]], tuple[PromptQueryRecord, ...]]
     results_by_query: Mapping[str, tuple[PromptRagResultRecord, ...]]
     visual_cues: Mapping[CandidateId, VisualCue]
+    # 시각단서로 변환되기 전의 원본 Qwen 결과. qwen_query_signature가 후보별
+    # 질의 조인 시그니처를 계산할 때 필요하다(visual_cues는 이미 VisualCue로
+    # 가공돼 있어 재사용할 수 없다).
+    qwen_results: Mapping[CandidateId, QwenBridgeResult]
 
 
+# RAG 스테이지의 핵심 조립 함수. startup_runner.run_rag_stage가 호출하며,
+# rough 후보 각각을 쿼리/검색결과/Qwen 시각단서와 조인해 evidence row와
+# (조건을 만족하면) concept 카드를 만든 뒤 카드 목록을 랭킹/중복제거한다.
 def build_candidate_rag_sidecars(
     inputs: CandidateRagSidecarInputs,
 ) -> CandidateRagSidecarResult:
     """Build candidate-level mapping rows and gated visual concept cards."""
     rough_records = read_rough_records(inputs.rough_records_root)
-    qwen_cues = qwen_bridge_visual_cues(inputs.resolved_qwen_results())
+    qwen_results = inputs.resolved_qwen_results()
+    qwen_cues = qwen_bridge_visual_cues(qwen_results)
     sources = _CandidateSidecarSources(
         queries=query_index(read_queries(inputs.queries_path)),
         results_by_query=result_index(read_results(inputs.prompt_rag_results_path)),
         visual_cues={**qwen_cues, **inputs.visual_cues},
+        qwen_results=qwen_results,
     )
     rows: list[CandidateRagEvidenceRow] = []
     cards: list[RagVisualConceptCard] = []
@@ -102,11 +112,15 @@ def build_candidate_rag_sidecars(
     )
 
 
+# rough 후보 하나를 쿼리/검색결과와 조인하고 evidence 상태를 판정한 뒤,
+# 준비 상태(RAG_EVIDENCE_READY)일 때만 카드 생성을 시도한다.
+# build_candidate_rag_sidecars의 반복문에서 후보마다 호출된다.
 def _build_candidate(
     rough: RoughRagCandidate,
     sources: _CandidateSidecarSources,
 ) -> tuple[CandidateRagEvidenceRow, RagVisualConceptCard | None]:
-    query, query_reason = joined_query(rough, sources.queries)
+    qwen_signature = qwen_query_signature(rough.candidate_id, sources.qwen_results)
+    query, query_reason = joined_query(rough, qwen_signature, sources.queries)
     results, result_reason = joined_results(query, sources.results_by_query)
     cue = sources.visual_cues.get(rough.candidate_id)
     family = concept_family(rough.prompt_text)
@@ -119,6 +133,9 @@ def _build_candidate(
     return row, card
 
 
+# 순위대로 검색 결과를 훑어 테이블 잡음이 아니고(actionable) 실행 가능한
+# 시각 단서를 만들어낼 수 있는 첫 결과로 카드를 만든다. "최고 점수"가 아니라
+# "가장 먼저 조건을 만족하는" 결과를 쓴다는 점에 유의. _build_candidate가 호출한다.
 def _first_prompt_ready_card(
     rough: RoughRagCandidate,
     results: tuple[PromptRagResultRecord, ...],
@@ -141,6 +158,8 @@ def _first_prompt_ready_card(
     return None
 
 
+# 쿼리 조인 실패 → 결과 조인 실패 → 결과 없음 → 준비 완료 순으로 우선순위를
+# 매겨 하나의 evidence_state/reason으로 요약한다. _build_candidate가 호출한다.
 def _evidence_state(
     query_reason: str | None,
     result_reason: str | None,
@@ -155,6 +174,8 @@ def _evidence_state(
     return RAG_EVIDENCE_READY, None
 
 
+# _build_candidate의 결과(outcome)를 sidecar에 기록할 CandidateRagEvidenceRow로
+# 펼친다. 결과가 없으면 top_* 필드들은 모두 None으로 남는다.
 def _evidence_row(
     rough: RoughRagCandidate,
     outcome: _CandidateBuildOutcome,
@@ -179,6 +200,8 @@ def _evidence_row(
     )
 
 
+# 검색 결과 하나와 시각 단서를 RagVisualConceptCard로 조립한다.
+# _first_prompt_ready_card가 조건을 만족하는 결과를 찾았을 때 호출한다.
 def _card(
     rough: RoughRagCandidate,
     result: PromptRagResultRecord,
@@ -190,6 +213,7 @@ def _card(
             f"rag-card:{rough.candidate_id}:{result.citation_id}:{result.chunk_id}"
         ),
         rag_parent_candidate_id=rough.candidate_id,
+        image_id=rough.image_id,
         concept_family=family,
         descriptor_terms=descriptor_terms(result, cue, family),
         material_terms=material_terms(result),
@@ -202,15 +226,20 @@ def _card(
     )
 
 
+# 렌더링된 프롬프트 문자열이 완전히 같은 카드를 걸러낸다.
+# build_candidate_rag_sidecars가 랭킹 이후 마지막 단계로 호출한다.
 def _dedupe_cards(
     cards: tuple[RagVisualConceptCard, ...]
 ) -> tuple[RagVisualConceptCard, ...]:
     selected: list[RagVisualConceptCard] = []
-    seen_prompts: set[str] = set()
+    # 이미 본 프롬프트 집합은 image_id별로 범위가 나뉜다: 다른 이미지에서
+    # 동일한 생성 프롬프트가 나와도 그건 중복이 아니라 별개의 실제 탐지다.
+    seen_prompts_by_image: dict[str, set[str]] = {}
     for card in sorted(cards, key=_card_strength_key):
         prompts = tuple(
             variant.generated_prompt for variant in render_rag_prompt_variants(card)
         )
+        seen_prompts = seen_prompts_by_image.setdefault(card.image_id, set())
         if any(prompt in seen_prompts for prompt in prompts):
             continue
         selected.append(card)
@@ -218,5 +247,7 @@ def _dedupe_cards(
     return tuple(selected)
 
 
+# 신뢰도 → 검색 점수 → id 순 정렬 키. _dedupe_cards가 어떤 중복 카드를 남길지
+# 정할 때 사용한다.
 def _card_strength_key(card: RagVisualConceptCard) -> tuple[float, float, str]:
     return (-card.visual_cue.confidence, -card.retrieval_score, card.concept_card_id)

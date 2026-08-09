@@ -63,7 +63,7 @@ def execute_adapter(request: AdapterRequest, runner: DetectorRunner) -> AdapterR
     ):
         return AdapterReceipt(
             request.lane.value,
-            LaneExecutionStatus.REAL_EXECUTED,
+            LaneExecutionStatus.FAILED,
             (),
             ("lane_output_dir_invalid",),
             audit,
@@ -76,7 +76,7 @@ def execute_adapter(request: AdapterRequest, runner: DetectorRunner) -> AdapterR
     ):
         return AdapterReceipt(
             request.lane.value,
-            LaneExecutionStatus.REAL_EXECUTED,
+            LaneExecutionStatus.FAILED,
             (),
             ("records_json_invalid",),
             audit,
@@ -86,7 +86,7 @@ def execute_adapter(request: AdapterRequest, runner: DetectorRunner) -> AdapterR
     except OSError:
         return AdapterReceipt(
             request.lane.value,
-            LaneExecutionStatus.REAL_EXECUTED,
+            LaneExecutionStatus.FAILED,
             (),
             ("records_json_invalid",),
             audit,
@@ -94,7 +94,7 @@ def execute_adapter(request: AdapterRequest, runner: DetectorRunner) -> AdapterR
     if decoded is None:
         return AdapterReceipt(
             request.lane.value,
-            LaneExecutionStatus.REAL_EXECUTED,
+            LaneExecutionStatus.FAILED,
             (),
             ("records_json_invalid",),
             audit,

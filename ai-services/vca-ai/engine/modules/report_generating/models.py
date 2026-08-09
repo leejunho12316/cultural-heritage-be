@@ -53,6 +53,8 @@ class NoFakeClaimAudit:
     fabricated_candidate_count: int
     runner_invoked: bool
 
+    # trace_verification_checks.py의 _claim_audit_error 등에서 리포트 발행 가능
+    # 여부를 판단할 때 쓰인다.
     @property
     def passed(self) -> bool:
         """Return whether this audit supports report publication."""
@@ -77,10 +79,21 @@ class CitationRecord:
     score: float | None
     page_number: int | None
 
+    # status가 "exported"인 인용만 리포트에서 유효한 근거로 취급된다.
     @property
     def exportable(self) -> bool:
         """Return whether the citation is valid report provenance."""
         return self.status == "exported"
+
+
+@dataclass(frozen=True, slots=True)
+class TraceCandidateBbox:
+    """Original-image-pixel-space bounding box for one candidate."""
+
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +119,15 @@ class TraceCandidate:
     reopen: JsonObject = field(default_factory=dict)
     coverage_metrics: tuple[JsonObject, ...] = ()
     skip_reason: str | None = None
+    bbox: TraceCandidateBbox | None = None
+    # Vectorized mask outline in original-image pixel space, (x, y) point
+    # pairs - the FE renders this as a <polygon> for the real segmentation
+    # shape. bbox above stays for auxiliary/legacy display; polygon is the
+    # standard.
+    polygon: tuple[tuple[float, float], ...] | None = None
+    qwen_final_success: bool | None = None
+    qwen_report_display_text: str | None = None
+    qwen_confidence: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +163,8 @@ class VerificationReceipt:
     reason: str | None
     digests: JsonObject
 
+    # runner.py/trace_verification.py/final_verification.py가 다음 단계 진행
+    # 여부를 결정할 때 이 값을 확인한다.
     @property
     def passed(self) -> bool:
         """Return whether this receipt authorizes the next stage."""

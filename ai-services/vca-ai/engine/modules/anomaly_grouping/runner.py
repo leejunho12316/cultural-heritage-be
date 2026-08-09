@@ -30,6 +30,8 @@ class _CliNamespace(argparse.Namespace):
         self.output_json = Path()
 
 
+# 독립 실행 anomaly_grouping CLI의 진입점(__main__에서 호출). 입력 JSON을 읽어
+# 파이프라인을 돌리고 결과를 출력 JSON에 기록한 뒤 종료 코드를 반환한다.
 def main(arguments: Sequence[str] | None = None) -> int:
     """Run the standalone JSON request/response CLI."""
     parsed = _CliNamespace()
@@ -52,6 +54,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     return int(ExitCode.OK)
 
 
+# main에서 사용하는 --input-json/--output-json 인자 파서를 만든다.
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     _ = parser.add_argument("--input-json", required=True, type=Path)

@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Protocol, TypedDict
+from typing import Final, Protocol, TypedDict
 
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTChar, LTContainer, LTItem, LTTextContainer
@@ -23,6 +23,18 @@ from modules.shared import PathSafetyError
 DOCUMENT_CORPUS_ID = "document_sweep_260pdf_253text"
 SOURCE_DOCUMENT_ROOT = Path("/Users/csc9211/Downloads/dataset/document")
 MANIFEST_FILENAME = "nrich_preservation_manifest.jsonl"
+
+# Some PDFs embed a custom font encoding pdfminer cannot resolve to Unicode;
+# it then falls back to decoding raw glyph codes as Mac OS Roman bytes,
+# producing well-formed but wrong characters (bullets, math operators,
+# accented Latin) at a density real Korean/English technical prose never
+# reaches. Calibrated against the real document corpus: genuinely garbled
+# documents measured 15-34%, the next-highest legitimate document (heavy
+# with italicized Latin species names) measured 4.3%.
+_GARBLED_TEXT_RATIO_THRESHOLD: Final = 0.08
+_MAC_ROMAN_HIGH_BYTE_CHARACTERS: Final = frozenset(
+    bytes(range(0x80, 0x100)).decode("mac_roman")
+)
 
 
 class DocumentTextExtractor(Protocol):
@@ -73,6 +85,9 @@ class DocumentCorpusConfig:
     extraction_cache: CacheFallback | None = None
 
 
+# 소스 루트 바로 아래 PDF만 훑는다(하위 디렉터리 재귀 없음). build_document_corpus
+# 와 startup_corpus_cache._source_fingerprint 둘 다 동일한 목록을 얻기 위해
+# 이 함수를 호출한다.
 def discover_document_pdfs(source_root: Path) -> tuple[Path, ...]:
     """Return source PDFs in stable relative-path order."""
     return tuple(
@@ -83,6 +98,8 @@ def discover_document_pdfs(source_root: Path) -> tuple[Path, ...]:
     )
 
 
+# 선택적 보존 매니페스트에서 파일명→제목 매핑을 읽는다. 매니페스트가 없으면
+# 조용히 빈 dict를 반환한다(제목이 필수는 아님).
 def read_manifest_titles(source_root: Path) -> dict[str, str]:
     """Read optional manifest titles keyed by filename."""
     manifest_path = source_root / MANIFEST_FILENAME
@@ -98,6 +115,9 @@ def read_manifest_titles(source_root: Path) -> dict[str, str]:
     return titles
 
 
+# 소스 PDF들을 순회하며 추출 캐시를 먼저 확인하고, 캐시에 없으면 실제로
+# 텍스트를 추출해 캐시에 추가한다. startup_corpus_cache.startup_corpus_rows가
+# 상위 캐시(코퍼스 전체 캐시)까지 없을 때만 이 함수를 호출한다.
 def build_document_corpus(
     config: DocumentCorpusConfig,
     extractor: DocumentTextExtractor,
@@ -119,25 +139,38 @@ def build_document_corpus(
     return tuple(rows)
 
 
+# 추출된 페이지 텍스트로부터 포함/제외 상태를 결정한다: 텍스트가 없으면
+# NO_OCR, 깨진 비율이 임계값을 넘으면 GARBLED_TEXT, 아니면 포함.
+# build_document_corpus가 PDF마다 호출한다.
 def _metadata_row(
     relative_path: PurePath,
     pages: tuple[CorpusPageText, ...],
 ) -> CorpusMetadataRow:
     text = _normalize_text(" ".join(page.text for page in pages))
-    status = (
-        CorpusDocumentStatus.INCLUDED_TEXT_PDF
-        if text
-        else CorpusDocumentStatus.EXCLUDED_NO_OCR
-    )
+    if not text:
+        status = CorpusDocumentStatus.EXCLUDED_NO_OCR
+    elif _is_garbled_text(text):
+        status = CorpusDocumentStatus.EXCLUDED_GARBLED_TEXT
+    else:
+        status = CorpusDocumentStatus.INCLUDED_TEXT_PDF
+    included = status is CorpusDocumentStatus.INCLUDED_TEXT_PDF
     return CorpusMetadataRow(
         document_id=_document_id(relative_path),
         relative_path=str(relative_path),
         status=status.value,
-        text=text or None,
-        pages=pages,
+        text=text if included else None,
+        pages=pages if included else (),
     )
 
 
+def _is_garbled_text(text: str) -> bool:
+    """Detect PDF text mangled by an unresolved custom font encoding."""
+    hits = sum(1 for character in text if character in _MAC_ROMAN_HIGH_BYTE_CHARACTERS)
+    return hits / len(text) > _GARBLED_TEXT_RATIO_THRESHOLD
+
+
+# extraction_cache가 설정된 경우에만 실제 안전 경로로 해석한다.
+# build_document_corpus가 캐시 조회/기록 전에 호출한다.
 def resolve_extraction_cache_target(config: DocumentCorpusConfig) -> Path | None:
     """Resolve optional extraction cache through the shared path-safety boundary."""
     if config.extraction_cache is None:
@@ -168,6 +201,8 @@ def _document_id(relative_path: PurePath) -> str:
     return relative_path.stem
 
 
+# 심볼릭 링크이거나 source_root 밖으로 벗어난 PDF를 거부한다.
+# discover_document_pdfs가 발견한 각 경로를 검증할 때 호출한다.
 def _safe_pdf_relative_path(source_root: Path, path: Path) -> Path:
     resolved_root = source_root.expanduser().resolve()
     if path.is_symlink():
@@ -185,7 +220,11 @@ def _is_contained(candidate: Path, root: Path) -> bool:
 
 
 def _normalize_text(text: str) -> str:
-    return " ".join(text.split())
+    # pdfminer can emit lone UTF-16 surrogates for some broken PDF fonts/
+    # encodings. Strip them here, once, so every downstream consumer
+    # (hashing, JSON writes, tokenization) only ever sees valid Unicode.
+    sanitized = text.encode("utf-8", errors="ignore").decode("utf-8")
+    return " ".join(sanitized.split())
 
 
 def _layout_text(element: LTItem) -> str:

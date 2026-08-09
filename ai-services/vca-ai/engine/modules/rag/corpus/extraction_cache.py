@@ -38,6 +38,10 @@ class ExtractionCacheEntry:
     pages: tuple[CorpusPageText, ...]
 
 
+# PDF별 추출 캐시(JSONL, append 전용)를 읽는다. 이름처럼 "재개 가능"하려면
+# 중간에 프로세스가 죽어 마지막 줄이 잘려도 견뎌야 하므로, 파싱 실패한 줄이
+# 마지막 줄일 때만 조용히 버리고(그 외에는 예외) 계속 진행한다.
+# build_document_corpus가 PDF마다 다시 추출할지 판단하기 전에 호출한다.
 def read_extraction_cache(path: Path | None) -> tuple[ExtractionCacheEntry, ...]:
     """Read complete cached PDF extraction records, ignoring a truncated tail."""
     if path is None or not path.is_file():
@@ -51,6 +55,9 @@ def read_extraction_cache(path: Path | None) -> tuple[ExtractionCacheEntry, ...]
     return tuple(entries)
 
 
+# PDF 하나를 새로 추출한 직후 캐시 파일에 한 줄 덧붙인다(캐시 경로가 없으면
+# 아무것도 하지 않음). build_document_corpus가 캐시 미스마다 호출하며, append
+# 전용이라 이전 실행에서 이미 쓴 줄은 절대 건드리지 않는다.
 def append_extraction_cache(
     path: Path | None,
     relative_path: PurePath,

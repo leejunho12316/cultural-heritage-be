@@ -33,6 +33,8 @@ TRACE_VISIBLE_FIELDS = (
 )
 
 
+# trace_verification.py의 _trace_static_error가 호출한다. metadata.json의
+# 스키마/run_root/no_fake_claim_audit 계약을 검사한다.
 def trace_metadata_error(
     run_root: Path,
     metadata: JsonObject,
@@ -57,6 +59,9 @@ def trace_metadata_error(
     )
 
 
+# trace_verification.py의 _trace_static_error가 호출한다. index.html이 필수
+# 텍스트를 담고 있는지, 다이제스트가 일치하는지, 후보 페이지 링크가 모두
+# 살아있는지를 검사한다.
 def trace_html_error(
     report_root: Path,
     index_path: Path,
@@ -84,6 +89,8 @@ def trace_html_error(
     )
 
 
+# trace_verification.py의 _trace_receipt_contract_error가 호출한다. receipt에
+# 저장된 다이제스트와 현재 재계산한 다이제스트를 비교한다.
 def trace_digest_contract_error(
     receipt: JsonObject,
     digests: JsonObject,
@@ -96,6 +103,9 @@ def trace_digest_contract_error(
     )
 
 
+# trace_metadata_error에서 호출된다. no_fake_claim_audit이 실패 상태이거나,
+# 신고된 후보 수가 실제와 다르거나, 조작 후보가 있거나, 러너가 실행되지 않은
+# 경우를 모두 실패로 취급한다.
 def _claim_audit_error(audit: JsonObject, candidate_count: int) -> str | None:
     return first_error(
         (
@@ -138,6 +148,8 @@ def _candidate_page_count_error(
     )
 
 
+# trace_html_error에서 호출된다. candidates 목록 각각에 대해
+# _candidate_page_error를 실행하고 첫 실패를 반환한다.
 def _candidate_pages_error(
     report_root: Path,
     index_text: str,
@@ -153,6 +165,9 @@ def _candidate_pages_error(
     return None
 
 
+# _candidate_pages_error에서 후보 하나마다 호출된다. 해당 후보의 개별 페이지가
+# 경로적으로 안전하고, 인덱스에서 링크되며, 다이제스트가 일치하고, 내부 링크가
+# 깨지지 않았는지 검사한다.
 def _candidate_page_error(
     report_root: Path,
     index_text: str,

@@ -103,6 +103,9 @@ class NonExportableCorpusCitation:
 type CitationAdapterResult = ExportCitation | NonExportableCorpusCitation
 
 
+# 내부 CorpusCitation을 보고서에 내보낼 수 있는 형태로 변환한다. page_number가
+# 없으면 NonExportableCorpusCitation으로 격리된다. concept_cards.RagConceptEvidence
+# .from_retrieval과 relations/evidence 빌더가 인용을 내보낼 때 호출한다.
 def adapt_corpus_citation(citation: CorpusCitation) -> CitationAdapterResult:
     """Convert internal citation evidence through the sole rich export path."""
     if citation.page_number is None:
@@ -119,6 +122,8 @@ def adapt_corpus_citation(citation: CorpusCitation) -> CitationAdapterResult:
     )
 
 
+# ExportCitation을 공유 브리지 계약(ExportCitationBridge)으로 축소 변환한다.
+# evidence.py의 _export_bridges가 관계/보고서 빌더로 넘길 때 호출한다.
 def to_export_citation_bridge(citation: ExportCitation) -> ExportCitationBridge:
     """Downcast rich export evidence for relation/report bridge consumption."""
     return ExportCitationBridge(

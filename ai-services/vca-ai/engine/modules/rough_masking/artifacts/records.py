@@ -32,6 +32,8 @@ class _RecordJsonParser:
         self.text: str = text
         self.index: int = 0
 
+    # decode_records의 진입점. 신뢰할 수 없는 러너 출력 텍스트를 파싱하며,
+    # 표준 json 모듈 대신 직접 구현되어 있어 형식이 어긋나면 예외 대신 None을 반환한다.
     def parse_records(self) -> tuple[JsonRecord, ...] | None:
         self._skip_whitespace()
         if not self._consume("["):

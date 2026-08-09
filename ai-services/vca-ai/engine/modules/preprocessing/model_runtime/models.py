@@ -123,6 +123,10 @@ def detect_boxes[TProcessor: OwlProcessor, TModel: OwlModel](
     texts = [[prompt.prompt_text for prompt in prompts]]
     detector_input_size = detection_run.detector_input_size
     if detector_input_size != OWLV2_NATIVE_INPUT_SIZE:
+        # processor는 pipeline.py의 루프에서 이미지마다 재사용되는 공유
+        # 상태이며, 이 오버라이드는 네이티브 크기로 되돌려지지 않는다.
+        # 따라서 이후 네이티브 크기를 원하는 이미지가 와도 이전에 남은
+        # 비-네이티브 설정으로 리사이즈될 수 있다.
         detection_run.processor.image_processor.size = {
             "height": detector_input_size,
             "width": detector_input_size,

@@ -41,7 +41,12 @@ class ProjectStageRunner(Protocol):
         ...
 
 
+# preprocessing CLI 러너를 지연 실행한다. StartupStageRunners.preprocessing의
+# 기본값으로 쓰인다.
 def _run_lazy_preprocessing(arguments: tuple[str, ...]) -> int:
+    # 지연 임포트: 이 계약 모듈을 임포트할 때 PIL/torch/transformers/sam2가
+    # 함께 로드되면 안 된다는 정책이며, test_stage_runner_contract_imports.py가
+    # 이를 강제한다.
     from modules.preprocessing import (  # noqa: PLC0415
         pipeline as preprocessing_pipeline,
     )
@@ -49,6 +54,9 @@ def _run_lazy_preprocessing(arguments: tuple[str, ...]) -> int:
     return preprocessing_pipeline.run(arguments)
 
 
+# rough_masking 스테이지 러너를 지연 실행한다. 동일하게 무거운 비전 런타임을
+# 계약 모듈 임포트 시점에 로드하지 않기 위함이다.
+# StartupStageRunners.rough_masking의 기본값으로 쓰인다.
 def _run_lazy_rough_masking_stage(request: ProjectStageRequest) -> int:
     from modules.rough_masking.startup_runner import (  # noqa: PLC0415
         run_rough_masking_stage as run_stage,
@@ -57,6 +65,9 @@ def _run_lazy_rough_masking_stage(request: ProjectStageRequest) -> int:
     return run_stage(request)
 
 
+# visual_cue_generation 스테이지 러너를 지연 실행한다. 위와 같은 이유로
+# 무거운 런타임 임포트를 실제 실행 시점까지 미룬다.
+# StartupStageRunners.visual_cue_generation의 기본값으로 쓰인다.
 def _run_lazy_visual_cue_generation_stage(request: ProjectStageRequest) -> int:
     from modules.visual_cue_generation.startup_runner import (  # noqa: PLC0415
         run_visual_cue_generation_stage as run_stage,

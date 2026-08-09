@@ -110,6 +110,8 @@ def _bbox_fill_ratio(area_px: int, bounds: _MaskBounds) -> float:
     return float(area_px) / float(bbox_area)
 
 
+# 객체 전경 마스크에서 침식(erosion) 차분으로 경계 픽셀을 얻고,
+# ROI 크롭 테두리로 인한 가짜 경계는 _without_roi_frame으로 제거한다.
 def _object_boundary(object_foreground: NDArray[np.bool_]) -> NDArray[np.bool_]:
     boundary = object_foreground & ~_erode_3x3(object_foreground)
     return _without_roi_frame(boundary)
@@ -135,6 +137,10 @@ def _perimeter_coverage_ratio(
 
 
 def _without_roi_frame(mask: NDArray[np.bool_]) -> NDArray[np.bool_]:
+    # erosion은 바깥쪽을 False로 패딩하므로, 크롭 테두리에 닿은 전경 픽셀은
+    # 실제 객체 경계와 무관해도 항상 boundary로 표시된다. 이 테두리를 제거하지
+    # 않으면 boundary_pixel_ratio와 perimeter_coverage_ratio가 ROI 크롭 자체를
+    # 이상 부위로 과대 집계하게 된다.
     framed = mask.copy()
     framed[0, :] = False
     framed[-1, :] = False
@@ -168,6 +174,8 @@ def _border_touch_count(mask: NDArray[np.bool_]) -> int:
     )
 
 
+# 마스크의 연결 요소 개수와 최대 요소의 면적 비율을 계산한다.
+# 파편화(fragmentation) 정도를 판단하는 데 쓰이며 _quality_score의 입력이 된다.
 def _component_stats(mask: NDArray[np.bool_], area_px: int) -> tuple[int, float]:
     import numpy as np
 
@@ -220,6 +228,8 @@ def _neighbors(
     return tuple(neighbors)
 
 
+# 면적/경계/파편화 페널티를 가중합하여 0~1 품질 점수를 만든다.
+# 가중치(0.25/0.35/0.20)는 잠금값이며 조정 시 합격 기준 전체가 바뀐다.
 def _quality_score(
     area_ratio: float, boundary_pixel_ratio: float, largest_component_ratio: float
 ) -> float:
@@ -229,6 +239,8 @@ def _quality_score(
     return max(0.0, 1.0 - area_penalty - boundary_penalty - fragmentation_penalty)
 
 
+# 모듈 상단의 임계값들로 broad_texture_blob/boundary_only/edge_artifact 여부를
+# 판정한다. 어떤 rough candidate가 살아남는지를 최종 결정하는 함수다.
 def _reject_reason(quality: _MaskQuality, area_px: int) -> str | None:
     _ = area_px
     if (

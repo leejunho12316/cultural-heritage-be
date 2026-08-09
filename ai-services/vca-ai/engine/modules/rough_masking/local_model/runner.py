@@ -22,6 +22,7 @@ DETECTOR_MODEL_KEYS: Final[dict[DetectorLane, str]] = {
 }
 SAM2_MODEL_KEY: Final = "sam2.segmenter"
 DEFAULT_MODEL_CACHE_ROOT: Final = Path("models")
+_SNAPSHOT_HASH_EXCLUDED_DIRS: Final = frozenset({".cache"})
 EXPECTED_MODEL_REPO_IDS: Final[dict[str, str]] = {
     "owlv2_sam2.detector": "google/owlv2-base-patch16-ensemble",
     "florence2_sam2.detector": "microsoft/Florence-2-base",
@@ -30,16 +31,16 @@ EXPECTED_MODEL_REPO_IDS: Final[dict[str, str]] = {
 }
 EXPECTED_MODEL_REVISIONS: Final[dict[str, str]] = {
     "owlv2_sam2.detector": (
-        "sha256:487d13a62a7abb36183d35fb913effc45cd7288da075ae5f8bcf9b654034269b"
+        "sha256:b0e1c87eeecad23b816cd1f26a6ba14bb54d41a399c895ce4ae73ae5125bd44a"
     ),
     "florence2_sam2.detector": (
-        "sha256:948289586c0c6e3e4a081fda7c8c55fac9206de663644c5885a4482f0afd5334"
+        "sha256:335d57ff34b7b80a200e7ef22ae999643a31ca7767bf7e3f52022721ad7724a7"
     ),
     "grounded_sam2.detector": (
-        "sha256:23ba7bb1351da4d82c4c36564deb2778c70bef513f99346d10cc3ad56745ea7c"
+        "sha256:e3f2355ee634388c17c5fb1c522b64a2870a0f0b88016f224a0c1305bf67069c"
     ),
     SAM2_MODEL_KEY: (
-        "sha256:9a21bd21ee1a40eee76fe2eb7405482934607e3a4b6ea69048db76db3df0080f"
+        "sha256:f41466bb56f059614f97e14b71c63f84a2b96022175d26a9fd6291b40be7fd5a"
     ),
 }
 
@@ -57,9 +58,18 @@ def _contained(path: Path, root: Path) -> bool:
 
 
 def _snapshot_revision(local_dir: Path, cache_root: Path) -> str:
+    # huggingface_hub writes its own download bookkeeping (locks, ETag
+    # metadata) under a ".cache" subdirectory; it is not model content and
+    # can be regenerated with different bytes on a later download, so it
+    # must not affect the pinned content hash.
     snapshot_hash = hashlib.sha256()
     files = sorted(
-        candidate for candidate in local_dir.rglob("*") if candidate.is_file()
+        candidate
+        for candidate in local_dir.rglob("*")
+        if candidate.is_file()
+        and _SNAPSHOT_HASH_EXCLUDED_DIRS.isdisjoint(
+            candidate.relative_to(local_dir).parts
+        )
     )
     for path in files:
         resolved_path = path.resolve()
@@ -75,6 +85,9 @@ def _snapshot_revision(local_dir: Path, cache_root: Path) -> str:
     return f"sha256:{snapshot_hash.hexdigest()}"
 
 
+# 모델 인벤토리 항목이 기대한 repo_id/revision과 일치하고, 로컬 캐시 경로가
+# cache_root 밖으로 벗어나지 않는지 검증한다. build_local_model_runner에서
+# detector/SAM2 항목 각각에 대해 호출된다.
 def _entry(
     entries: dict[str, ModelInventoryEntry],
     key: str,

@@ -4,25 +4,25 @@
     {
       "key": "owlv2_sam2.detector",
       "repo_id": "google/owlv2-base-patch16-ensemble",
-      "revision": "sha256:487d13a62a7abb36183d35fb913effc45cd7288da075ae5f8bcf9b654034269b",
+      "revision": "sha256:b0e1c87eeecad23b816cd1f26a6ba14bb54d41a399c895ce4ae73ae5125bd44a",
       "local_dir": "models/hf/google/owlv2-base-patch16-ensemble"
     },
     {
       "key": "florence2_sam2.detector",
       "repo_id": "microsoft/Florence-2-base",
-      "revision": "sha256:948289586c0c6e3e4a081fda7c8c55fac9206de663644c5885a4482f0afd5334",
+      "revision": "sha256:335d57ff34b7b80a200e7ef22ae999643a31ca7767bf7e3f52022721ad7724a7",
       "local_dir": "models/hf/microsoft/Florence-2-base"
     },
     {
       "key": "grounded_sam2.detector",
       "repo_id": "IDEA-Research/grounding-dino-base",
-      "revision": "sha256:23ba7bb1351da4d82c4c36564deb2778c70bef513f99346d10cc3ad56745ea7c",
+      "revision": "sha256:e3f2355ee634388c17c5fb1c522b64a2870a0f0b88016f224a0c1305bf67069c",
       "local_dir": "models/hf/IDEA-Research/grounding-dino-base"
     },
     {
       "key": "sam2.segmenter",
       "repo_id": "facebook/sam2-hiera-large",
-      "revision": "sha256:9a21bd21ee1a40eee76fe2eb7405482934607e3a4b6ea69048db76db3df0080f",
+      "revision": "sha256:f41466bb56f059614f97e14b71c63f84a2b96022175d26a9fd6291b40be7fd5a",
       "local_dir": "models/hf/facebook/sam2-hiera-large"
     },
     {

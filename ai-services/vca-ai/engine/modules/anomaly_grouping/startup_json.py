@@ -19,6 +19,8 @@ def raise_contract(field: str, reason: str) -> NoReturn:
     raise ContractValidationError(field, reason)
 
 
+# startup_runner.py에서 mask_refining/rag 단계가 남긴 JSONL 사이드카(예:
+# refined_records.jsonl, rag_candidate_evidence.jsonl)를 읽을 때 공통으로 쓰인다.
 def read_jsonl_objects(path: Path) -> tuple[JsonObject, ...]:
     """Read a JSONL file whose nonblank lines must be JSON objects."""
     return tuple(
@@ -28,6 +30,8 @@ def read_jsonl_objects(path: Path) -> tuple[JsonObject, ...]:
     )
 
 
+# mask_refining이 남긴 records.json(최상위가 배열)을 JSONL과 다른 포맷으로
+# 읽어야 할 때 쓰는 헬퍼. 배열을 감싸 재사용 중인 객체 파서로 넘긴다.
 def records(path: Path) -> tuple[JsonObject, ...]:
     """Read a mask-refining records.json array as JSON objects."""
     payload = parse_json_object('{"records":' + path.read_text(encoding="utf-8") + "}")
@@ -104,6 +108,9 @@ def float_value(record: JsonObject, field: str) -> float:
     return float(value)
 
 
+# startup_runner.py의 _seed_lane_priority 등에서 사용. 최초 등장 순서를
+# 유지하면서 중복/빈 문자열을 제거한다(순서가 우선순위로 쓰이는 곳이 있으므로
+# 정렬하지 않는다).
 def unique_strings(values: Iterable[str]) -> tuple[str, ...]:
     """Return nonblank strings in first-seen order without duplicates."""
     return tuple(dict.fromkeys(value for value in values if value.strip()))

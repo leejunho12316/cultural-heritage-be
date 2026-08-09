@@ -103,6 +103,8 @@ def load_transformers_qwen_backend(
     return TransformersQwenBackend(runtime.processor, runtime.model, device)
 
 
+# 두 개의 입력 뷰 이미지와 고정 지시문을 하나의 user 메시지로 묶는다.
+# observe()가 processor.apply_chat_template에 넘길 입력을 만들 때 호출한다.
 def _messages(request: QwenBackendRequest) -> tuple[QwenChatMessage, ...]:
     images: list[QwenImageContent | QwenTextContent] = [
         {
@@ -115,6 +117,9 @@ def _messages(request: QwenBackendRequest) -> tuple[QwenChatMessage, ...]:
     return ({"role": "user", "content": images},)
 
 
+# Qwen에 매 호출마다 동일하게 보내는 고정 지시문이다. 출력 스키마
+# (키 목록), 허용된 morphology 값, 진단/치료 언급 금지 등 응답
+# 형식을 강제한다.
 def _visual_json_instruction() -> str:
     return (
         "Inspect only the two supplied images. Output exactly one raw JSON object. "
@@ -131,6 +136,8 @@ def _visual_json_instruction() -> str:
     )
 
 
+# 로컬 모델 디렉터리에서만 processor와 model을 로드한다
+# (local_files_only=True로 원격 조회를 하지 않는다).
 def _load_local_qwen_runtime(model_directory: Path, device: str) -> QwenRuntime:
     from transformers import (  # noqa: PLC0415
         AutoModelForImageTextToText,
