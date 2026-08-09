@@ -14,6 +14,7 @@ from modules.mask_refining.execution.assets import join_preprocessing_assets
 from modules.mask_refining.execution.models import (
     PostRefinementQwenEvidence,
     RefinementRunRequest,
+    RefinementStatus,
     RunnerFactoryInput,
 )
 from modules.mask_refining.execution.prompts import read_prompt_variants
@@ -304,12 +305,16 @@ def test_refinement_execution_passes_through_candidates_without_rag_prompts(
         max_groups=None,
     )
 
-    # When: refinement runs with no prompt groups to execute at all (default
-    # runner_factory/qwen_evidence_factory are never invoked with zero groups).
+    # When: refinement runs with no RAG prompt groups at all. It still tries
+    # self-refinement with the default runner factory, which fails here
+    # (no real model cache in this fixture) and falls back to passthrough -
+    # see test_no_evidence_candidate_gets_self_refined_instead_of_raw_passthrough
+    # below for the case where self-refinement succeeds instead.
     result = run_refinement(request)
 
-    # Then: no real refinement group ran, but the candidate still shows up in
-    # a passthrough sidecar - RAG evidence is missing, not the candidate.
+    # Then: self-refinement did not produce a usable record, but the
+    # candidate still shows up in a passthrough sidecar - RAG evidence is
+    # missing, not the candidate.
     assert result.records == ()
     passthrough_path = output_root / "passthrough_records.jsonl"
     assert passthrough_path.is_file()
@@ -324,6 +329,83 @@ def test_refinement_execution_passes_through_candidates_without_rag_prompts(
     # determine original-image size - same documented fallback boundary as
     # the real-refinement path above.
     assert accepted[0]["mask_path"] is None
+
+
+def test_no_evidence_candidate_gets_self_refined_instead_of_raw_passthrough(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Given: the exact same zero-RAG-evidence setup as the passthrough test
+    # above, but this time a working detector runner is available (as it
+    # would be in a real run).
+    prompt_root = tmp_path / "prompts"
+    asset_root = tmp_path / "assets-root"
+    output_root = tmp_path / "output"
+    prompt_root.mkdir()
+    _ = (prompt_root / "manifest.json").write_text(
+        json.dumps({"schema": "rag_refinement_prompt_variants_smoke_v1"})
+    )
+    _ = (prompt_root / "rag_refinement_prompt_variants.jsonl").write_text("")
+    _write_preprocessing_assets(asset_root)
+
+    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+        return (_rough_candidate(),)
+
+    monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
+    captured_prompts: list[str] = []
+
+    def runner_factory(details: RunnerFactoryInput) -> DetectorRunner:
+        def runner(request: AdapterRequest) -> RunnerOutcome:
+            captured_prompts.extend(prompt.prompt_text for prompt in request.prompts)
+            output = AnomalyMaskOutput(
+                prompt=request.prompts[0],
+                score=0.8,
+                bbox_xyxy=(1.0, 1.0, 8.0, 8.0),
+                mask_png=PNG_HEADER + b"mask",
+                overlay_jpeg=JPEG_HEADER + b"overlay",
+                quality_filter_version="test",
+                quality_score=0.8,
+                mask_area_ratio=0.1,
+                bbox_fill_ratio=0.5,
+                boundary_pixel_ratio=0.0,
+                perimeter_coverage_ratio=0.0,
+                border_touch_count=0,
+                component_count=1,
+                largest_component_ratio=1.0,
+            )
+            materialize_anomaly_outputs(request, (output,))
+            return RunnerOutcome(runner_invoked=True)
+
+        _ = details
+        return runner
+
+    request = RefinementRunRequest(
+        prompt_output_dir=prompt_root,
+        rough_root=tmp_path / "rough",
+        asset_root=asset_root,
+        output_dir=output_root,
+        model_cache_root=tmp_path / "models",
+        device="cpu",
+        verify_model_hashes=False,
+        max_groups=None,
+    )
+
+    # When: refinement runs with zero RAG prompt groups but a working
+    # detector runner.
+    result = run_refinement(request, runner_factory, _fake_qwen_evidence_factory)
+
+    # Then: the candidate is refined using its own original rough-detection
+    # prompt ("mark", from candidate.executable_prompt) instead of falling
+    # back to the raw unrefined rough mask - it gets a real refined record,
+    # and the passthrough sidecar stays empty.
+    assert captured_prompts == ["mark"]
+    assert len(result.records) == 1
+    record = result.records[0]
+    assert record.rag_parent_candidate_id == "rough-parent-001"
+    assert record.status is RefinementStatus.EXECUTED
+    assert len(record.accepted_candidates) == 1
+    passthrough_path = output_root / "passthrough_records.jsonl"
+    assert passthrough_path.is_file()
+    assert passthrough_path.read_text(encoding="utf-8") == ""
 
 
 def test_max_groups_truncation_does_not_passthrough_a_candidate_with_real_evidence(

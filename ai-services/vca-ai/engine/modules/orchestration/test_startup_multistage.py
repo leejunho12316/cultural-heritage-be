@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, TypeGuard
 
@@ -137,6 +138,8 @@ def test_startup_invokes_post_mask_stages_after_mask_refining_with_module_roots(
         str(tmp_path / "models"),
         "--device",
         "auto",
+        "--progress-root",
+        str(tmp_path / "output" / "result" / "connected-project"),
     )
     receipt = parse_json_object(
         (
@@ -351,3 +354,267 @@ def test_startup_stops_after_failed_project_stage(
         stage["reason"] == f"skipped because {failed_stage} failed"
         for stage in skipped
     )
+
+
+def _successful_cli_runner(arguments: tuple[str, ...]) -> int:
+    _ = arguments
+    return 0
+
+
+def _write_anomaly_grouping_result(
+    paths_root: Path, kept_flags: tuple[bool, ...]
+) -> None:
+    payload = {
+        "candidate_results": [
+            {"candidate_id": f"candidate-{index:03d}", "kept": kept}
+            for index, kept in enumerate(kept_flags)
+        ],
+    }
+    (paths_root / "anomaly_grouping_result.json").parent.mkdir(
+        parents=True, exist_ok=True
+    )
+    (paths_root / "anomaly_grouping_result.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+def _run_status_receipt(tmp_path: Path, project_name: str) -> JsonObject:
+    return parse_json_object(
+        (
+            tmp_path
+            / "output"
+            / "result"
+            / project_name
+            / "receipts"
+            / "startup.json"
+        ).read_text(encoding="utf-8")
+    )
+
+
+def test_all_stages_complete_with_kept_candidates_reports_success(
+    tmp_path: Path,
+) -> None:
+    # Given: every stage completes and anomaly_grouping keeps one candidate.
+    image_root = tmp_path / "inputs"
+    _ = _write_image(image_root / "source.jpg")
+
+    def anomaly_grouping(request: ProjectStageRequest) -> int:
+        _write_anomaly_grouping_result(request.paths.anomaly_grouping, (True,))
+        return 0
+
+    def project_runner(request: ProjectStageRequest) -> int:
+        _ = request
+        return 0
+
+    # When: startup runs the full connected stage set.
+    exit_code = startup.run(
+        ("run-status-success", str(image_root)),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=_successful_cli_runner,
+            rough_masking=project_runner,
+            visual_cue_generation=project_runner,
+            rag=project_runner,
+            prompt_generating=project_runner,
+            mask_refining=_successful_cli_runner,
+            anomaly_grouping=anomaly_grouping,
+            report_generating=project_runner,
+        ),
+    )
+
+    # Then: the receipt reports a full success.
+    assert exit_code == 0
+    receipt = _run_status_receipt(tmp_path, "run-status-success")
+    assert receipt["run_status"] == "success"
+    assert receipt["final_success"] is True
+
+
+def test_all_stages_complete_with_zero_kept_candidates_reports_no_valid_targets(
+    tmp_path: Path,
+) -> None:
+    # Given: every stage completes but anomaly_grouping keeps nothing.
+    image_root = tmp_path / "inputs"
+    _ = _write_image(image_root / "source.jpg")
+
+    def anomaly_grouping(request: ProjectStageRequest) -> int:
+        _write_anomaly_grouping_result(request.paths.anomaly_grouping, (False, False))
+        return 0
+
+    def project_runner(request: ProjectStageRequest) -> int:
+        _ = request
+        return 0
+
+    # When: startup runs the full connected stage set.
+    exit_code = startup.run(
+        ("run-status-no-targets", str(image_root)),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=_successful_cli_runner,
+            rough_masking=project_runner,
+            visual_cue_generation=project_runner,
+            rag=project_runner,
+            prompt_generating=project_runner,
+            mask_refining=_successful_cli_runner,
+            anomaly_grouping=anomaly_grouping,
+            report_generating=project_runner,
+        ),
+    )
+
+    # Then: the run completed cleanly but found nothing worth keeping.
+    assert exit_code == 0
+    receipt = _run_status_receipt(tmp_path, "run-status-no-targets")
+    assert receipt["run_status"] == "no_valid_rough_targets"
+    assert receipt["final_success"] is False
+
+
+def test_rough_masking_budget_block_reports_blocked(tmp_path: Path) -> None:
+    # Given: rough_masking fails after writing a tile-budget approval request.
+    image_root = tmp_path / "inputs"
+    _ = _write_image(image_root / "source.jpg")
+
+    def rough_masking(request: ProjectStageRequest) -> int:
+        request.paths.rough_masking.mkdir(parents=True, exist_ok=True)
+        (request.paths.rough_masking / "budget_approval_request.json").write_text(
+            "{}", encoding="utf-8"
+        )
+        return 2
+
+    # When: startup reaches the blocked rough_masking stage.
+    exit_code = startup.run(
+        ("run-status-blocked", str(image_root)),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=_successful_cli_runner,
+            rough_masking=rough_masking,
+            visual_cue_generation=_never_project_runner,
+            rag=_never_project_runner,
+            prompt_generating=_never_project_runner,
+            mask_refining=_never_stage_runner,
+            anomaly_grouping=_never_project_runner,
+            report_generating=_never_project_runner,
+        ),
+    )
+
+    # Then: the receipt distinguishes a budget block from a generic failure.
+    assert exit_code == 2
+    receipt = _run_status_receipt(tmp_path, "run-status-blocked")
+    assert receipt["run_status"] == "blocked"
+    assert receipt["final_success"] is False
+
+
+def test_non_rough_masking_stage_failure_reports_failure(tmp_path: Path) -> None:
+    # Given: mask_refining fails without leaving any budget-approval artifact.
+    image_root = tmp_path / "inputs"
+    _ = _write_image(image_root / "source.jpg")
+
+    def mask_refining(arguments: tuple[str, ...]) -> int:
+        _ = arguments
+        return 2
+
+    def project_runner(request: ProjectStageRequest) -> int:
+        _ = request
+        return 0
+
+    # When: startup reaches the failing mask_refining stage.
+    exit_code = startup.run(
+        ("run-status-failure", str(image_root)),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=_successful_cli_runner,
+            rough_masking=project_runner,
+            visual_cue_generation=project_runner,
+            rag=project_runner,
+            prompt_generating=project_runner,
+            mask_refining=mask_refining,
+            anomaly_grouping=_never_project_runner,
+            report_generating=_never_project_runner,
+        ),
+    )
+
+    # Then: the receipt reports a generic hard failure.
+    assert exit_code == 2
+    receipt = _run_status_receipt(tmp_path, "run-status-failure")
+    assert receipt["run_status"] == "failure"
+    assert receipt["final_success"] is False
+
+
+def test_report_generating_only_failure_reports_incomplete(tmp_path: Path) -> None:
+    # Given: every upstream stage completes with a kept candidate, but
+    # report_generating itself fails its own verification.
+    image_root = tmp_path / "inputs"
+    _ = _write_image(image_root / "source.jpg")
+
+    def anomaly_grouping(request: ProjectStageRequest) -> int:
+        _write_anomaly_grouping_result(request.paths.anomaly_grouping, (True,))
+        return 0
+
+    def report_generating(request: ProjectStageRequest) -> int:
+        _ = request
+        return 2
+
+    def project_runner(request: ProjectStageRequest) -> int:
+        _ = request
+        return 0
+
+    # When: startup reaches the failing report_generating stage.
+    exit_code = startup.run(
+        ("run-status-incomplete", str(image_root)),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=_successful_cli_runner,
+            rough_masking=project_runner,
+            visual_cue_generation=project_runner,
+            rag=project_runner,
+            prompt_generating=project_runner,
+            mask_refining=_successful_cli_runner,
+            anomaly_grouping=anomaly_grouping,
+            report_generating=report_generating,
+        ),
+    )
+
+    # Then: real candidate data exists, so this is incomplete, not a failure.
+    assert exit_code == 2
+    receipt = _run_status_receipt(tmp_path, "run-status-incomplete")
+    assert receipt["run_status"] == "incomplete"
+    assert receipt["final_success"] is False
+
+
+def test_dry_run_reports_incomplete_pre_qwen_preview(tmp_path: Path) -> None:
+    # Given: startup runs in dry-run mode.
+    image_root = tmp_path / "inputs"
+    _ = _write_image(image_root / "source.jpg")
+
+    def project_runner(request: ProjectStageRequest) -> int:
+        _ = request
+        return 0
+
+    # When: the startup CLI is run with --dry-run.
+    exit_code = startup.run(
+        ("run-status-dry-run", str(image_root), "--dry-run"),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=_successful_cli_runner,
+            rough_masking=project_runner,
+            visual_cue_generation=project_runner,
+            rag=project_runner,
+            prompt_generating=project_runner,
+            mask_refining=_successful_cli_runner,
+            anomaly_grouping=project_runner,
+            report_generating=project_runner,
+        ),
+    )
+
+    # Then: the receipt reports the dry-run preview status with an OK exit code.
+    assert exit_code == 0
+    receipt = _run_status_receipt(tmp_path, "run-status-dry-run")
+    assert receipt["run_status"] == "incomplete_pre_qwen_preview"
+    assert receipt["final_success"] is False
+
+
+def _never_project_runner(request: ProjectStageRequest) -> int:
+    pytest.fail(f"{request.stage_name} must not run after rough_masking is blocked")
+
+
+def _never_stage_runner(arguments: tuple[str, ...]) -> int:
+    _ = arguments
+    pytest.fail("cli stage runner must not run after rough_masking is blocked")

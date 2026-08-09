@@ -31,6 +31,7 @@ class ProjectStageRequest:
     model_cache_root: Path
     dry_run: bool
     verify_model_hashes: bool
+    output_root: Path
 
 
 class ProjectStageRunner(Protocol):

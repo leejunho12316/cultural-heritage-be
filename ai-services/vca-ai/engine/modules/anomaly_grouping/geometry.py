@@ -2,17 +2,27 @@
 
 from __future__ import annotations
 
-from hashlib import sha256
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from modules.anomaly_grouping.models import BoundingBox
-from modules.shared import ContractValidationError
+from modules.shared.mask_pixels import (
+    array_bbox,
+)
+from modules.shared.mask_pixels import (
+    load_mask_array as _load_mask_array,
+)
+from modules.shared.mask_pixels import (
+    mask_union_array as _mask_union_array,
+)
+from modules.shared.mask_pixels import (
+    write_mask_png as _write_mask_png,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from pathlib import Path
 
     from numpy.typing import NDArray
 
@@ -37,16 +47,12 @@ def overlaps(left: BoundingBox, right: BoundingBox) -> bool:
     return intersection_area(left, right) > 0.0
 
 
-# 아래 mask_* 함수들이 공통으로 쓰는 내부 로더. 마스크 PNG를 불리언 전경
-# 배열로 읽어들인다. PIL은 모듈 최상단이 아니라 여기서 지역 import한다 -
-# anomaly_grouping을 그냥 import만 하는 경로(예: 스테이지 계약 모듈)가 실제
-# 마스크를 읽지도 않으면서 PIL을 강제로 로드하지 않게 하기 위함이다.
+# 아래 mask_* 함수들이 공통으로 쓰는 내부 로더 - modules.shared.mask_pixels의
+# 순수 Path 기반 구현에 MaskReference.path만 넘겨 위임한다(rough_masking도
+# 같은 저수준 구현을 쓸 수 있도록 이번에 modules.shared로 뽑아냈다).
 def load_mask_array(mask: MaskReference) -> NDArray[np.bool_]:
     """Load one mask PNG as a boolean foreground array."""
-    from PIL import Image  # noqa: PLC0415
-
-    with Image.open(mask.path) as image:
-        return np.asarray(image.convert("L")) > 0
+    return _load_mask_array(Path(mask.path))
 
 
 # relations.py의 _parent_child가 두 후보 중 마스크 픽셀 수가 더 많은 쪽을
@@ -100,11 +106,7 @@ def mask_area_ratio(child: MaskReference, parent: MaskReference) -> float:
 # 아니라 병합된 전체를 다음 단계로 넘기는 것이 목표다.
 def mask_union_array(masks: Sequence[MaskReference]) -> NDArray[np.bool_]:
     """Return the pixel union of all given masks."""
-    arrays = [load_mask_array(mask) for mask in masks]
-    union = arrays[0]
-    for array in arrays[1:]:
-        union = union | array
-    return union
+    return _mask_union_array([Path(mask.path) for mask in masks])
 
 
 # relation_results.py에서 병합된 마스크의 bbox를 파생시킬 때 호출한다. bbox는
@@ -112,29 +114,14 @@ def mask_union_array(masks: Sequence[MaskReference]) -> NDArray[np.bool_]:
 # 독립적인 기준이 아니다.
 def mask_bbox(array: NDArray[np.bool_]) -> BoundingBox:
     """Return the tight bounding box of a non-empty boolean mask array."""
-    rows = np.nonzero(np.any(array, axis=1))[0]
-    cols = np.nonzero(np.any(array, axis=0))[0]
-    if rows.size == 0 or cols.size == 0:
-        field = "mask"
-        reason = "mask_bbox requires a mask with at least one foreground pixel"
-        raise ContractValidationError(field, reason)
-    y_min, y_max = int(rows[0]), int(rows[-1])
-    x_min, x_max = int(cols[0]), int(cols[-1])
-    return BoundingBox(
-        float(x_min), float(y_min), float(x_max) + 1.0, float(y_max) + 1.0
-    )
+    return BoundingBox(*array_bbox(array))
 
 
 # relation_results.py가 병합 마스크를 디스크에 기록할 때 호출한다. 0/255
 # 흑백 PNG로 저장하고 내용 해시를 반환해 MaskReference를 만들 수 있게 한다.
 def write_mask_png(array: NDArray[np.bool_], path: Path) -> str:
     """Write a boolean mask array as a PNG and return its sha256 digest."""
-    from PIL import Image  # noqa: PLC0415
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    mask_bytes: NDArray[np.uint8] = np.multiply(array, 255).astype(np.uint8)
-    Image.fromarray(mask_bytes).save(path)
-    return sha256(path.read_bytes()).hexdigest()
+    return _write_mask_png(array, path)
 
 
 _MIN_POLYGON_POINTS = 3

@@ -27,7 +27,6 @@ from modules.shared import (
     RagAccountingRow,
     RagAccountingStatus,
     RelationAuthorityInput,
-    ReopenRequestHashInput,
     UserFollowupRequest,
     ensure_source_document_is_not_write_target,
 )
@@ -53,7 +52,6 @@ def test_rag_package_reexports_shared_contracts_without_local_variants() -> None
         "RagAccountingRow": RagAccountingRow,
         "RagAccountingStatus": RagAccountingStatus,
         "RelationAuthorityInput": RelationAuthorityInput,
-        "ReopenRequestHashInput": ReopenRequestHashInput,
         "UserFollowupRequest": UserFollowupRequest,
         "ensure_source_document_is_not_write_target": (
             ensure_source_document_is_not_write_target

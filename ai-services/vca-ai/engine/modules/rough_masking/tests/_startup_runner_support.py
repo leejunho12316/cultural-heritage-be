@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from PIL import Image
@@ -44,6 +45,7 @@ def make_request(
         tmp_path / "models",
         dry_run,
         verify_model_hashes,
+        tmp_path,
     )
 
 
@@ -60,13 +62,28 @@ def write_dry_manifest(stage_request: ProjectStageRequest) -> None:
                 "sam2_calls": 0,
                 "object_count": 0,
                 "objects": [],
+                "tile_count": 0,
+                "requires_user_budget_approval": False,
             }
         ),
         encoding="utf-8",
     )
 
 
-def write_real_manifest_assets(stage_request: ProjectStageRequest) -> Path:
+@dataclass(frozen=True, slots=True)
+class RealManifestPaths:
+    """Real preprocessing asset paths written by write_real_manifest_assets."""
+
+    crop_path: Path
+    tile_path: Path
+
+
+def write_real_manifest_assets(
+    stage_request: ProjectStageRequest,
+    *,
+    tile_count: int = 1,
+    requires_user_budget_approval: bool = False,
+) -> RealManifestPaths:
     """Write one real preprocessing object manifest and its image assets."""
     object_root = (
         stage_request.paths.preprocessing / "assets" / "objects" / "object-001"
@@ -79,8 +96,13 @@ def write_real_manifest_assets(stage_request: ProjectStageRequest) -> Path:
     tile_path = object_root / "tile-001.jpg"
     Image.new("RGB", (8, 8), (255, 255, 255)).save(tile_path, format="JPEG")
     payload = _object_payload(crop_path, mask_path, tile_path)
-    _write_real_manifest(stage_request, payload)
-    return crop_path
+    _write_real_manifest(
+        stage_request,
+        payload,
+        tile_count=tile_count,
+        requires_user_budget_approval=requires_user_budget_approval,
+    )
+    return RealManifestPaths(crop_path, tile_path)
 
 
 def write_model_inventory(stage_request: ProjectStageRequest) -> None:
@@ -185,11 +207,16 @@ def _object_payload(
         "detection_overlay": _asset(crop_path, "image/jpeg"),
         "tile": _asset(tile_path, "image/jpeg"),
         "tiles": [_asset(tile_path, "image/jpeg")],
+        "tile_bboxes": [[1.0, 2.0, 20.0, 13.0]],
     }
 
 
 def _write_real_manifest(
-    stage_request: ProjectStageRequest, payload: dict[str, object]
+    stage_request: ProjectStageRequest,
+    payload: dict[str, object],
+    *,
+    tile_count: int = 1,
+    requires_user_budget_approval: bool = False,
 ) -> None:
     manifest_dir = stage_request.paths.preprocessing / "manifests"
     manifest_dir.mkdir(parents=True)
@@ -202,6 +229,8 @@ def _write_real_manifest(
                 "sam2_calls": 1,
                 "object_count": 1,
                 "objects": [payload],
+                "tile_count": tile_count,
+                "requires_user_budget_approval": requires_user_budget_approval,
             }
         ),
         encoding="utf-8",

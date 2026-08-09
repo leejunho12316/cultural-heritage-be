@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Final, NoReturn
 
-from modules.rag.operations.budgeting import RagBudgetInputs, RagReopenInputs
+from modules.rag.operations.budgeting import RagBudgetInputs
 from modules.shared import BudgetCounts, ContractValidationError, RagAccountingRow
 
 type JsonScalar = str | int | bool
@@ -11,10 +11,7 @@ type JsonValue = JsonScalar | Sequence["JsonValue"] | dict[str, "JsonValue"]
 type JsonObject = dict[str, JsonValue]
 
 RAG_BUDGET_INPUTS_SIDECAR: Final = "rag_budget_inputs.json"
-RAG_REOPEN_INPUTS_SIDECAR: Final = "rag_reopen_inputs.json"
-RAG_SIDECAR_FILENAMES: Final = frozenset(
-    {RAG_BUDGET_INPUTS_SIDECAR, RAG_REOPEN_INPUTS_SIDECAR}
-)
+RAG_SIDECAR_FILENAMES: Final = frozenset({RAG_BUDGET_INPUTS_SIDECAR})
 
 
 # RagBudgetInputs를 write_rag_sidecar_atomic이 쓸 JSON 페이로드로 직렬화한다.
@@ -28,25 +25,6 @@ def budget_sidecar_payload(inputs: RagBudgetInputs) -> JsonObject:
             threshold.value for threshold in inputs.exceeded_thresholds
         ],
         "requires_budget_review": inputs.requires_budget_review,
-        "terminal_accounting_rows": _rows_payload(inputs.terminal_accounting_rows),
-    }
-
-
-# RagReopenInputs를 write_rag_sidecar_atomic이 쓸 JSON 페이로드로 직렬화한다.
-# validate_rag_reopen_sidecar_payload가 기대하는 스키마와 정확히 짝을 이룬다.
-def reopen_sidecar_payload(inputs: RagReopenInputs) -> JsonObject:
-    """Serialize RAG reopen inputs without approval artifact fields."""
-    return {
-        "schema": "rag_reopen_inputs_v1",
-        "reopened_candidate_ids": list(inputs.reopened_candidate_ids),
-        "initial_planned_counts": _counts_payload(inputs.initial_planned_counts),
-        "reopen_incremental_counts": _counts_payload(inputs.reopen_incremental_counts),
-        "combined_planned_counts": _counts_payload(inputs.combined_planned_counts),
-        "exceeded_thresholds": [
-            threshold.value for threshold in inputs.exceeded_thresholds
-        ],
-        "requires_reopen_budget_review": inputs.requires_reopen_budget_review,
-        "reasons": list(inputs.reasons),
         "terminal_accounting_rows": _rows_payload(inputs.terminal_accounting_rows),
     }
 
@@ -67,31 +45,6 @@ def validate_rag_budget_sidecar_payload(payload: JsonObject) -> None:
         },
     )
     _validate_count_payload(payload["planned_counts"])
-    _validate_rows_payload(payload["terminal_accounting_rows"])
-
-
-# write_rag_sidecar_atomic이 임시 파일을 실제 경로로 교체하기 전, reopen_sidecar
-# _payload가 만든 페이로드가 예상 스키마와 정확히 일치하는지 검증한다.
-def validate_rag_reopen_sidecar_payload(payload: JsonObject) -> None:
-    """Validate a RAG reopen sidecar payload shape."""
-    _expect_schema(payload, "rag_reopen_inputs_v1")
-    _require_keys(
-        payload,
-        {
-            "schema",
-            "reopened_candidate_ids",
-            "initial_planned_counts",
-            "reopen_incremental_counts",
-            "combined_planned_counts",
-            "exceeded_thresholds",
-            "requires_reopen_budget_review",
-            "reasons",
-            "terminal_accounting_rows",
-        },
-    )
-    _validate_count_payload(payload["initial_planned_counts"])
-    _validate_count_payload(payload["reopen_incremental_counts"])
-    _validate_count_payload(payload["combined_planned_counts"])
     _validate_rows_payload(payload["terminal_accounting_rows"])
 
 

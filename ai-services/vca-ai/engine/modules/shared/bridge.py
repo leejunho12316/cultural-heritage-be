@@ -20,12 +20,6 @@ class RagAccountingStatus(StrEnum):
     FAILED_NO_VISUAL_CUE = "failed_no_visual_cue"
     FAILED_INVALID_PARENT_TARGET = "failed_invalid_parent_target"
     FAILED_QWEN_UNAVAILABLE = "failed_qwen_unavailable"
-    REOPEN_CREATED = "reopen_created"
-    REOPEN_REQUIRED = "reopen_required"
-    REOPEN_COMPLETED = "reopen_completed"
-    REOPEN_SKIPPED = "reopen_skipped"
-    REOPEN_BLOCKED = "reopen_blocked"
-    REOPEN_FORBIDDEN_FINAL = "reopen_not_allowed_final_pass"
 
 
 class RelationAuthorityOutcomeState(StrEnum):
@@ -40,8 +34,6 @@ class RelationAuthorityOutcomeState(StrEnum):
 _NON_TERMINAL_RAG_STATUSES: Final = frozenset(
     {
         RagAccountingStatus.ATTEMPT_CREATED,
-        RagAccountingStatus.REOPEN_CREATED,
-        RagAccountingStatus.REOPEN_REQUIRED,
     }
 )
 _QWEN_FAILED_RAG_STATUSES: Final = frozenset(
@@ -52,10 +44,6 @@ _QWEN_FAILED_RAG_STATUSES: Final = frozenset(
         RagAccountingStatus.FAILED_NO_VISUAL_CUE,
         RagAccountingStatus.FAILED_INVALID_PARENT_TARGET,
         RagAccountingStatus.FAILED_QWEN_UNAVAILABLE,
-        RagAccountingStatus.REOPEN_COMPLETED,
-        RagAccountingStatus.REOPEN_SKIPPED,
-        RagAccountingStatus.REOPEN_BLOCKED,
-        RagAccountingStatus.REOPEN_FORBIDDEN_FINAL,
     }
 )
 _QWEN_FAILURE_ONLY_RAG_STATUSES: Final = (RagAccountingStatus.FAILED_QWEN_UNAVAILABLE,)

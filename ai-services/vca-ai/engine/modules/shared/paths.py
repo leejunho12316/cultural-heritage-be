@@ -103,6 +103,25 @@ def _has_symlink_component(path: Path, stop: Path) -> bool:
         current = current.parent
 
 
+def safe_receipt_dir(output_root: Path) -> Path:
+    """Return the receipts directory under output_root, symlink-checked."""
+    receipt_dir = output_root / "receipts"
+    if receipt_dir.is_symlink():
+        raise PathSafetyError(str(receipt_dir), "receipt dir is a symlink")
+    resolved_receipt_dir = ensure_safe_run_root(output_root, receipt_dir)
+    receipt_dir.mkdir(parents=True, exist_ok=True)
+    return resolved_receipt_dir
+
+
+def receipt_file_path(output_root: Path, filename: str) -> Path:
+    """Return a receipts/<filename> path under output_root, symlink-checked."""
+    receipt_dir = safe_receipt_dir(output_root)
+    receipt_path = receipt_dir / filename
+    if receipt_path.is_symlink():
+        raise PathSafetyError(str(receipt_path), f"{filename} is a symlink")
+    return ensure_safe_run_root(output_root, receipt_path)
+
+
 def ensure_source_document_is_not_write_target(
     source_document_root: Path, write_target: Path
 ) -> Path:

@@ -26,6 +26,7 @@ class _CliNamespace(argparse.Namespace):
     device: str
     no_verify_model_hashes: bool
     max_groups: int | None
+    progress_root: Path | None
 
     def __init__(self) -> None:
         """Initialize typed defaults before argparse mutates the namespace."""
@@ -38,6 +39,7 @@ class _CliNamespace(argparse.Namespace):
         self.device = ""
         self.no_verify_model_hashes = False
         self.max_groups = None
+        self.progress_root = None
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -70,6 +72,12 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="maximum prompt groups to consume; skipped groups count toward the limit",
     )
+    _ = parser.add_argument(
+        "--progress-root",
+        type=Path,
+        default=None,
+        help="project output root to report mid-stage progress counts into",
+    )
     return parser
 
 
@@ -86,6 +94,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         parsed.device,
         not parsed.no_verify_model_hashes,
         parsed.max_groups,
+        parsed.progress_root,
     )
     try:
         _ = run_refinement(request)

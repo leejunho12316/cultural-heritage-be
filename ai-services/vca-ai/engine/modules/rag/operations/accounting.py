@@ -115,9 +115,9 @@ def require_terminal_accounting(
     return tuple(records)
 
 
-# 아래 completed_row ~ reopen_created_row까지는 모두 특정 RagAccountingStatus를
+# 아래 completed_row ~ attempt_created_row까지는 모두 특정 RagAccountingStatus를
 # 고정해 _row에 위임하는 얇은 팩토리다. orchestration이 RAG 파이프라인의 각
-# 분기(성공/실패 사유/재오픈 등)에서 해당하는 팩토리를 골라 호출한다.
+# 분기(성공/실패 사유 등)에서 해당하는 팩토리를 골라 호출한다.
 def completed_row(target: RagTarget, evidence: RagQueryEvidence) -> RagAccountingRow:
     """Create a terminal completed row."""
     return _row(target, evidence, _RowOutcome(RagAccountingStatus.COMPLETED))
@@ -200,75 +200,12 @@ def failed_qwen_unavailable_row(
     )
 
 
-def reopen_completed_row(
-    target: RagTarget,
-    evidence: RagQueryEvidence,
-) -> RagAccountingRow:
-    """Create a terminal reopened-completion row."""
-    return _row(target, evidence, _RowOutcome(RagAccountingStatus.REOPEN_COMPLETED))
-
-
-def reopen_skipped_row(
-    target: RagTarget,
-    evidence: RagQueryEvidence,
-    reason: str,
-) -> RagAccountingRow:
-    """Create a terminal reopened-skip row."""
-    return _row(
-        target,
-        evidence,
-        _RowOutcome(RagAccountingStatus.REOPEN_SKIPPED, reason),
-    )
-
-
-def reopen_blocked_row(
-    target: RagTarget,
-    evidence: RagQueryEvidence,
-    reason: str,
-) -> RagAccountingRow:
-    """Create a terminal reopened-budget-block row."""
-    return _row(
-        target,
-        evidence,
-        _RowOutcome(RagAccountingStatus.REOPEN_BLOCKED, reason),
-    )
-
-
-def reopen_forbidden_final_row(
-    target: RagTarget,
-    evidence: RagQueryEvidence,
-    reason: str,
-) -> RagAccountingRow:
-    """Create a terminal final-pass reopen-forbidden row."""
-    return _row(
-        target,
-        evidence,
-        _RowOutcome(RagAccountingStatus.REOPEN_FORBIDDEN_FINAL, reason),
-    )
-
-
 def attempt_created_row(
     target: RagTarget,
     evidence: RagQueryEvidence,
 ) -> RagAccountingRow:
     """Create a non-terminal initial-attempt row."""
     return _row(target, evidence, _RowOutcome(RagAccountingStatus.ATTEMPT_CREATED))
-
-
-def reopen_required_row(
-    target: RagTarget,
-    evidence: RagQueryEvidence,
-) -> RagAccountingRow:
-    """Create a non-terminal reopen-required row."""
-    return _row(target, evidence, _RowOutcome(RagAccountingStatus.REOPEN_REQUIRED))
-
-
-def reopen_created_row(
-    target: RagTarget,
-    evidence: RagQueryEvidence,
-) -> RagAccountingRow:
-    """Create a non-terminal reopened-attempt row."""
-    return _row(target, evidence, _RowOutcome(RagAccountingStatus.REOPEN_CREATED))
 
 
 # 모든 *_row 팩토리가 공유하는 실제 조립 로직. outcome에 명시된 failure_reason이

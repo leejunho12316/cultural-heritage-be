@@ -8,11 +8,9 @@ from modules.shared.lanes import RagLane
 from modules.shared.models import (
     BudgetCounts,
     BudgetThreshold,
-    CandidateId,
     DryRunId,
     FollowupHash,
     ImageId,
-    PlannedCountHash,
     SourceImageManifestHash,
 )
 
@@ -76,22 +74,6 @@ class PlannedCountHashInput:
     image_subset_ids: tuple[ImageId, ...]
     followup_request_hash: FollowupHash
     counts: BudgetCounts
-    exceeded_thresholds: tuple[BudgetThreshold, ...]
-    threshold_cap_config_version: str
-    runtime_metadata: RuntimeMetadata
-
-
-@dataclass(frozen=True, slots=True)
-class ReopenRequestHashInput:
-    """Exact canonical inputs for a reopened-RAG request hash."""
-
-    dry_run_id: DryRunId
-    followup_request_hash: FollowupHash
-    planned_count_hash: PlannedCountHash
-    reopened_candidate_ids: tuple[CandidateId, ...]
-    initial_planned_counts: BudgetCounts
-    reopen_incremental_counts: BudgetCounts
-    combined_planned_counts: BudgetCounts
     exceeded_thresholds: tuple[BudgetThreshold, ...]
     threshold_cap_config_version: str
     runtime_metadata: RuntimeMetadata

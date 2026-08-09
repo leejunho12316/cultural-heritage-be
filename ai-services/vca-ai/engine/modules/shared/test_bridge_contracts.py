@@ -181,20 +181,18 @@ def test_terminal_rag_status_is_explicit_for_rows_and_relation_inputs() -> None:
 
     # Then: non-terminal statuses are rejected from terminal rows/relations.
     assert BRIDGE_SCHEMA_VERSION == "qwen-rag-bridge-v1"
-    assert RagAccountingStatus.REOPEN_REQUIRED not in terminal
     assert RagAccountingStatus.ATTEMPT_CREATED not in terminal
-    assert RagAccountingStatus.REOPEN_CREATED not in terminal
-    assert is_terminal_rag_status(RagAccountingStatus.REOPEN_REQUIRED) is False
+    assert is_terminal_rag_status(RagAccountingStatus.ATTEMPT_CREATED) is False
     assert relation_input.rag_status is RagAccountingStatus.COMPLETED
-    reopen_row = RagAccountingRow(
+    non_terminal_row = RagAccountingRow(
         candidate_id=CandidateId("candidate-001"),
         followup_mode=FollowupMode.AUTOMATIC,
-        status=RagAccountingStatus.REOPEN_REQUIRED,
+        status=RagAccountingStatus.ATTEMPT_CREATED,
         qwen_status=QwenBridgeStatus.SUCCESS,
         rag_query_terms=("brown region",),
         rag_query_descriptors=("irregular",),
     )
-    assert reopen_row.terminal is False
+    assert non_terminal_row.terminal is False
     with pytest.raises(ContractValidationError):
         _ = RelationAuthorityInput(
             candidate_id=CandidateId("candidate-001"),
@@ -206,7 +204,7 @@ def test_terminal_rag_status_is_explicit_for_rows_and_relation_inputs() -> None:
             concept_family_compatible=True,
             descriptor_compatible=True,
             citation_provenance_strength="strong",
-            rag_status=RagAccountingStatus.REOPEN_REQUIRED,
+            rag_status=RagAccountingStatus.ATTEMPT_CREATED,
             evidence_flags=("structured_only",),
         )
 

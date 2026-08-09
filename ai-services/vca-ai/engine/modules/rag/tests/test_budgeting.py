@@ -4,39 +4,17 @@ from pathlib import Path
 
 import pytest
 
-from modules.rag.operations.budgeting import (
-    RagBudgetInputs,
-    RagReopenInputs,
-    ReopenHashContext,
-    build_rag_budget_inputs,
-    build_rag_reopen_inputs,
-    build_reopen_request_hash_input,
-)
+from modules.rag.operations.budgeting import RagBudgetInputs, build_rag_budget_inputs
 from modules.shared import (
     BUDGET_THRESHOLDS,
     BudgetCounts,
     CandidateId,
     ContractValidationError,
-    DryRunId,
-    FollowupHash,
     FollowupMode,
-    PlannedCountHash,
     QwenBridgeStatus,
     RagAccountingRow,
     RagAccountingStatus,
-    RuntimeMetadata,
-    reopen_request_hash,
 )
-
-
-def _runtime_metadata() -> RuntimeMetadata:
-    return RuntimeMetadata(
-        recorded_at="2026-08-02T00:00:00Z",
-        output_dir="runs/current",
-        hostname="host-a",
-        temporary_dir="workspace-temp/runtime-a",
-        process_id=123,
-    )
 
 
 def _terminal_row(candidate_id: str = "candidate-001") -> RagAccountingRow:
@@ -87,7 +65,7 @@ def test_budget_inputs_use_shared_counts_thresholds_and_terminal_rows() -> None:
     assert inputs.terminal_accounting_rows == (_terminal_row(),)
 
 
-def test_budget_and_reopen_inputs_reject_non_terminal_accounting_rows() -> None:
+def test_budget_inputs_reject_non_terminal_accounting_rows() -> None:
     # Given: a non-terminal accounting row.
     # When/Then: final budget sidecar inputs cannot carry it.
     with pytest.raises(ContractValidationError, match="terminal"):
@@ -95,63 +73,6 @@ def test_budget_and_reopen_inputs_reject_non_terminal_accounting_rows() -> None:
             planned_counts=BUDGET_THRESHOLDS.within_limits_counts(),
             accounting_rows=(_non_terminal_row(),),
         )
-    with pytest.raises(ContractValidationError, match="terminal"):
-        _ = build_rag_reopen_inputs(
-            reopened_candidate_ids=(CandidateId("candidate-001"),),
-            initial_planned_counts=BUDGET_THRESHOLDS.within_limits_counts(),
-            reopen_incremental_counts=BudgetCounts(1, 0, 0, 0, 0, 0),
-            reasons=("review requested",),
-            accounting_rows=(_non_terminal_row(),),
-        )
-
-
-def test_reopen_inputs_and_hash_input_use_shared_hash_contracts() -> None:
-    # Given: reopened candidate scope and incremental planned counts.
-    initial = BUDGET_THRESHOLDS.within_limits_counts()
-    incremental = BudgetCounts(1, 2, 3, 4, 5, 1)
-    reopened_ids = (CandidateId("candidate-b"), CandidateId("candidate-a"))
-
-    # When: RAG builds reopen inputs and the shared hash input.
-    inputs = build_rag_reopen_inputs(
-        reopened_candidate_ids=reopened_ids,
-        initial_planned_counts=initial,
-        reopen_incremental_counts=incremental,
-        reasons=("manual follow-up",),
-        accounting_rows=(_terminal_row(),),
-    )
-    hash_input = build_reopen_request_hash_input(
-        context=ReopenHashContext(
-            dry_run_id=DryRunId("dry-run-001"),
-            followup_request_hash=FollowupHash("followup-sha"),
-            planned_count_hash=PlannedCountHash("planned-sha"),
-            threshold_cap_config_version="thresholds-v1",
-            runtime_metadata=_runtime_metadata(),
-        ),
-        reopen_inputs=inputs,
-    )
-
-    # Then: combined counts and reopen hash sensitivity are delegated to shared types.
-    assert isinstance(inputs, RagReopenInputs)
-    assert inputs.combined_planned_counts == BudgetCounts(1, 2, 3, 4, 5, 1)
-    assert hash_input.reopened_candidate_ids == reopened_ids
-    assert reopen_request_hash(hash_input) != reopen_request_hash(
-        build_reopen_request_hash_input(
-            context=ReopenHashContext(
-                dry_run_id=DryRunId("dry-run-001"),
-                followup_request_hash=FollowupHash("followup-sha"),
-                planned_count_hash=PlannedCountHash("planned-sha"),
-                threshold_cap_config_version="thresholds-v1",
-                runtime_metadata=_runtime_metadata(),
-            ),
-            reopen_inputs=build_rag_reopen_inputs(
-                reopened_candidate_ids=(CandidateId("candidate-c"),),
-                initial_planned_counts=initial,
-                reopen_incremental_counts=incremental,
-                reasons=("manual follow-up",),
-                accounting_rows=(_terminal_row(),),
-            ),
-        )
-    )
 
 
 def test_rag_budgeting_source_has_no_approval_artifact_ownership() -> None:
@@ -162,12 +83,8 @@ def test_rag_budgeting_source_has_no_approval_artifact_ownership() -> None:
     forbidden = (
         "make_budget_approval_request",
         "user_budget_approval",
-        "user_reopen_budget_approval",
         "budget_approval_matches_request",
-        "reopen_approval_matches_request",
         "budget_approval_request.json",
         "budget_approval.json",
-        "reopen_budget_approval_request.json",
-        "reopen_budget_approval.json",
     )
     assert all(value not in source for value in forbidden)

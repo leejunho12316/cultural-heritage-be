@@ -15,12 +15,6 @@ from modules.rag.operations.accounting import (
     failed_no_visual_cue_row,
     failed_qwen_unavailable_row,
     invalid_parent_row,
-    reopen_blocked_row,
-    reopen_completed_row,
-    reopen_created_row,
-    reopen_forbidden_final_row,
-    reopen_required_row,
-    reopen_skipped_row,
     require_terminal_accounting,
     same_anomaly_suppressed_row,
 )
@@ -46,10 +40,6 @@ from modules.shared import (
 
 type ReasonedRowConstructor = Callable[
     [RagTarget, RagQueryEvidence, str],
-    RagAccountingRow,
-]
-type TransitionalRowConstructor = Callable[
-    [RagTarget, RagQueryEvidence],
     RagAccountingRow,
 ]
 
@@ -228,60 +218,14 @@ def test_failed_qwen_row_has_no_query_terms_and_keeps_failure_reason() -> None:
     assert row.terminal is True
 
 
-@pytest.mark.parametrize(
-    ("constructor", "expected_status"),
-    [
-        (reopen_skipped_row, RagAccountingStatus.REOPEN_SKIPPED),
-        (reopen_blocked_row, RagAccountingStatus.REOPEN_BLOCKED),
-        (reopen_forbidden_final_row, RagAccountingStatus.REOPEN_FORBIDDEN_FINAL),
-    ],
-)
-def test_reopened_terminal_failure_outcomes_are_reachable(
-    constructor: ReasonedRowConstructor,
-    expected_status: RagAccountingStatus,
-) -> None:
-    # Given: a reopened target and explicit failed evidence context.
-    target = _automatic_target()
-
-    # When: a terminal reopened failure outcome is created.
-    row = constructor(target, _failed_evidence(), "reopen outcome reason")
-
-    # Then: the shared row is terminal with the exact reopened status.
-    assert row.status is expected_status
-    assert row.terminal is True
-
-
-def test_reopen_completed_is_terminal() -> None:
-    # Given: a reopened target with query-driving evidence.
-    target = _automatic_target()
-
-    # When: reopened retrieval completes.
-    row = reopen_completed_row(target, _success_evidence())
-
-    # Then: completion is represented by the shared terminal reopened status.
-    assert row.status is RagAccountingStatus.REOPEN_COMPLETED
-    assert row.terminal is True
-
-
-@pytest.mark.parametrize(
-    ("constructor", "expected_status"),
-    [
-        (attempt_created_row, RagAccountingStatus.ATTEMPT_CREATED),
-        (reopen_required_row, RagAccountingStatus.REOPEN_REQUIRED),
-        (reopen_created_row, RagAccountingStatus.REOPEN_CREATED),
-    ],
-)
-def test_non_terminal_rows_are_identifiable_but_not_completion(
-    constructor: TransitionalRowConstructor,
-    expected_status: RagAccountingStatus,
-) -> None:
+def test_non_terminal_row_is_identifiable_but_not_completion() -> None:
     # Given: a target with valid query-driving evidence.
     target = _automatic_target()
 
     # When: a transitional row is created.
-    row = constructor(target, _success_evidence())
+    row = attempt_created_row(target, _success_evidence())
 
     # Then: it is identifiable but cannot masquerade as terminal completion.
-    assert row.status is expected_status
+    assert row.status is RagAccountingStatus.ATTEMPT_CREATED
     assert row.status is not RagAccountingStatus.COMPLETED
     assert row.terminal is False

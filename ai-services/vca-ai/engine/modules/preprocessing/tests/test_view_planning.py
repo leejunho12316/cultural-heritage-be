@@ -111,8 +111,34 @@ def test_high_scale_plan_has_full_object_ranked_tiles_and_source_view_reuse() ->
     )
     assert all(tile.coordinate_transform is not None for tile in manifest.tile_views)
     assert all(tile.tile_ranking is not None for tile in manifest.tile_views)
-    assert manifest.lane_plans[0].span_halving_history == (2.0, 1.0, 0.5)
+    assert manifest.lane_plans[0].span_halving_history == (2.0,)
+    assert manifest.lane_plans[0].tiling_strategy == "scale_aware_target_capped"
     assert manifest.dry_run_tile_count == len(manifest.tile_views)
+
+
+def test_large_object_with_small_scale_unit_does_not_explode_tile_count() -> None:
+    # Given: a physically-accurate scale marker (scale_unit_px=100) paired
+    # with an object that is huge relative to that unit - the literal
+    # span*scale_unit tile size is faithful but tiny compared to the object,
+    # so tiling at that exact size alone would produce hundreds of tiles.
+    request = _request(
+        _scale(preprocessing.ScaleConfidence.HIGH),
+        (_object(0, 0, 4000, 4000),),
+    )
+
+    # When: the view plan is calculated.
+    manifest = preprocessing.plan_views(request)
+
+    # Then: the plan falls back to the target-capped formula instead of the
+    # literal physical tile size, keeping the tile count near the lane
+    # target rather than the ~900 tiles the literal size would produce.
+    owlv2_plan = next(
+        plan
+        for plan in manifest.lane_plans
+        if plan.lane is preprocessing.DetectorLane.OWLV2_SAM2
+    )
+    assert owlv2_plan.tiling_strategy == "scale_aware_target_capped"
+    assert owlv2_plan.dry_run_tile_count < owlv2_plan.target_tile_count * 4
 
 
 def test_low_and_unavailable_scale_use_largest_object_fallback() -> None:
@@ -157,11 +183,11 @@ def test_object_size_adjusts_lane_targets_and_rankings_are_complete() -> None:
     smaller_id = manifest.object_views[1].object_id
     assert largest_id is not None
     assert smaller_id is not None
-    assert targets[(largest_id, preprocessing.DetectorLane.OWLV2_SAM2)] == 64
-    assert targets[(smaller_id, preprocessing.DetectorLane.OWLV2_SAM2)] == 16
-    assert targets[(largest_id, preprocessing.DetectorLane.GROUNDED_SAM2)] == 36
-    assert targets[(smaller_id, preprocessing.DetectorLane.GROUNDED_SAM2)] == 9
-    assert targets[(largest_id, preprocessing.DetectorLane.FLORENCE2_SAM2)] == 16
+    assert targets[(largest_id, preprocessing.DetectorLane.OWLV2_SAM2)] == 32
+    assert targets[(smaller_id, preprocessing.DetectorLane.OWLV2_SAM2)] == 8
+    assert targets[(largest_id, preprocessing.DetectorLane.GROUNDED_SAM2)] == 18
+    assert targets[(smaller_id, preprocessing.DetectorLane.GROUNDED_SAM2)] == 5
+    assert targets[(largest_id, preprocessing.DetectorLane.FLORENCE2_SAM2)] == 8
     assert targets[(smaller_id, preprocessing.DetectorLane.FLORENCE2_SAM2)] == 4
     ranking = manifest.tile_views[0].tile_ranking
     assert ranking is not None
@@ -177,8 +203,8 @@ def test_object_size_adjusts_lane_targets_and_rankings_are_complete() -> None:
 
 
 def test_large_dry_run_requires_budget_approval_without_tile_truncation() -> None:
-    # Given: three large object targets whose planned tiles exceed the shared limit.
-    objects = tuple(_object(float(index), 0, 500, 500) for index in range(3))
+    # Given: several large object targets whose planned tiles exceed the shared limit.
+    objects = tuple(_object(float(index), 0, 500, 500) for index in range(9))
 
     # When: the full dry-run view plan is calculated.
     manifest = preprocessing.plan_views(

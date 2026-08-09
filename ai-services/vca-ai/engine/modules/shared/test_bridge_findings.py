@@ -45,10 +45,6 @@ def _descriptor(candidate_id: CandidateId) -> HybridDescriptor:
         RagAccountingStatus.FAILED_NO_VISUAL_CUE,
         RagAccountingStatus.FAILED_INVALID_PARENT_TARGET,
         RagAccountingStatus.FAILED_QWEN_UNAVAILABLE,
-        RagAccountingStatus.REOPEN_COMPLETED,
-        RagAccountingStatus.REOPEN_SKIPPED,
-        RagAccountingStatus.REOPEN_BLOCKED,
-        RagAccountingStatus.REOPEN_FORBIDDEN_FINAL,
     ],
 )
 def test_qwen_failed_rows_accept_terminal_failure_accounting_statuses(

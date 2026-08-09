@@ -3,13 +3,9 @@
 from dataclasses import dataclass
 
 from modules.shared.errors import ContractValidationError
-from modules.shared.lanes import DetectorLane
-from modules.shared.models import (
-    ExitCode,
-    LaneExecutionReceipt,
-    LaneExecutionStatus,
-    RunStatus,
-)
+from modules.shared.models import ExitCode, RunStatus
+
+_REPORT_GENERATING_STAGE = "report_generating"
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,77 +19,56 @@ class FinalSuccessEvaluation:
 
 @dataclass(frozen=True, slots=True)
 class FinalSuccessInput:
-    """Complete shared input needed to evaluate final pipeline success."""
+    """Complete shared input needed to evaluate final pipeline success.
 
-    real_execution: bool
+    Every field is sourced from data the orchestrator already has or can
+    read from stage output artifacts - no field here requires instrumentation
+    that does not exist yet (see `orchestration.stage_execution` for how each
+    value is derived).
+    """
+
     dry_run: bool
-    requested_detector_lanes: tuple[DetectorLane, ...]
-    lane_receipts: tuple[LaneExecutionReceipt, ...]
+    failed_stage: str | None
+    rough_masking_blocked: bool
     accepted_candidate_count: int
-    accepted_candidate_final_successes: tuple[bool, ...]
 
 
-def _is_real_executed(receipt: LaneExecutionReceipt) -> bool:
-    match receipt.status:
-        case LaneExecutionStatus.REAL_EXECUTED:
-            return True
-        case LaneExecutionStatus.SKIPPED_NOT_REQUESTED:
-            return False
-        case LaneExecutionStatus.BLOCKED:
-            return False
-        case LaneExecutionStatus.FAILED:
-            return False
-
-
-def _requested_lanes_real_executed(
-    requested_lanes: tuple[DetectorLane, ...],
-    receipts: tuple[LaneExecutionReceipt, ...],
-) -> bool:
-    return all(
-        any(
-            receipt.lane is requested_lane and _is_real_executed(receipt)
-            for receipt in receipts
-        )
-        for requested_lane in requested_lanes
-    )
-
-
+# 파이프라인 전체를 RunStatus 6종 중 하나로 판정한다. 실행 순서대로 확인:
+# dry-run -> rough_masking 예산 게이트 차단 -> report_generating만 실패(자체
+# 검증 실패, 하지만 후보 데이터는 있음) -> 그 외 스테이지 실패 -> 전 스테이지
+# 완료했지만 최종 채택 후보 0개 -> 성공.
 def evaluate_final_success(value: FinalSuccessInput) -> FinalSuccessEvaluation:
-    """Evaluate mandatory requested-lane and accepted-candidate success gates."""
+    """Evaluate the whole-run status from stage outcomes and final counts."""
     if value.accepted_candidate_count < 0:
         field = "accepted_candidate_count"
         raise ContractValidationError(field, "must be non-negative")
-    if value.accepted_candidate_count != len(value.accepted_candidate_final_successes):
-        field = "accepted_candidate_final_successes"
-        reason = "count must match accepted candidates"
-        raise ContractValidationError(field, reason)
-    if not value.real_execution:
-        exit_code = ExitCode.OK if value.dry_run else ExitCode.INCOMPLETE_OR_FAILURE
+    if value.dry_run:
         return FinalSuccessEvaluation(
             status=RunStatus.INCOMPLETE_PRE_QWEN_PREVIEW,
             final_success=False,
-            exit_code=exit_code,
+            exit_code=ExitCode.OK,
         )
-    if not value.requested_detector_lanes:
-        field = "requested_detector_lanes"
-        raise ContractValidationError(field, "must not be empty for real execution")
-    if not _requested_lanes_real_executed(
-        value.requested_detector_lanes, value.lane_receipts
-    ):
+    if value.rough_masking_blocked:
+        return FinalSuccessEvaluation(
+            status=RunStatus.BLOCKED,
+            final_success=False,
+            exit_code=ExitCode.INCOMPLETE_OR_FAILURE,
+        )
+    if value.failed_stage == _REPORT_GENERATING_STAGE:
         return FinalSuccessEvaluation(
             status=RunStatus.INCOMPLETE,
+            final_success=False,
+            exit_code=ExitCode.INCOMPLETE_OR_FAILURE,
+        )
+    if value.failed_stage is not None:
+        return FinalSuccessEvaluation(
+            status=RunStatus.FAILURE,
             final_success=False,
             exit_code=ExitCode.INCOMPLETE_OR_FAILURE,
         )
     if value.accepted_candidate_count == 0:
         return FinalSuccessEvaluation(
             status=RunStatus.NO_VALID_ROUGH_TARGETS,
-            final_success=False,
-            exit_code=ExitCode.INCOMPLETE_OR_FAILURE,
-        )
-    if not all(value.accepted_candidate_final_successes):
-        return FinalSuccessEvaluation(
-            status=RunStatus.INCOMPLETE,
             final_success=False,
             exit_code=ExitCode.INCOMPLETE_OR_FAILURE,
         )

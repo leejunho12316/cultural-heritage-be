@@ -21,7 +21,6 @@ from modules.rag.corpus.extraction_cache import (
 from modules.shared import PathSafetyError
 
 DOCUMENT_CORPUS_ID = "document_sweep_260pdf_253text"
-SOURCE_DOCUMENT_ROOT = Path("/Users/csc9211/Downloads/dataset/document")
 MANIFEST_FILENAME = "nrich_preservation_manifest.jsonl"
 
 # Some PDFs embed a custom font encoding pdfminer cannot resolve to Unicode;
@@ -79,9 +78,15 @@ class PdfTextExtractor:
 
 @dataclass(frozen=True, slots=True)
 class DocumentCorpusConfig:
-    """Configuration for read-only source corpus adaptation."""
+    """Configuration for read-only source corpus adaptation.
 
-    source_root: Path = SOURCE_DOCUMENT_ROOT
+    `source_root` has no built-in default - callers must supply it explicitly
+    (the startup path requires the VCA_DOCUMENT_CORPUS_DIR environment
+    variable via `startup_document_source_root()`) so this never silently
+    falls back to a path that only exists on one developer's machine.
+    """
+
+    source_root: Path
     extraction_cache: CacheFallback | None = None
 
 

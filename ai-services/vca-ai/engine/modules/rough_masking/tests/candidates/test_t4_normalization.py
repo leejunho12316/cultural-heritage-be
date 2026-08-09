@@ -5,11 +5,18 @@ from typing import TYPE_CHECKING
 import pytest
 
 from modules.rough_masking import execute_adapter
+from modules.rough_masking.contracts import (
+    ImageDimensions,
+    SeedRequestPaths,
+    build_seed_request,
+)
 from modules.rough_masking.tests.candidates.test_t4 import (
     Record,
     invoked_runner,
     make_record,
     make_request,
+    make_view,
+    static_seed_minimal_pack,
     write_records,
 )
 from modules.shared import DetectorLane
@@ -78,6 +85,42 @@ def test_adapter_diagnoses_invalid_record_fields(
     # Then: invalid data becomes diagnostics, never candidates.
     assert receipt.candidates == ()
     assert diagnostic in receipt.diagnostics
+
+
+def test_adapter_accepts_lane_output_dir_nested_under_a_per_view_segment(
+    tmp_path: Path,
+) -> None:
+    # Given: a lane_output_dir shaped like rough_masking's real per-object-view
+    # layout - <lane>/<object_id>/<lane>/<view_segment> - where each tile/object
+    # view gets its own leaf directory so their masks/overlays don't collide,
+    # rather than the flat "<root>/<lane>" layout the other fixtures use.
+    lane = DetectorLane.OWLV2_SAM2
+    nested_dir = (
+        tmp_path / lane.value / "image-001-object-01" / lane.value / "tile-001"
+    )
+    nested_dir.mkdir(parents=True)
+    request = build_seed_request(
+        lane=lane,
+        view=make_view(),
+        image_dimensions=ImageDimensions(100, 80),
+        paths=SeedRequestPaths(
+            lane_output_dir=nested_dir,
+            records_json=nested_dir / "records.json",
+        ),
+        prompt_pack=static_seed_minimal_pack,
+    )
+    write_records(request, [make_record(request)])
+    _ = (nested_dir / "mask.png").write_bytes(b"mask")
+    _ = (nested_dir / "overlay.jpg").write_bytes(b"overlay")
+
+    # When: the adapter normalizes this nested-directory execution.
+    receipt = execute_adapter(request, invoked_runner)
+
+    # Then: the nested per-view directory is accepted, not diagnosed as
+    # lane_output_dir_invalid, as long as the lane's own name still appears
+    # somewhere in the directory's ancestry.
+    assert receipt.diagnostics == ()
+    assert len(receipt.candidates) == 1
 
 
 def test_adapter_diagnoses_malformed_json(tmp_path: Path) -> None:

@@ -12,6 +12,13 @@ from modules.shared import ContractValidationError, DetectorLane
 
 OVERLAP_RATIO = 0.33
 
+# 물리적으로 정확한(scale_unit_px 기반) 타일 크기를 그대로 쓸지 판단하는
+# 상한 배수. 객체가 크고 scale_unit_px가 작으면(예: 눈금 하나가 77px인데
+# 객체는 1800px) 물리적으로 정확한 크기를 그대로 써도 목표 개수의 10배 넘게
+# 나올 수 있다 - tile_size_and_history에서 이 배수를 넘으면 물리적 크기를
+# 버리고 목표 개수에 직접 맞춘 크기로 대체한다.
+_OVERSHOOT_CEILING_MULTIPLE = 2
+
 
 # 레인별로 스케일 단위(scale_unit_px) 대비 시도할 타일 한 변의 배수를
 # 큰 것부터 순서대로 정의한다. tile_size_and_history에서 스케일 인식이
@@ -36,11 +43,11 @@ def _span_values(lane: DetectorLane) -> tuple[float, ...]:
 def _largest_target(lane: DetectorLane) -> int:
     match lane:
         case DetectorLane.OWLV2_SAM2:
-            return 64
+            return 32
         case DetectorLane.GROUNDED_SAM2:
-            return 36
+            return 18
         case DetectorLane.FLORENCE2_SAM2:
-            return 16
+            return 8
         case DetectorLane.CLIPSEG:
             field = "detector_lanes"
             reason = "clipseg is non-active"
@@ -83,7 +90,21 @@ def tile_size_and_history(
     lane: DetectorLane,
     target: int,
 ) -> tuple[float, tuple[float, ...], str]:
-    """Choose scale spans or the low-confidence largest-object fallback."""
+    """Choose scale spans or the low-confidence largest-object fallback.
+
+    Scale-aware sizing only ever tries the single largest span (the most
+    physically-faithful tile size for the lane) - it never steps down through
+    smaller span multiples. Halving a tile size roughly quadruples the tile
+    count in 2D, so a smaller discrete span almost never lands near `target`;
+    it either still undershoots or overshoots it several times over. The
+    physically-correct span is only trusted when its tile count lands within
+    `_OVERSHOOT_CEILING_MULTIPLE` of `target`; outside that band (either
+    direction - a large object paired with a small physical scale_unit_px
+    can overshoot by 10x or more) this falls back to the same direct
+    target-count formula as the low-confidence path instead of guessing at a
+    smaller scale multiple, so the result is capped near `target` rather than
+    undershooting or overshooting it.
+    """
     match request.scale_metadata.scale_confidence:
         case ScaleConfidence.HIGH | ScaleConfidence.MEDIUM:
             scale_unit = request.scale_metadata.scale_unit_px
@@ -91,15 +112,15 @@ def tile_size_and_history(
                 field = "scale_unit_px"
                 reason = "required for scale-aware tiling"
                 raise ContractValidationError(field, reason)
-            history: list[float] = []
-            spans = _span_values(lane)
-            tile_size = spans[-1] * scale_unit
-            for span in spans:
-                history.append(span)
-                tile_size = span * scale_unit
-                if len(tile_boxes(object_target.bbox, tile_size)) >= target:
-                    return tile_size, tuple(history), "scale_aware"
-            return tile_size, tuple(history), "scale_aware"
+            largest_span = _span_values(lane)[0]
+            tile_size = largest_span * scale_unit
+            tile_count = len(tile_boxes(object_target.bbox, tile_size))
+            if target <= tile_count <= target * _OVERSHOOT_CEILING_MULTIPLE:
+                return tile_size, (largest_span,), "scale_aware"
+            tile_size = max(
+                object_target.bbox.width, object_target.bbox.height
+            ) / sqrt(target)
+            return tile_size, (largest_span,), "scale_aware_target_capped"
         case ScaleConfidence.LOW | ScaleConfidence.UNAVAILABLE:
             tile_size = max(object_target.bbox.width, object_target.bbox.height) / sqrt(
                 target

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from modules.mask_refining.execution.assets import join_preprocessing_assets
 from modules.mask_refining.execution.models import (
@@ -44,8 +44,10 @@ from modules.shared import (
     ContractValidationError,
     DetectorLane,
     RagLane,
+    detector_to_rag_lane,
     ensure_no_symlink_leaf,
     resolve_model_path,
+    update_stage_progress_count,
 )
 
 if TYPE_CHECKING:
@@ -116,6 +118,55 @@ def _adapter_request(
         lane_output_dir=records_json.parent,
         records_json=records_json,
         prompts=_prompt_records(group),
+        threshold_config=seed_thresholds(lane),
+        detector_model_id=EXPECTED_MODEL_REPO_IDS[detector_key],
+        sam2_model_id=SAM2_MODEL_ID,
+        object_mask_path=assets.object_mask_path,
+    )
+
+
+# RAG 근거가 없는 후보를 위한 자기-정제(self-refinement) 프롬프트. RAG가
+# 만든 프롬프트 대신 rough_masking이 원래 이 후보를 찾을 때 썼던
+# 프롬프트(candidate.prompt_provenance/executable_prompt)를 그대로 재사용해
+# SAM2를 한 번 더 돌린다 - 새 의미 정보는 없지만, 1차 탐지기가 만든
+# 느슨하거나 조각난 마스크를 더 타이트하고 깨끗한 하나의 마스크로 다시
+# 잡아줄 수 있다. rough_target_anchor_only만 True로 두고
+# final_conservation_vocabulary/anomaly_class_proof는 원래 시드 프롬프트와
+# 동일하게 False로 둔다 - RAG가 검증한 보존과학 어휘가 아니라는 사실을
+# 그대로 유지한다.
+def _self_refinement_prompt_records(
+    candidate: RawDetectorCandidate,
+) -> tuple[PromptRecord, ...]:
+    return (
+        PromptRecord(
+            metadata=candidate.prompt_provenance,
+            prompt_text=candidate.executable_prompt,
+            rough_target_anchor_only=True,
+            final_conservation_vocabulary=False,
+            anomaly_class_proof=False,
+        ),
+    )
+
+
+# _adapter_request와 대응되는 자기-정제 버전. PromptVariantGroup 대신
+# RawDetectorCandidate에서 바로 lane/프롬프트를 뽑는다는 점만 다르다.
+def _self_refinement_adapter_request(
+    request: RefinementRunRequest,
+    candidate: RawDetectorCandidate,
+    assets: JoinedRefinementAssets,
+) -> AdapterRequest:
+    lane = candidate.lane
+    records_json = _records_path(request.output_dir, str(candidate.candidate_id), lane)
+    detector_key = DETECTOR_MODEL_KEYS[lane]
+    return AdapterRequest(
+        schema_version=DETECTOR_ADAPTER_SCHEMA_VERSION,
+        lane=lane,
+        view=assets.view,
+        image_width_px=assets.image_width_px,
+        image_height_px=assets.image_height_px,
+        lane_output_dir=records_json.parent,
+        records_json=records_json,
+        prompts=_self_refinement_prompt_records(candidate),
         threshold_config=seed_thresholds(lane),
         detector_model_id=EXPECTED_MODEL_REPO_IDS[detector_key],
         sam2_model_id=SAM2_MODEL_ID,
@@ -642,6 +693,7 @@ def _passthrough_record(
                 "image_id": str(candidate.image_id),
                 "source_object_id": candidate.source_object_id,
                 "source_view_id": candidate.source_view_id,
+                "source_tile_view_id": candidate.source_tile_view_id,
                 "bbox_xyxy": list(candidate.bbox_xyxy),
                 "original_bbox_xyxy": list(original_bbox),
                 "prompt": candidate.executable_prompt,
@@ -677,10 +729,16 @@ def _write_passthrough_jsonl(path: Path, rows: tuple[JsonValue, ...]) -> None:
 def _accepted_refined_candidates(
     candidates: tuple[RawDetectorCandidate, ...],
     assets: JoinedRefinementAssets,
-    source_assets: dict[ImageId, AssetReference],
-    qwen_evidence_factory: PostRefinementQwenEvidenceFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
     lane_output_dir: Path,
+    *,
+    rough_source_tile_view_id: str | None,
 ) -> tuple[AcceptedRefinedCandidate, ...]:
+    # rough_source_tile_view_id는 이 정제를 촉발한 원본 rough_masking 후보의
+    # tile_view_id다 - 정제된 candidate 자신의 source_view_id는 정제 실행
+    # 자체의 내부 ROI 뷰를 가리키므로 타일 출처와는 다른 값이다.
+    source_assets = lazy_dependencies.source_assets()
+    qwen_evidence_factory = lazy_dependencies.qwen_evidence_factory()
     records: list[AcceptedRefinedCandidate] = []
     for candidate in candidates:
         if candidate.source_object_id is None:
@@ -710,9 +768,222 @@ def _accepted_refined_candidates(
                 _restore_original_mask(
                     candidate, assets, lane_output_dir, lane_output_dir
                 ),
+                rough_source_tile_view_id,
             )
         )
     return tuple(records)
+
+
+# RAG 근거가 없는 후보에 한 번 더 SAM2 정제를 시도한다. 성공하면(적어도
+# 하나는 accepted) 실제로 정제된 RefinedExecutionRecord를 돌려준다.
+# 자산을 못 찾거나, 어댑터 실행 자체가 실패하거나, 이번엔 아무 것도
+# accept되지 않으면 None을 반환해 호출자가 _passthrough_record(원본 러프
+# 마스크를 좌표만 복원)로 폴백하게 한다 - 이 폴백이 있어야 자기-정제
+# 실패가 후보를 리포트에서 통째로 사라지게 만들지 않는다(같은 세션에서
+# passthrough 자체를 도입한 이유와 동일).
+def _try_self_refine(
+    candidate: RawDetectorCandidate,
+    request: RefinementRunRequest,
+    runner_factory: RefinementRunnerFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
+) -> RefinedExecutionRecord | None:
+    if candidate.source_object_id is None:
+        return None
+    assets = join_preprocessing_assets(
+        request.asset_root, candidate.source_object_id, str(candidate.image_id)
+    )
+    if assets is None:
+        return None
+    adapter_request = _self_refinement_adapter_request(request, candidate, assets)
+    try:
+        runner = runner_factory(
+            RunnerFactoryInput(
+                adapter_request.lane,
+                assets.roi_image_path,
+                request.model_cache_root,
+                request.device,
+                request.verify_model_hashes,
+            )
+        )
+        receipt = execute_adapter(adapter_request, runner)
+        accepted_candidates = _accepted_refined_candidates(
+            receipt.candidates,
+            assets,
+            lazy_dependencies,
+            adapter_request.lane_output_dir,
+            rough_source_tile_view_id=candidate.source_tile_view_id,
+        )
+    except (
+        ContractValidationError,
+        ImportError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ):
+        return None
+    if not accepted_candidates:
+        return None
+    return RefinedExecutionRecord(
+        str(candidate.candidate_id),
+        detector_to_rag_lane(candidate.lane),
+        adapter_request.lane,
+        adapter_request.prompts,
+        adapter_request.records_json,
+        RefinementStatus.EXECUTED,
+        receipt.diagnostics,
+        tuple(str(item.candidate_id) for item in receipt.candidates),
+        accepted_candidates,
+    )
+
+
+# run_refinement의 두 번째 루프(RAG 근거 없는 후보) 본문을 분리한 헬퍼 -
+# run_refinement 자체의 순환 복잡도를 낮추기 위한 것뿐, 판단 로직은 그대로
+# 옮겨온 것이다. within_budget이 False면 자기-정제를 시도조차 하지 않고
+# 바로 passthrough로 간다(예산 소진 후에는 추가 SAM2 호출을 하지 않는다).
+def _self_refine_or_passthrough(
+    candidate: RawDetectorCandidate,
+    request: RefinementRunRequest,
+    runner_factory: RefinementRunnerFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
+    *,
+    within_budget: bool,
+) -> tuple[RefinedExecutionRecord | None, JsonValue | None, RefinementSkip | None]:
+    if within_budget:
+        refined_record = _try_self_refine(
+            candidate, request, runner_factory, lazy_dependencies
+        )
+        if refined_record is not None:
+            return refined_record, None, None
+    row, skip = _passthrough_record(candidate, request)
+    return None, row, skip
+
+
+# run_refinement의 첫 번째 루프(RAG 근거 있는 그룹) 본문을 분리한 헬퍼 -
+# run_refinement 자체의 순환 복잡도를 낮추기 위한 것뿐, 판단 로직은
+# 그대로 옮겨온 것이다. 정확히 record/skip 중 하나만 채워서 반환한다.
+def _execute_prompt_group(
+    request: RefinementRunRequest,
+    group: PromptVariantGroup,
+    candidates: dict[str, RawDetectorCandidate],
+    runner_factory: RefinementRunnerFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
+) -> tuple[RefinedExecutionRecord | None, RefinementSkip | None]:
+    candidate = candidates.get(group.rag_parent_candidate_id)
+    if candidate is None or candidate.source_object_id is None:
+        return None, RefinementSkip(
+            SkipStage.ASSET_JOIN,
+            "rough_candidate_missing",
+            rag_parent_candidate_id=group.rag_parent_candidate_id,
+            model_lane=group.model_lane,
+        )
+    assets = join_preprocessing_assets(
+        request.asset_root, candidate.source_object_id, str(candidate.image_id)
+    )
+    if assets is None:
+        return None, RefinementSkip(
+            SkipStage.ASSET_JOIN,
+            "preprocessing_assets_missing",
+            rag_parent_candidate_id=group.rag_parent_candidate_id,
+            model_lane=group.model_lane,
+        )
+    adapter_request = _adapter_request(request, group, assets)
+    try:
+        runner = runner_factory(
+            RunnerFactoryInput(
+                adapter_request.lane,
+                assets.roi_image_path,
+                request.model_cache_root,
+                request.device,
+                request.verify_model_hashes,
+            )
+        )
+        receipt = execute_adapter(adapter_request, runner)
+        accepted_candidates = _accepted_refined_candidates(
+            receipt.candidates,
+            assets,
+            lazy_dependencies,
+            adapter_request.lane_output_dir,
+            rough_source_tile_view_id=candidate.source_tile_view_id,
+        )
+    except (
+        ContractValidationError,
+        ImportError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as error:
+        return RefinedExecutionRecord(
+            group.rag_parent_candidate_id,
+            group.model_lane,
+            adapter_request.lane,
+            adapter_request.prompts,
+            adapter_request.records_json,
+            RefinementStatus.FAILED,
+            (str(error),),
+            (),
+            (),
+        ), None
+    return RefinedExecutionRecord(
+        group.rag_parent_candidate_id,
+        group.model_lane,
+        adapter_request.lane,
+        adapter_request.prompts,
+        adapter_request.records_json,
+        RefinementStatus.EXECUTED,
+        receipt.diagnostics,
+        tuple(str(item.candidate_id) for item in receipt.candidates),
+        accepted_candidates,
+    ), None
+
+
+class _NoEvidenceState(NamedTuple):
+    """Budget carried from the first loop plus this loop's progress bounds."""
+
+    processed_groups: int
+    progress_offset: int
+    progress_total: int
+
+
+# run_refinement의 두 번째 루프(RAG 근거 없는 후보 전체) 자체를 분리한
+# 헬퍼 - for 루프 하나를 통째로 옮겨 run_refinement의 순환 복잡도를
+# 낮춘다. processed_groups는 첫 번째 루프에서 이어받아 여기서도 계속
+# 소모하고, 최종 값을 그대로 돌려준다(호출자는 반환값만 쓰면 된다).
+def _process_no_evidence_candidates(
+    request: RefinementRunRequest,
+    no_evidence_candidates: tuple[RawDetectorCandidate, ...],
+    runner_factory: RefinementRunnerFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
+    state: _NoEvidenceState,
+) -> tuple[list[RefinedExecutionRecord], list[JsonValue], list[RefinementSkip], int]:
+    records: list[RefinedExecutionRecord] = []
+    passthrough_rows: list[JsonValue] = []
+    skips: list[RefinementSkip] = []
+    max_groups = request.max_groups
+    processed_groups = state.processed_groups
+    for candidate_index, candidate in enumerate(no_evidence_candidates):
+        within_budget = max_groups is None or processed_groups < max_groups
+        if within_budget:
+            processed_groups += 1
+        refined_record, row, skip = _self_refine_or_passthrough(
+            candidate,
+            request,
+            runner_factory,
+            lazy_dependencies,
+            within_budget=within_budget,
+        )
+        if refined_record is not None:
+            records.append(refined_record)
+        elif skip is not None:
+            skips.append(skip)
+        elif row is not None:
+            passthrough_rows.append(row)
+        if request.progress_root is not None:
+            update_stage_progress_count(
+                request.progress_root,
+                state.progress_offset + candidate_index + 1,
+                state.progress_total,
+            )
+    return records, passthrough_rows, skips, processed_groups
 
 
 def run_refinement(
@@ -739,97 +1010,46 @@ def run_refinement(
     candidates_with_prompt_groups: frozenset[str] = frozenset(
         group.rag_parent_candidate_id for group in prompt_result.groups
     )
-    for group in prompt_result.groups:
+    no_evidence_candidates = tuple(
+        candidate
+        for candidate_id, candidate in candidates.items()
+        if candidate_id not in candidates_with_prompt_groups
+    )
+    progress_total = len(prompt_result.groups) + len(no_evidence_candidates)
+    for group_index, group in enumerate(prompt_result.groups):
         if request.max_groups is not None and processed_groups >= request.max_groups:
             break
         processed_groups += 1
-        candidate = candidates.get(group.rag_parent_candidate_id)
-        if candidate is None or candidate.source_object_id is None:
-            skips.append(
-                RefinementSkip(
-                    SkipStage.ASSET_JOIN,
-                    "rough_candidate_missing",
-                    rag_parent_candidate_id=group.rag_parent_candidate_id,
-                    model_lane=group.model_lane,
-                )
-            )
-            continue
-        assets = join_preprocessing_assets(
-            request.asset_root, candidate.source_object_id, str(candidate.image_id)
+        record, skip = _execute_prompt_group(
+            request, group, candidates, runner_factory, lazy_dependencies
         )
-        if assets is None:
-            skips.append(
-                RefinementSkip(
-                    SkipStage.ASSET_JOIN,
-                    "preprocessing_assets_missing",
-                    rag_parent_candidate_id=group.rag_parent_candidate_id,
-                    model_lane=group.model_lane,
-                )
-            )
-            continue
-        adapter_request = _adapter_request(request, group, assets)
-        try:
-            runner = runner_factory(
-                RunnerFactoryInput(
-                    adapter_request.lane,
-                    assets.roi_image_path,
-                    request.model_cache_root,
-                    request.device,
-                    request.verify_model_hashes,
-                )
-            )
-            receipt = execute_adapter(adapter_request, runner)
-            accepted_candidates = _accepted_refined_candidates(
-                receipt.candidates,
-                assets,
-                lazy_dependencies.source_assets(),
-                lazy_dependencies.qwen_evidence_factory(),
-                adapter_request.lane_output_dir,
-            )
-        except (
-            ContractValidationError,
-            ImportError,
-            OSError,
-            RuntimeError,
-            ValueError,
-        ) as error:
-            records.append(
-                RefinedExecutionRecord(
-                    group.rag_parent_candidate_id,
-                    group.model_lane,
-                    adapter_request.lane,
-                    adapter_request.prompts,
-                    adapter_request.records_json,
-                    RefinementStatus.FAILED,
-                    (str(error),),
-                    (),
-                    (),
-                )
-            )
-            continue
-        records.append(
-            RefinedExecutionRecord(
-                group.rag_parent_candidate_id,
-                group.model_lane,
-                adapter_request.lane,
-                adapter_request.prompts,
-                adapter_request.records_json,
-                RefinementStatus.EXECUTED,
-                receipt.diagnostics,
-                tuple(str(candidate.candidate_id) for candidate in receipt.candidates),
-                accepted_candidates,
-            )
-        )
-    passthrough_rows: list[JsonValue] = []
-    for candidate_id, candidate in candidates.items():
-        if candidate_id in candidates_with_prompt_groups:
-            continue
-        row, skip = _passthrough_record(candidate, request)
+        if record is not None:
+            records.append(record)
         if skip is not None:
             skips.append(skip)
-            continue
-        if row is not None:
-            passthrough_rows.append(row)
+        if request.progress_root is not None and progress_total > 0:
+            update_stage_progress_count(
+                request.progress_root, group_index + 1, progress_total
+            )
+    # RAG 근거가 없는 후보도 예산이 남아있으면 자기 프롬프트로 한 번 더
+    # SAM2 정제를 시도한다 - 1차 탐지기가 만든 느슨하거나 조각난 마스크를
+    # 타이트한 하나의 마스크로 다시 잡을 기회를 준다(라벨은 여전히 없지만,
+    # 정밀도만은 근거 있는 후보와 같은 수준으로 맞춘다). 성공한 시도도
+    # processed_groups를 소모해, RAG 그룹과 같은 --max-groups 예산을
+    # 공유한다.
+    no_evidence_records, passthrough_rows, no_evidence_skips, processed_groups = (
+        _process_no_evidence_candidates(
+            request,
+            no_evidence_candidates,
+            runner_factory,
+            lazy_dependencies,
+            _NoEvidenceState(
+                processed_groups, len(prompt_result.groups), progress_total
+            ),
+        )
+    )
+    records.extend(no_evidence_records)
+    skips.extend(no_evidence_skips)
     _write_passthrough_jsonl(
         request.output_dir / "passthrough_records.jsonl", tuple(passthrough_rows)
     )

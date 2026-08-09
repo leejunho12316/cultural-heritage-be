@@ -65,6 +65,7 @@ def test_startup_corpus_rows_rebuilds_when_metadata_cache_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Given: cached source-backed corpus metadata exists from an earlier run.
+    monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", "unused-in-tests")
     model_cache_root = tmp_path / "models"
     _write_cached_corpus(model_cache_root)
     calls = 0
@@ -96,6 +97,7 @@ def test_startup_corpus_rows_writes_cache_after_local_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Given: no corpus cache exists but local extraction returns source-backed rows.
+    monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", "unused-in-tests")
     model_cache_root = tmp_path / "models"
 
     def build_corpus(
@@ -124,6 +126,7 @@ def test_startup_corpus_rows_rebuilds_empty_metadata_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Given: a previous Docker run left an empty final metadata cache.
+    monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", "unused-in-tests")
     model_cache_root = tmp_path / "models"
     cache_path = model_cache_root / "rag" / "document_corpus_metadata.jsonl"
     cache_path.parent.mkdir(parents=True)
@@ -374,6 +377,7 @@ def test_startup_corpus_rows_does_not_treat_partial_extraction_cache_as_final(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Given: only the resumable extraction sidecar exists, not the final corpus cache.
+    monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", "unused-in-tests")
     model_cache_root = tmp_path / "models"
     extraction_cache = (
         model_cache_root / "rag" / "document_corpus_extracted_pages.jsonl"
@@ -416,6 +420,7 @@ def test_startup_corpus_rows_rejects_symlinked_metadata_temp_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Given: the metadata cache temp leaf is a symlink to an external file.
+    monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", "unused-in-tests")
     model_cache_root = tmp_path / "models"
     temp_path = model_cache_root / "rag" / "document_corpus_metadata.jsonl.tmp"
     temp_path.parent.mkdir(parents=True)

@@ -6,10 +6,13 @@ import json
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final, NotRequired, Protocol, TypedDict
 
-from modules.shared import PathSafetyError, ensure_safe_run_root
+from modules.shared import StageProgressCount, receipt_file_path
+from modules.shared import update_stage_progress_count as _update_stage_progress_count
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from modules.shared import FinalSuccessEvaluation
 
 RECEIPT_SCHEMA: Final = "vca-startup-receipt-v1"
 PROGRESS_SCHEMA: Final = "vca-startup-progress-v1"
@@ -62,6 +65,8 @@ class _StartupReceiptPayload(TypedDict):
     image_count: int
     failed_stage: str | None
     stages: list[_StageReceiptPayload]
+    run_status: str
+    final_success: bool
 
 
 class _StartupProgressPayload(TypedDict):
@@ -69,6 +74,7 @@ class _StartupProgressPayload(TypedDict):
     project_name: str
     status: str
     current_stage: str | None
+    current_stage_progress: StageProgressCount | None
     stages: list[_StageReceiptPayload]
 
 
@@ -95,12 +101,16 @@ def _stage_payload(
 
 
 # 전체 스타트업 실행 결과를 최종 startup.json 리시트 payload로 조립한다.
-# startup.py에서 모든 스테이지 실행이 끝난 뒤 한 번 호출된다.
+# startup.py에서 모든 스테이지 실행이 끝난 뒤 한 번 호출된다. run_status/
+# final_success는 기존 status(completed/failed)보다 더 세분화된 판정(성공/
+# 예산 차단/리포트만 실패/유효 후보 없음/그 외 실패/dry-run)을 담는 추가
+# 필드다 - 기존 status 필드는 하위 호환을 위해 그대로 둔다.
 def _startup_payload(
     request: _StartupReceiptRequest,
     status: _StartupStatus,
     stages: list[_StageReceiptPayload],
     failed_stage: str | None,
+    evaluation: FinalSuccessEvaluation,
 ) -> _StartupReceiptPayload:
     return {
         "schema": RECEIPT_SCHEMA,
@@ -111,6 +121,8 @@ def _startup_payload(
         "image_count": len(request.image_paths),
         "failed_stage": failed_stage,
         "stages": stages,
+        "run_status": evaluation.status.value,
+        "final_success": evaluation.final_success,
     }
 
 
@@ -127,28 +139,7 @@ def _write_startup_receipt(
 
 
 def _startup_receipt_path(request: _StartupReceiptRequest) -> Path:
-    return _receipt_file_path(request.output_root, "startup.json")
-
-
-# receipts 디렉터리 하위 파일 경로를 심볼릭 링크 여부까지 검증해 반환한다.
-# output_root 밖으로 벗어나는 경로 조작을 막기 위한 안전 장치다.
-def _receipt_file_path(output_root: Path, filename: str) -> Path:
-    receipt_dir = _safe_receipt_dir(output_root)
-    receipt_path = receipt_dir / filename
-    if receipt_path.is_symlink():
-        raise PathSafetyError(str(receipt_path), f"{filename} is a symlink")
-    return ensure_safe_run_root(output_root, receipt_path)
-
-
-# receipts 디렉터리를 심볼릭 링크 검증 후 생성하고 안전한 경로를 반환한다.
-# _receipt_file_path에서 사용된다.
-def _safe_receipt_dir(output_root: Path) -> Path:
-    receipt_dir = output_root / "receipts"
-    if receipt_dir.is_symlink():
-        raise PathSafetyError(str(receipt_dir), "startup receipt dir is a symlink")
-    safe_receipt_dir = ensure_safe_run_root(output_root, receipt_dir)
-    receipt_dir.mkdir(parents=True, exist_ok=True)
-    return safe_receipt_dir
+    return receipt_file_path(request.output_root, "startup.json")
 
 
 # 진행 중인 스타트업 상태를 progress.json에 쓸 payload로 조립한다.
@@ -164,6 +155,7 @@ def _progress_payload(
         "project_name": project_name,
         "status": status,
         "current_stage": current_stage,
+        "current_stage_progress": None,
         "stages": stages,
     }
 
@@ -188,7 +180,7 @@ def _write_startup_progress(
 
 
 def _startup_progress_path(output_root: Path) -> Path:
-    return _receipt_file_path(output_root, "progress.json")
+    return receipt_file_path(output_root, "progress.json")
 
 
 StageReceiptPayload = _StageReceiptPayload
@@ -199,3 +191,4 @@ startup_payload = _startup_payload
 write_startup_receipt = _write_startup_receipt
 progress_payload = _progress_payload
 write_startup_progress = _write_startup_progress
+update_stage_progress_count = _update_stage_progress_count

@@ -6,17 +6,12 @@ from modules.shared import (
     BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION,
     BUDGET_APPROVAL_SCHEMA_VERSION,
     BUDGET_THRESHOLDS,
-    REOPEN_BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION,
-    REOPEN_BUDGET_APPROVAL_SCHEMA_VERSION,
-    CandidateId,
     DryRunHashInput,
     FollowupHash,
     ImageId,
     LaneConfigVersion,
     PlannedCountHashInput,
     RagLane,
-    ReopenBudgetApprovalRequest,
-    ReopenRequestHashInput,
     RuntimeMetadata,
     SourceImageManifestItem,
     budget_approval_matches_request,
@@ -25,12 +20,9 @@ from modules.shared import (
     dry_run_id,
     make_budget_approval_request,
     planned_count_hash,
-    reopen_approval_matches_request,
-    reopen_request_hash,
     source_image_manifest_canonical_json,
     source_image_manifest_sha256,
     user_budget_approval,
-    user_reopen_budget_approval,
 )
 
 
@@ -103,7 +95,7 @@ def test_canonical_hashes_are_stable_sensitive_and_exclude_runtime_metadata() ->
         _runtime_metadata(timestamp="2030-01-01T00:00:00Z", output_dir="runs/two")
     )
 
-    # When: dry-run, planned-count, and reopen identities are independently derived.
+    # When: dry-run and planned-count identities are independently derived.
     first_dry_run_id = dry_run_id(first)
     second_dry_run_id = dry_run_id(second)
     counts = BUDGET_THRESHOLDS.within_limits_counts()
@@ -116,24 +108,11 @@ def test_canonical_hashes_are_stable_sensitive_and_exclude_runtime_metadata() ->
         threshold_cap_config_version=first.threshold_cap_config_version,
         runtime_metadata=first.runtime_metadata,
     )
-    reopen = ReopenRequestHashInput(
-        dry_run_id=first_dry_run_id,
-        followup_request_hash=first.followup_request_hash,
-        planned_count_hash=planned_count_hash(planned),
-        reopened_candidate_ids=(CandidateId("candidate-b"), CandidateId("candidate-a")),
-        initial_planned_counts=counts,
-        reopen_incremental_counts=counts,
-        combined_planned_counts=counts,
-        exceeded_thresholds=(),
-        threshold_cap_config_version=first.threshold_cap_config_version,
-        runtime_metadata=first.runtime_metadata,
-    )
 
     # Then: excluded runtime values do not change hashes, while relevant values do.
     assert first_dry_run_id == second_dry_run_id
     assert canonical_decimal(Decimal("1.2")) == "1.200000"
     assert planned_count_hash(planned) == planned_count_hash(planned)
-    assert reopen_request_hash(reopen) == reopen_request_hash(reopen)
     assert dry_run_id(
         DryRunHashInput(
             image_subset_ids=first.image_subset_ids,
@@ -175,34 +154,6 @@ def test_budget_thresholds_and_stale_approval_predicates_are_exact() -> None:
     )
     request = make_budget_approval_request(planned)
     approval = user_budget_approval(request, approved_at="2026-07-31T01:00:00Z")
-    reopen = ReopenRequestHashInput(
-        dry_run_id=request.dry_run_id,
-        followup_request_hash=request.followup_request_hash,
-        planned_count_hash=request.planned_count_hash,
-        reopened_candidate_ids=(CandidateId("candidate-a"),),
-        initial_planned_counts=exceeded_counts,
-        reopen_incremental_counts=exceeded_counts,
-        combined_planned_counts=exceeded_counts,
-        exceeded_thresholds=request.exceeded_thresholds,
-        threshold_cap_config_version=dry_run.threshold_cap_config_version,
-        runtime_metadata=dry_run.runtime_metadata,
-    )
-    reopen_approval = user_reopen_budget_approval(
-        reopen, approved_at="2026-07-31T01:00:00Z"
-    )
-    reopen_request = ReopenBudgetApprovalRequest(
-        dry_run_id=reopen.dry_run_id,
-        followup_request_hash=reopen.followup_request_hash,
-        planned_count_hash=reopen.planned_count_hash,
-        reopen_request_hash=reopen_request_hash(reopen),
-        reopened_candidate_ids=reopen.reopened_candidate_ids,
-        initial_planned_counts=reopen.initial_planned_counts,
-        reopen_incremental_counts=reopen.reopen_incremental_counts,
-        combined_planned_counts=reopen.combined_planned_counts,
-        exceeded_thresholds=reopen.exceeded_thresholds,
-        requires_reopen_budget_approval=True,
-        reasons=("threshold exceeded",),
-    )
 
     # When: schemas and identity predicates evaluate the current inputs.
     expected_limits = (500, 500, 1000, 1500, 5, 3)
@@ -211,29 +162,8 @@ def test_budget_thresholds_and_stale_approval_predicates_are_exact() -> None:
     assert BUDGET_THRESHOLDS.as_tuple() == expected_limits
     assert request.schema_version == BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION
     assert approval.schema_version == BUDGET_APPROVAL_SCHEMA_VERSION
-    assert (
-        reopen_request.schema_version
-        == REOPEN_BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION
-    )
-    assert reopen_approval.schema_version == REOPEN_BUDGET_APPROVAL_SCHEMA_VERSION
     assert request.requires_user_budget_approval is True
     assert budget_approval_matches_request(approval, request)
-    assert reopen_approval_matches_request(reopen_approval, reopen)
-    assert not reopen_approval_matches_request(
-        reopen_approval,
-        ReopenRequestHashInput(
-            dry_run_id=reopen.dry_run_id,
-            followup_request_hash=FollowupHash("changed-followup-sha"),
-            planned_count_hash=reopen.planned_count_hash,
-            reopened_candidate_ids=reopen.reopened_candidate_ids,
-            initial_planned_counts=reopen.initial_planned_counts,
-            reopen_incremental_counts=reopen.reopen_incremental_counts,
-            combined_planned_counts=reopen.combined_planned_counts,
-            exceeded_thresholds=reopen.exceeded_thresholds,
-            threshold_cap_config_version=reopen.threshold_cap_config_version,
-            runtime_metadata=reopen.runtime_metadata,
-        ),
-    )
     assert not budget_approval_matches_request(
         approval, make_budget_approval_request(
             PlannedCountHashInput(

@@ -253,7 +253,13 @@ def _execute(
     )
     write_startup_receipt(
         request,
-        startup_payload(request, result.status, result.stages, result.failed_stage),
+        startup_payload(
+            request,
+            result.status,
+            result.stages,
+            result.failed_stage,
+            result.final_success_evaluation,
+        ),
     )
     persist_startup_storage(request, result, storage_writer_factory)
     return result.exit_code

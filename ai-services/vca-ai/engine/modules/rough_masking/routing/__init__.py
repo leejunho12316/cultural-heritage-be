@@ -21,33 +21,48 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
+class RoiViewRequest:
+    """One view's own geometry, pixel dimensions, and output paths.
+
+    Bundled per-view (not shared across the whole route) because tile crop
+    files are independently thumbnailed (see TILE_MAX_SIDE_PX) and are very
+    often a different pixel size than the object crop or each other, and
+    each view's detector output must land in its own records.json - reusing
+    one shared records_json across the object view and every tile would
+    have each detector call overwrite the previous view's results.
+    """
+
+    view: ViewRecord
+    image_dimensions: ImageDimensions
+    paths: SeedRequestPaths
+
+
+@dataclass(frozen=True, slots=True)
 class RoiRoutingInput:
     """Inputs needed to create one lane's object and tile ROI requests."""
 
     lane: DetectorLane
-    object_view: ViewRecord
-    tile_views: tuple[ViewRecord, ...]
-    image_dimensions: ImageDimensions
-    paths: SeedRequestPaths
+    object_request: RoiViewRequest
+    tile_requests: tuple[RoiViewRequest, ...]
 
 
 def build_lane_roi_seed_requests(route: RoiRoutingInput) -> tuple[AdapterRequest, ...]:
     """Build object-crop first, then all matching ranked-tile requests."""
     object_request = build_roi_seed_request(
         route.lane,
-        route.object_view,
-        route.image_dimensions,
-        paths=route.paths,
+        route.object_request.view,
+        route.object_request.image_dimensions,
+        paths=route.object_request.paths,
     )
     tile_requests = tuple(
         build_roi_seed_request(
             route.lane,
-            tile_view,
-            route.image_dimensions,
-            paths=route.paths,
+            item.view,
+            item.image_dimensions,
+            paths=item.paths,
         )
-        for tile_view in route.tile_views
-        if _is_matching_tile(route, tile_view)
+        for item in route.tile_requests
+        if _is_matching_tile(route, item.view)
     )
     return (object_request, *tile_requests)
 
@@ -71,5 +86,5 @@ def _is_matching_tile(route: RoiRoutingInput, view: ViewRecord) -> bool:
     return (
         view.kind is ViewKind.RANKED_OBJECT_TILE
         and view.lane is route.lane
-        and view.object_id == route.object_view.object_id
+        and view.object_id == route.object_request.view.object_id
     )

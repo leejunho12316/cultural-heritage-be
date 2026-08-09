@@ -57,8 +57,15 @@ def execute_adapter(request: AdapterRequest, runner: DetectorRunner) -> AdapterR
         fabricated_candidate_count=0,
         runner_invoked=True,
     )
+    # lane_output_dir는 더 이상 항상 lane 이름 그 자체가 아니다 - 오브젝트당
+    # 뷰(오브젝트 크롭 + 타일 여럿)가 각자 자기 마스크/오버레이를 격리해서
+    # 쓰기 위해 lane 이름 디렉터리 아래 뷰별 하위 디렉터리를 하나 더 갖는다
+    # (.../<lane>/<object_id>/<lane>/<view_segment>). 그래서 마지막 컴포넌트
+    # 이름이 lane과 정확히 같은지가 아니라, 경로 어딘가에 lane 이름이
+    # 조상으로 들어있는지만 확인한다 - 잘못된 lane 디렉터리가 섞여 들어오는
+    # 걸 막는 목적은 그대로 유지된다.
     if (
-        request.lane_output_dir.name != request.lane.value
+        request.lane.value not in request.lane_output_dir.parts
         or not request.lane_output_dir.is_dir()
     ):
         return AdapterReceipt(

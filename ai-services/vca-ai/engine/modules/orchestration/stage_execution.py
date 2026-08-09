@@ -25,7 +25,16 @@ from modules.orchestration.stage_runner_contracts import (
     StartupStageRunners,
 )
 from modules.rag.qwen.qwen_bridge_json import parse_json_object
-from modules.shared import ContractValidationError, PathSafetyError
+from modules.shared import (
+    ContractValidationError,
+    FinalSuccessEvaluation,
+    FinalSuccessInput,
+    PathSafetyError,
+    evaluate_final_success,
+)
+
+_BUDGET_REQUEST_FILENAME: Final = "budget_approval_request.json"
+_ANOMALY_GROUPING_RESULT_FILENAME: Final = "anomaly_grouping_result.json"
 
 STARTUP_FAILURE_EXIT_CODE: Final = 2
 MASK_REFINING_DRY_RUN_REASON: Final = (
@@ -90,6 +99,7 @@ class StageExecutionResult:
     failed_stage: str | None
     exit_code: int
     stages: list[StageReceiptPayload]
+    final_success_evaluation: FinalSuccessEvaluation
 
 
 def execute_startup_stages(
@@ -131,11 +141,57 @@ def execute_startup_stages(
                         skipped_stage.get("reason"),
                     )
                 _write_progress(request, stages, running_stage=None, failed=True)
+                evaluation = _evaluate_final_success(
+                    active_request.paths, request.dry_run, stage_name
+                )
                 return StageExecutionResult(
-                    status, stage_name, _failure_exit_code(exit_code), stages
+                    status,
+                    stage_name,
+                    _failure_exit_code(exit_code),
+                    stages,
+                    evaluation,
                 )
     _write_progress(request, stages, running_stage=None)
-    return StageExecutionResult(StartupStatus.COMPLETED, None, 0, stages)
+    evaluation = _evaluate_final_success(active_request.paths, request.dry_run, None)
+    return StageExecutionResult(StartupStatus.COMPLETED, None, 0, stages, evaluation)
+
+
+# 스테이지 실행 결과(성공/실패/dry-run)로 RunStatus 최종 판정을 만든다.
+# rough_masking이 타일 예산 게이트에서 막혔는지는 그 스테이지가 남긴
+# budget_approval_request.json 존재 여부로 판단하고(이번 실행이 실제로
+# rough_masking에서 실패했을 때만 확인 - 과거 실행에서 남은 파일과 헷갈리지
+# 않기 위함), 최종 채택 후보 수는 anomaly_grouping이 남긴
+# anomaly_grouping_result.json의 kept 플래그를 센다.
+def _evaluate_final_success(
+    paths: StagePathMap, dry_run: bool, failed_stage: str | None
+) -> FinalSuccessEvaluation:
+    rough_masking_blocked = failed_stage == "rough_masking" and (
+        paths.rough_masking / _BUDGET_REQUEST_FILENAME
+    ).is_file()
+    return evaluate_final_success(
+        FinalSuccessInput(
+            dry_run=dry_run,
+            failed_stage=failed_stage,
+            rough_masking_blocked=rough_masking_blocked,
+            accepted_candidate_count=_accepted_candidate_count(paths),
+        )
+    )
+
+
+def _accepted_candidate_count(paths: StagePathMap) -> int:
+    result_path = paths.anomaly_grouping / _ANOMALY_GROUPING_RESULT_FILENAME
+    try:
+        payload = parse_json_object(result_path.read_text(encoding="utf-8"))
+    except (OSError, ContractValidationError):
+        return 0
+    candidate_results = payload.get("candidate_results")
+    if not isinstance(candidate_results, list):
+        return 0
+    return sum(
+        1
+        for row in candidate_results
+        if isinstance(row, dict) and row.get("kept") is True
+    )
 
 
 # 지금까지의 스테이지 진행 상황으로 progress.json payload를 만들어 기록한다.
@@ -200,6 +256,8 @@ def mask_refining_arguments(request: StageExecutionRequest) -> tuple[str, ...]:
         str(request.model_cache_root),
         "--device",
         request.device,
+        "--progress-root",
+        str(request.output_root),
     ]
     if not request.verify_model_hashes:
         arguments.append("--no-verify-model-hashes")
@@ -289,6 +347,7 @@ def _project_request(
         request.model_cache_root,
         request.dry_run,
         request.verify_model_hashes,
+        request.output_root,
     )
 
 

@@ -252,17 +252,15 @@ def _guard_model_cache_root(path: Path) -> None:
     _ = ensure_no_symlink_path_components(path, reason)
 
 
-# 소스 문서 루트를 결정한다: VCA_DOCUMENT_CORPUS_DIR 환경변수가 있으면 그것을,
-# 없으면 document_corpus.SOURCE_DOCUMENT_ROOT(하드코딩된 기본 경로)를 쓴다.
-# startup_runner의 쓰기 경계 계산과 sourceRoot 판정 양쪽에서 호출한다.
+# 소스 문서 루트를 결정한다: VCA_DOCUMENT_CORPUS_DIR 환경변수를 반드시 요구한다
+# (개인 머신 경로로 조용히 폴백하지 않는다). startup_runner의 쓰기 경계 계산과
+# sourceRoot 판정 양쪽에서 호출한다.
 def startup_document_source_root() -> Path:
     """Return the configured source document root for startup RAG."""
     raw_source_root = os.environ.get(DOCUMENT_CORPUS_DIR_ENV)
-    if raw_source_root is None:
-        return DocumentCorpusConfig().source_root
-    if not raw_source_root.strip():
+    if raw_source_root is None or not raw_source_root.strip():
         field = DOCUMENT_CORPUS_DIR_ENV
-        reason = "must not be blank"
+        reason = "must be set to the source document corpus directory"
         raise ContractValidationError(field, reason)
     return Path(raw_source_root)
 

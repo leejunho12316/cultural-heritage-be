@@ -6,14 +6,13 @@ from typing import NewType
 
 from modules.shared.constants import USER_FOLLOWUP_REQUEST_SCHEMA_VERSION
 from modules.shared.errors import ContractValidationError
-from modules.shared.lanes import DetectorLane, RagLane
+from modules.shared.lanes import RagLane
 
 CandidateId = NewType("CandidateId", str)
 ImageId = NewType("ImageId", str)
 FollowupHash = NewType("FollowupHash", str)
 DryRunId = NewType("DryRunId", str)
 PlannedCountHash = NewType("PlannedCountHash", str)
-ReopenRequestHash = NewType("ReopenRequestHash", str)
 SourceImageManifestHash = NewType("SourceImageManifestHash", str)
 
 
@@ -60,7 +59,7 @@ class FollowupMode(StrEnum):
 
 
 class LaneExecutionStatus(StrEnum):
-    """Detector lane execution outcomes used by final-success policy."""
+    """Detector lane execution outcomes recorded on one adapter receipt."""
 
     REAL_EXECUTED = "real_executed"
     SKIPPED_NOT_REQUESTED = "skipped_not_requested"
@@ -201,11 +200,3 @@ class BudgetThreshold(StrEnum):
     PROMPT_VARIANTS = "prompt_variants"
     ESTIMATED_OUTPUT_GB = "estimated_output_gb"
     SMOKE_IMAGES = "smoke_images"
-
-
-@dataclass(frozen=True, slots=True)
-class LaneExecutionReceipt:
-    """One requested detector lane's execution status."""
-
-    lane: DetectorLane
-    status: LaneExecutionStatus

@@ -86,6 +86,7 @@ class RefinementRunRequest:
     device: str
     verify_model_hashes: bool
     max_groups: int | None = None
+    progress_root: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +154,10 @@ class AcceptedRefinedCandidate:
     qwen_report_display_text: str
     qwen_confidence: float | None
     mask: AssetReference | None = None
+    # rough_masking이 오브젝트 크롭이 아니라 타일 뷰에서 이 후보를 찾았다면
+    # 채워진다(None이면 오브젝트 크롭 전체에서 나온 후보). tile_merge가 같은
+    # 오브젝트의 다른 타일에서 나온 후보와 겹치는지 판정할 때 쓴다.
+    source_tile_view_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

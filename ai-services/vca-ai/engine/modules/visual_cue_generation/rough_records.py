@@ -35,6 +35,9 @@ from modules.shared import (
 
 _BBOX_COORDINATES = 4
 _OBJECT_ID_MINIMUM_PARTS = 2
+_TILE_VIEW_ID_MINIMUM_PARTS = 4
+_TILE_VIEW_SEGMENT_INDEX = 3
+_NON_TILE_VIEW_SEGMENTS = frozenset({"object", "tile_merged"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +88,7 @@ def _qwen_candidate(
         _prompt(detector_lane, rough.prompt_text).metadata,
         _source_view_id(rough),
         _object_id(rough),
-        None,
+        _tile_view_id(rough),
         (),
     )
     return RoughQwenCandidate(rough, candidate)
@@ -171,13 +174,28 @@ def _source_view_id(rough: RoughRagCandidate) -> str:
 
 
 def _object_id(rough: RoughRagCandidate) -> str | None:
-    # rough-mask 출력 경로 구조 <lane>/<object_id>/<lane>/records.json 에 의존한다
-    # (rough_masking startup_runner._run_object 참고). 구조가 바뀌면 예외 없이
-    # 조용히 잘못된 값을 반환한다.
+    # rough-mask 출력 경로 구조 <lane>/<object_id>/<lane>/<view_segment>/records.json
+    # 에 의존한다 (rough_masking startup_runner._lane_view_paths 참고). 구조가
+    # 바뀌면 예외 없이 조용히 잘못된 값을 반환한다.
     raw_path = Path(rough.rough_record_path)
     return (
         raw_path.parts[1] if len(raw_path.parts) >= _OBJECT_ID_MINIMUM_PARTS else None
     )
+
+
+# source_tile_view_id는 records.json 필드로 저장되지 않고 경로의
+# view_segment(네 번째 조각)에서만 파생된다 - _object_id와 같은 경로 규약에
+# 의존한다. "object"(오브젝트 크롭 전체)와 "tile_merged"(rough_masking/
+# tile_merge.py가 만든, 이미 여러 타일을 합친 결과)는 특정 타일 하나를
+# 가리키지 않으므로 둘 다 None으로 취급한다 - "tile_merged"를 실제
+# tile_view_id처럼 취급하면 서로 다른 병합 후보끼리 같은 문자열을 공유하게
+# 되어 anomaly_grouping/tile_merge.py의 "다른 타일" 판정이 어긋난다.
+def _tile_view_id(rough: RoughRagCandidate) -> str | None:
+    raw_path = Path(rough.rough_record_path)
+    if len(raw_path.parts) < _TILE_VIEW_ID_MINIMUM_PARTS:
+        return None
+    segment = raw_path.parts[_TILE_VIEW_SEGMENT_INDEX]
+    return None if segment in _NON_TILE_VIEW_SEGMENTS else segment
 
 
 def _raise_contract(field: str, reason: str) -> NoReturn:

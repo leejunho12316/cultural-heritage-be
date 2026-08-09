@@ -5,27 +5,17 @@ from dataclasses import dataclass, field
 from modules.shared.constants import (
     BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION,
     BUDGET_APPROVAL_SCHEMA_VERSION,
-    REOPEN_BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION,
-    REOPEN_BUDGET_APPROVAL_SCHEMA_VERSION,
 )
-from modules.shared.hash_inputs import (
-    PlannedCountHashInput,
-    ReopenRequestHashInput,
-)
-from modules.shared.hashes import (
-    planned_count_hash,
-    reopen_request_hash,
-)
+from modules.shared.hash_inputs import PlannedCountHashInput
+from modules.shared.hashes import planned_count_hash
 from modules.shared.models import (
     BUDGET_THRESHOLDS,
     BudgetCounts,
     BudgetThreshold,
-    CandidateId,
     DryRunId,
     FollowupHash,
     ImageId,
     PlannedCountHash,
-    ReopenRequestHash,
 )
 
 
@@ -57,44 +47,6 @@ class BudgetApproval:
     approved_max_counts: BudgetCounts
     followup_request_hash: FollowupHash
     planned_count_hash: PlannedCountHash
-    accepted_thresholds: tuple[BudgetThreshold, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class ReopenBudgetApprovalRequest:
-    """Typed content for orchestration-owned reopen approval request artifacts."""
-
-    schema_version: str = field(
-        init=False, default=REOPEN_BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION
-    )
-    dry_run_id: DryRunId
-    followup_request_hash: FollowupHash
-    planned_count_hash: PlannedCountHash
-    reopen_request_hash: ReopenRequestHash
-    reopened_candidate_ids: tuple[CandidateId, ...]
-    initial_planned_counts: BudgetCounts
-    reopen_incremental_counts: BudgetCounts
-    combined_planned_counts: BudgetCounts
-    exceeded_thresholds: tuple[BudgetThreshold, ...]
-    requires_reopen_budget_approval: bool
-    reasons: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class ReopenBudgetApproval:
-    """Typed content for orchestration-owned reopen approval artifacts."""
-
-    schema_version: str = field(
-        init=False, default=REOPEN_BUDGET_APPROVAL_SCHEMA_VERSION
-    )
-    approved_by: str
-    approved_at: str
-    dry_run_id: DryRunId
-    followup_request_hash: FollowupHash
-    planned_count_hash: PlannedCountHash
-    reopen_request_hash: ReopenRequestHash
-    approved_reopened_candidate_ids: tuple[CandidateId, ...]
-    approved_max_incremental_counts: BudgetCounts
     accepted_thresholds: tuple[BudgetThreshold, ...]
 
 
@@ -163,36 +115,4 @@ def budget_approval_matches_request(
         and approval.dry_run_id == request.dry_run_id
         and approval.followup_request_hash == request.followup_request_hash
         and approval.planned_count_hash == request.planned_count_hash
-    )
-
-
-def user_reopen_budget_approval(
-    value: ReopenRequestHashInput, *, approved_at: str
-) -> ReopenBudgetApproval:
-    """Construct a typed reopened-work approval value without artifact I/O."""
-    return ReopenBudgetApproval(
-        approved_by="user",
-        approved_at=approved_at,
-        dry_run_id=value.dry_run_id,
-        followup_request_hash=value.followup_request_hash,
-        planned_count_hash=value.planned_count_hash,
-        reopen_request_hash=reopen_request_hash(value),
-        approved_reopened_candidate_ids=value.reopened_candidate_ids,
-        approved_max_incremental_counts=value.reopen_incremental_counts,
-        accepted_thresholds=value.exceeded_thresholds,
-    )
-
-
-def reopen_approval_matches_request(
-    approval: ReopenBudgetApproval, value: ReopenRequestHashInput
-) -> bool:
-    """Compare reopened-work identity and candidate scope without artifact I/O."""
-    return (
-        approval.approved_by == "user"
-        and approval.dry_run_id == value.dry_run_id
-        and approval.followup_request_hash == value.followup_request_hash
-        and approval.planned_count_hash == value.planned_count_hash
-        and approval.reopen_request_hash == reopen_request_hash(value)
-        and tuple(sorted(approval.approved_reopened_candidate_ids))
-        == tuple(sorted(value.reopened_candidate_ids))
     )

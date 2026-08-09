@@ -33,6 +33,7 @@ def test_startup_runner_succeeds_when_report_generation_passes(
         tmp_path / "models",
         dry_run=False,
         verify_model_hashes=True,
+        output_root=tmp_path,
     )
 
     def report_generation(_: ReportGeneratingRequest) -> JsonObject:
@@ -64,6 +65,7 @@ def test_startup_runner_passes_anomaly_grouping_trace_source_to_report_generatio
         tmp_path / "models",
         dry_run=False,
         verify_model_hashes=True,
+        output_root=tmp_path,
     )
     received: list[ReportGeneratingRequest] = []
 
@@ -108,6 +110,7 @@ def test_startup_runner_returns_two_when_report_verification_fails(
         tmp_path / "models",
         dry_run=False,
         verify_model_hashes=True,
+        output_root=tmp_path,
     )
 
     def report_generation(_: ReportGeneratingRequest) -> JsonObject:

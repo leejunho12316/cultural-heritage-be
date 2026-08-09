@@ -20,6 +20,7 @@ from modules.rag.operations.candidate_sidecars import (
 from modules.rag.qwen import QwenBridgeCandidateArtifact, write_qwen_bridge_results
 from modules.rag.qwen.qwen_bridge_json import parse_json_object
 from modules.rag.retrieval.vector_index import InMemoryTextEmbedder
+from modules.rag.startup_corpus_cache import DOCUMENT_CORPUS_DIR_ENV
 from modules.rag.startup_runner import run_rag_stage
 from modules.shared import CandidateId, ExitCode, QwenBridgeResult, QwenBridgeStatus
 
@@ -54,6 +55,7 @@ def _request(tmp_path: Path, *, dry_run: bool = False) -> ProjectStageRequest:
         model_cache_root=tmp_path / "models",
         dry_run=dry_run,
         verify_model_hashes=True,
+        output_root=tmp_path,
     )
 
 
@@ -136,6 +138,12 @@ def _install_fake_corpus(
     monkeypatch: pytest.MonkeyPatch,
     rows: tuple[CorpusMetadataRow, ...],
 ) -> None:
+    # build_document_corpus is mocked below and never reads real files, but
+    # source-root resolution now requires VCA_DOCUMENT_CORPUS_DIR to be set
+    # (no more silent fallback to a developer-machine path) - the value here
+    # is never read from disk, so any non-blank placeholder is fine.
+    monkeypatch.setenv(DOCUMENT_CORPUS_DIR_ENV, "unused-in-tests")
+
     def build_corpus(
         config: DocumentCorpusConfig,
         extractor: DocumentTextExtractor,

@@ -47,6 +47,7 @@ def _request(tmp_path: Path, *, dry_run: bool = False) -> ProjectStageRequest:
         model_cache_root=tmp_path / "models",
         dry_run=dry_run,
         verify_model_hashes=True,
+        output_root=tmp_path,
     )
 
 
@@ -59,7 +60,8 @@ def _write_startup_manifest(request: ProjectStageRequest, *, dry_run: bool) -> N
             '{"schema_version":"vca-real-preprocessing-v2",'
             f'"detector_lane_status":"{status}",'
             '"model_invocations":0,"sam2_calls":0,'
-            '"object_count":0,"objects":[]}'
+            '"object_count":0,"objects":[],'
+            '"tile_count":0,"requires_user_budget_approval":false}'
         ),
         encoding="utf-8",
     )

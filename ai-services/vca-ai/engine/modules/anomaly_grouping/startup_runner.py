@@ -194,6 +194,9 @@ def _stage_candidates(
                             record, "qwen_report_display_text"
                         ),
                         qwen_confidence=_optional_float(record, "qwen_confidence"),
+                        source_tile_view_id=optional_string(
+                            record, "source_tile_view_id"
+                        ),
                     ),
                     record_image_id,
                     candidate_cards,

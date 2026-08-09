@@ -39,6 +39,7 @@ def _request(tmp_path: Path, *, dry_run: bool = False) -> ProjectStageRequest:
         model_cache_root=tmp_path / "models",
         dry_run=dry_run,
         verify_model_hashes=True,
+        output_root=tmp_path,
     )
 
 

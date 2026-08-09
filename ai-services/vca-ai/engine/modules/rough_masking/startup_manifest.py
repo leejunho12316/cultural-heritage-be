@@ -32,6 +32,11 @@ class StartupManifest:
     sam2_calls: int
     object_count: int
     objects: tuple[ObjectAssetRecord, ...]
+    # RealPreprocessingManifest.to_jsonable()가 이미 정확히 계산해서 매번
+    # 써주던 값인데, 이 두 필드가 여태 파싱조차 안 돼서 rough_masking이
+    # "타일이 예산을 넘었다"는 신호를 볼 방법이 없었다.
+    tile_count: int
+    requires_user_budget_approval: bool
 
 
 def load_startup_manifest(preprocessing_root: Path) -> StartupManifest:
@@ -62,6 +67,8 @@ def load_startup_manifest(preprocessing_root: Path) -> StartupManifest:
         _integer(decoded, "sam2_calls"),
         object_count,
         objects,
+        _integer(decoded, "tile_count"),
+        _boolean(decoded, "requires_user_budget_approval"),
     )
 
 
@@ -126,6 +133,10 @@ def _object_record(raw: JsonValue) -> ObjectAssetRecord:
         tiles=tuple(
             _asset(_json_object(tile, "tiles"), "") for tile in _list(item, "tiles")
         ),
+        tile_bboxes=tuple(
+            _bbox_xyxy_values(bbox, "tile_bboxes")
+            for bbox in _list(item, "tile_bboxes")
+        ),
     )
 
 
@@ -172,13 +183,18 @@ def _asset(item: JsonObject, field_name: str) -> MaterializedAssetRecord:
 
 
 def _bbox_xyxy(item: JsonObject) -> tuple[float, float, float, float]:
-    values = tuple(
-        _number_value(value, "bbox_xyxy") for value in _list(item, "bbox_xyxy")
-    )
+    return _bbox_xyxy_values(item.get("bbox_xyxy"), "bbox_xyxy")
+
+
+def _bbox_xyxy_values(
+    raw: JsonValue | None, field_name: str
+) -> tuple[float, float, float, float]:
+    if not isinstance(raw, list):
+        raise _invalid(field_name, "must be a list")
+    values = tuple(_number_value(value, field_name) for value in raw)
     if len(values) != BBOX_COORDINATE_COUNT:
-        field = "bbox_xyxy"
         reason = "must contain four coordinates"
-        raise _invalid(field, reason)
+        raise _invalid(field_name, reason)
     return values
 
 

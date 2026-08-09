@@ -50,6 +50,7 @@ def _request(tmp_path: Path) -> ProjectStageRequest:
         model_cache_root=tmp_path / "models",
         dry_run=False,
         verify_model_hashes=True,
+        output_root=tmp_path,
     )
 
 
@@ -109,6 +110,11 @@ def _write_stale_retrieval_artifacts(paths: StagePathMap) -> None:
 
 
 def _install_fake_corpus(monkeypatch: pytest.MonkeyPatch) -> None:
+    # build_document_corpus is mocked below and never reads real files, but
+    # source-root resolution now requires VCA_DOCUMENT_CORPUS_DIR to be set
+    # (no more silent fallback to a developer-machine path).
+    monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", "unused-in-tests")
+
     def build_corpus(
         config: DocumentCorpusConfig,
         extractor: DocumentTextExtractor,
@@ -334,6 +340,7 @@ def test_run_rag_stage_rejects_symlinked_rag_parent_before_mkdir(
         model_cache_root=request.model_cache_root,
         dry_run=request.dry_run,
         verify_model_hashes=request.verify_model_hashes,
+        output_root=request.output_root,
     )
     _write_rough_inputs(request.paths)
     _install_fake_corpus(monkeypatch)

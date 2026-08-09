@@ -4,156 +4,21 @@ import pytest
 
 from modules.shared import (
     ContractValidationError,
-    DetectorLane,
     ExitCode,
     FinalSuccessInput,
-    LaneExecutionReceipt,
-    LaneExecutionStatus,
     RunStatus,
     evaluate_final_success,
 )
 
 
-def test_real_execution_with_zero_accepted_candidates_is_not_success() -> None:
-    # Given: all requested detector lanes ran but produced no accepted rough target.
-    lanes = (
-        LaneExecutionReceipt(
-            lane=DetectorLane.OWLV2_SAM2, status=LaneExecutionStatus.REAL_EXECUTED
-        ),
-    )
-
-    # When: final-success policy evaluates the real execution.
+def test_dry_run_exits_ok_with_pre_qwen_preview_status() -> None:
+    # Given: an explicit dry run, before any real stage executes.
     result = evaluate_final_success(
         FinalSuccessInput(
-            real_execution=True,
-            dry_run=False,
-            requested_detector_lanes=(DetectorLane.OWLV2_SAM2,),
-            lane_receipts=lanes,
-            accepted_candidate_count=0,
-            accepted_candidate_final_successes=(),
-        )
-    )
-
-    # Then: command success alone cannot disguise the missing rough target.
-    assert result.status is RunStatus.NO_VALID_ROUGH_TARGETS
-    assert result.final_success is False
-    assert result.exit_code is ExitCode.INCOMPLETE_OR_FAILURE
-
-
-def test_requested_lane_that_is_not_real_executed_blocks_final_success() -> None:
-    # Given: a requested lane was skipped despite an otherwise final candidate.
-    lanes = (
-        LaneExecutionReceipt(
-            lane=DetectorLane.OWLV2_SAM2, status=LaneExecutionStatus.REAL_EXECUTED
-        ),
-        LaneExecutionReceipt(
-            lane=DetectorLane.FLORENCE2_SAM2,
-            status=LaneExecutionStatus.SKIPPED_NOT_REQUESTED,
-        ),
-    )
-
-    # When: final-success policy evaluates both requested lanes.
-    result = evaluate_final_success(
-        FinalSuccessInput(
-            real_execution=True,
-            dry_run=False,
-            requested_detector_lanes=(
-                DetectorLane.OWLV2_SAM2,
-                DetectorLane.FLORENCE2_SAM2,
-            ),
-            lane_receipts=lanes,
-            accepted_candidate_count=1,
-            accepted_candidate_final_successes=(True,),
-        )
-    )
-
-    # Then: a non-real lane prevents the misleading success status.
-    assert result.status is RunStatus.INCOMPLETE
-    assert result.final_success is False
-    assert result.exit_code is ExitCode.INCOMPLETE_OR_FAILURE
-
-
-def test_all_real_requested_lanes_and_final_candidates_produce_success() -> None:
-    # Given: every requested lane and accepted candidate completed successfully.
-    lanes = (
-        LaneExecutionReceipt(
-            lane=DetectorLane.OWLV2_SAM2, status=LaneExecutionStatus.REAL_EXECUTED
-        ),
-        LaneExecutionReceipt(
-            lane=DetectorLane.FLORENCE2_SAM2, status=LaneExecutionStatus.REAL_EXECUTED
-        ),
-    )
-
-    # When: final-success policy evaluates the completed real execution.
-    result = evaluate_final_success(
-        FinalSuccessInput(
-            real_execution=True,
-            dry_run=False,
-            requested_detector_lanes=(
-                DetectorLane.OWLV2_SAM2,
-                DetectorLane.FLORENCE2_SAM2,
-            ),
-            lane_receipts=lanes,
-            accepted_candidate_count=2,
-            accepted_candidate_final_successes=(True, True),
-        )
-    )
-
-    # Then: the value-level outcome is successful with an OK exit code.
-    assert result.status is RunStatus.SUCCESS
-    assert result.final_success is True
-    assert result.exit_code is ExitCode.OK
-
-
-def test_real_execution_without_requested_lanes_is_rejected() -> None:
-    # Given: a real execution declares no requested detector lanes.
-    # When: final-success policy validates that impossible execution contract.
-    with pytest.raises(ContractValidationError):
-        _ = evaluate_final_success(
-            FinalSuccessInput(
-                real_execution=True,
-                dry_run=False,
-                requested_detector_lanes=(),
-                lane_receipts=(),
-                accepted_candidate_count=1,
-                accepted_candidate_final_successes=(True,),
-            )
-        )
-
-    # Then: a vacuous all-lanes check cannot manufacture pipeline success.
-
-
-def test_non_dry_run_pre_qwen_preview_exits_incomplete_or_failure() -> None:
-    # Given: a non-dry-run execution stops before Qwen evidence is complete.
-    # When: final-success policy evaluates the preview-only execution.
-    result = evaluate_final_success(
-        FinalSuccessInput(
-            real_execution=False,
-            dry_run=False,
-            requested_detector_lanes=(DetectorLane.OWLV2_SAM2,),
-            lane_receipts=(),
-            accepted_candidate_count=0,
-            accepted_candidate_final_successes=(),
-        )
-    )
-
-    # Then: only dry runs may use exit 0 for an incomplete preview status.
-    assert result.status is RunStatus.INCOMPLETE_PRE_QWEN_PREVIEW
-    assert result.final_success is False
-    assert result.exit_code is ExitCode.INCOMPLETE_OR_FAILURE
-
-
-def test_dry_run_pre_qwen_preview_exits_ok() -> None:
-    # Given: an explicit dry run stops before model evidence.
-    # When: final-success policy evaluates the dry-run preview.
-    result = evaluate_final_success(
-        FinalSuccessInput(
-            real_execution=False,
             dry_run=True,
-            requested_detector_lanes=(DetectorLane.OWLV2_SAM2,),
-            lane_receipts=(),
+            failed_stage=None,
+            rough_masking_blocked=False,
             accepted_candidate_count=0,
-            accepted_candidate_final_successes=(),
         )
     )
 
@@ -163,27 +28,101 @@ def test_dry_run_pre_qwen_preview_exits_ok() -> None:
     assert result.exit_code is ExitCode.OK
 
 
-def test_non_real_requested_lane_takes_precedence_over_zero_candidates() -> None:
-    # Given: the missing accepted candidates are caused by a requested lane failure.
-    lanes = (
-        LaneExecutionReceipt(
-            lane=DetectorLane.OWLV2_SAM2, status=LaneExecutionStatus.FAILED
-        ),
-    )
-
-    # When: final-success policy evaluates the real execution.
+def test_rough_masking_budget_block_takes_priority_over_the_failed_stage() -> None:
+    # Given: rough_masking failed because its tile budget gate is unapproved.
     result = evaluate_final_success(
         FinalSuccessInput(
-            real_execution=True,
             dry_run=False,
-            requested_detector_lanes=(DetectorLane.OWLV2_SAM2,),
-            lane_receipts=lanes,
+            failed_stage="rough_masking",
+            rough_masking_blocked=True,
             accepted_candidate_count=0,
-            accepted_candidate_final_successes=(),
         )
     )
 
-    # Then: the receipt preserves the lane-execution root cause.
+    # Then: the run is reported as blocked, not a generic failure.
+    assert result.status is RunStatus.BLOCKED
+    assert result.final_success is False
+    assert result.exit_code is ExitCode.INCOMPLETE_OR_FAILURE
+
+
+def test_report_generating_only_failure_is_incomplete_not_failure() -> None:
+    # Given: every upstream stage completed but report_generating's own
+    # verification failed.
+    result = evaluate_final_success(
+        FinalSuccessInput(
+            dry_run=False,
+            failed_stage="report_generating",
+            rough_masking_blocked=False,
+            accepted_candidate_count=3,
+        )
+    )
+
+    # Then: real candidate data exists, so this is incomplete, not a hard failure.
     assert result.status is RunStatus.INCOMPLETE
     assert result.final_success is False
     assert result.exit_code is ExitCode.INCOMPLETE_OR_FAILURE
+
+
+def test_any_other_stage_failure_is_reported_as_failure() -> None:
+    # Given: a stage other than rough_masking (blocked) or report_generating crashed.
+    result = evaluate_final_success(
+        FinalSuccessInput(
+            dry_run=False,
+            failed_stage="mask_refining",
+            rough_masking_blocked=False,
+            accepted_candidate_count=0,
+        )
+    )
+
+    # Then: the run is a hard failure.
+    assert result.status is RunStatus.FAILURE
+    assert result.final_success is False
+    assert result.exit_code is ExitCode.INCOMPLETE_OR_FAILURE
+
+
+def test_all_stages_complete_with_zero_kept_candidates_is_no_valid_targets() -> None:
+    # Given: every stage completed cleanly but no candidate survived to the end.
+    result = evaluate_final_success(
+        FinalSuccessInput(
+            dry_run=False,
+            failed_stage=None,
+            rough_masking_blocked=False,
+            accepted_candidate_count=0,
+        )
+    )
+
+    # Then: this is a clean run that simply found nothing, not a failure.
+    assert result.status is RunStatus.NO_VALID_ROUGH_TARGETS
+    assert result.final_success is False
+    assert result.exit_code is ExitCode.INCOMPLETE_OR_FAILURE
+
+
+def test_all_stages_complete_with_kept_candidates_is_success() -> None:
+    # Given: every stage completed and at least one candidate was kept.
+    result = evaluate_final_success(
+        FinalSuccessInput(
+            dry_run=False,
+            failed_stage=None,
+            rough_masking_blocked=False,
+            accepted_candidate_count=2,
+        )
+    )
+
+    # Then: the run is a full success.
+    assert result.status is RunStatus.SUCCESS
+    assert result.final_success is True
+    assert result.exit_code is ExitCode.OK
+
+
+def test_negative_accepted_candidate_count_is_rejected() -> None:
+    # Given: an impossible negative candidate count.
+    # When/Then: the shared boundary rejects it before any status is chosen.
+    with pytest.raises(ContractValidationError):
+        _ = evaluate_final_success(
+            FinalSuccessInput(
+                dry_run=False,
+                failed_stage=None,
+                rough_masking_blocked=False,
+                accepted_candidate_count=-1,
+            )
+        )

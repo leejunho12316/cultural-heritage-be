@@ -121,6 +121,11 @@ class AnomalyCandidate:
     qwen_final_success: bool = False
     qwen_report_display_text: str = "없음"
     qwen_confidence: float | None = None
+    # rough_masking이 오브젝트 크롭이 아니라 타일 뷰에서 이 후보를 찾았다면
+    # 채워진다. tile_merge가 서로 다른 타일에서 나온 후보 쌍만 병합 대상으로
+    # 좁히는 데 쓴다 - 같은 타일 안에서 겹치는 쌍은 타일 분할 때문이 아니라
+    # relations.py가 이미 다루는 일반적인 같은-특이점 판정 대상이다.
+    source_tile_view_id: str | None = None
 
     # 데이터클래스 생성 시 자동 호출되는 검증 훅. candidate_id/image_id 등 식별용
     # 문자열 필드가 빈 값으로 들어오는 것을 여기서 막는다.

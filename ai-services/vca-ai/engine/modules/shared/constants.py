@@ -18,10 +18,6 @@ RAG_CONCEPT_SCHEMA_VERSION: Final = "rag-visual-concept-v1"
 RAG_CITATION_SCHEMA_VERSION: Final = "rag-export-citation-v1"
 BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION: Final = "rag-budget-approval-request-v1"
 BUDGET_APPROVAL_SCHEMA_VERSION: Final = "rag-budget-approval-v1"
-REOPEN_BUDGET_APPROVAL_REQUEST_SCHEMA_VERSION: Final = (
-    "rag-reopen-budget-approval-request-v1"
-)
-REOPEN_BUDGET_APPROVAL_SCHEMA_VERSION: Final = "rag-reopen-budget-approval-v1"
 USER_FOLLOWUP_REQUEST_SCHEMA_VERSION: Final = "user-followup-request-v1"
 
 QWEN_BACKEND_KIND: Final = "independent_raw_image"

@@ -87,6 +87,7 @@ def _candidate(payload: Mapping[str, JsonValue]) -> AnomalyCandidate:
         _mask(payload),
         _evidence(payload),
         _string_or_none(payload, "duplicate_suppression_key"),
+        source_tile_view_id=_string_or_none(payload, "source_tile_view_id"),
     )
 
 

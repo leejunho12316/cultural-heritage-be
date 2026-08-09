@@ -8,7 +8,6 @@ from modules.shared.constants import NORMALIZED_DECIMAL_PLACES
 from modules.shared.hash_inputs import (
     DryRunHashInput,
     PlannedCountHashInput,
-    ReopenRequestHashInput,
     SourceImageManifestItem,
 )
 from modules.shared.models import (
@@ -17,7 +16,6 @@ from modules.shared.models import (
     DryRunId,
     FollowupHash,
     PlannedCountHash,
-    ReopenRequestHash,
     SourceImageManifestHash,
     UserFollowupRequest,
 )
@@ -182,35 +180,3 @@ def planned_count_hash(value: PlannedCountHashInput) -> PlannedCountHash:
         )
     )
     return PlannedCountHash(_sha256(canonical_json))
-
-
-def reopen_request_hash(value: ReopenRequestHashInput) -> ReopenRequestHash:
-    """Hash deterministic reopened-RAG inputs, excluding runtime metadata."""
-    thresholds = _thresholds_json(value.exceeded_thresholds)
-    candidate_ids = _quoted_sorted(value.reopened_candidate_ids)
-    canonical_json = _record(
-        (
-            (
-                "combined_planned_counts",
-                _counts_record(value.combined_planned_counts),
-            ),
-            ("dry_run_id", _quoted(value.dry_run_id)),
-            ("exceeded_thresholds", thresholds),
-            ("followup_request_hash", _quoted(value.followup_request_hash)),
-            (
-                "initial_planned_counts",
-                _counts_record(value.initial_planned_counts),
-            ),
-            ("planned_count_hash", _quoted(value.planned_count_hash)),
-            (
-                "reopen_incremental_counts",
-                _counts_record(value.reopen_incremental_counts),
-            ),
-            ("reopened_candidate_ids", candidate_ids),
-            (
-                "threshold_cap_config_version",
-                _quoted(value.threshold_cap_config_version),
-            ),
-        )
-    )
-    return ReopenRequestHash(_sha256(canonical_json))

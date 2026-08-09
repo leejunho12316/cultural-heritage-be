@@ -11,6 +11,7 @@ from modules.preprocessing.contracts.records import (
 from modules.rough_masking import ImageDimensions, SeedRequestPaths
 from modules.rough_masking.routing import (
     RoiRoutingInput,
+    RoiViewRequest,
     build_lane_roi_seed_requests,
     seed_paths_from_preprocessing_object,
 )
@@ -43,18 +44,32 @@ def _tile_view(object_view: ViewRecord, tile_id: str, lane: DetectorLane) -> Vie
     )
 
 
+def _paths(tmp_path: Path, lane: DetectorLane, suffix: str) -> SeedRequestPaths:
+    lane_output_dir = tmp_path / lane.value / suffix
+    return SeedRequestPaths(
+        lane_output_dir=lane_output_dir,
+        records_json=lane_output_dir / "records.json",
+        object_mask_path=make_object_mask_path(tmp_path),
+    )
+
+
 def _routing_input(
     tmp_path: Path, lane: DetectorLane, tile_views: tuple[ViewRecord, ...]
 ) -> RoiRoutingInput:
     return RoiRoutingInput(
         lane=lane,
-        object_view=make_roi_view(),
-        tile_views=tile_views,
-        image_dimensions=ImageDimensions(64, 48),
-        paths=SeedRequestPaths(
-            lane_output_dir=tmp_path / lane.value,
-            records_json=tmp_path / lane.value / "records.json",
-            object_mask_path=make_object_mask_path(tmp_path),
+        object_request=RoiViewRequest(
+            view=make_roi_view(),
+            image_dimensions=ImageDimensions(64, 48),
+            paths=_paths(tmp_path, lane, "object"),
+        ),
+        tile_requests=tuple(
+            RoiViewRequest(
+                view=view,
+                image_dimensions=ImageDimensions(32, 24),
+                paths=_paths(tmp_path, lane, view.tile_view_id or "tile"),
+            )
+            for view in tile_views
         ),
     )
 
@@ -99,6 +114,7 @@ def _preprocessing_object(mask_path: Path, scale: ScaleMetadata) -> ObjectAssetR
         detection_overlay=asset,
         tile=asset,
         tiles=(asset,),
+        tile_bboxes=((0.0, 0.0, 64.0, 48.0),),
     )
 
 
@@ -130,6 +146,14 @@ def test_lane_routing_emits_object_crop_then_only_matching_ranked_tiles(
     assert requests[0].view.tile_view_id is None
     assert requests[1].view.tile_view_id == "tile-owl"
     assert all(request.lane is DetectorLane.OWLV2_SAM2 for request in requests)
+    # Tile crop files are thumbnailed independently and are very often a
+    # different pixel size than the object crop - each request must carry
+    # its own view's dimensions, not the object's.
+    assert (requests[0].image_width_px, requests[0].image_height_px) == (64, 48)
+    assert (requests[1].image_width_px, requests[1].image_height_px) == (32, 24)
+    # Each view must write to its own records.json - a shared path would
+    # have the tile's detector call overwrite the object's own results.
+    assert requests[0].records_json != requests[1].records_json
 
 
 def test_lane_routing_preserves_every_matching_tile_without_truncation(

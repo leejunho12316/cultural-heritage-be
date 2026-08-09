@@ -98,6 +98,10 @@ class ObjectAssetRecord:
     detection_overlay: MaterializedAssetRecord
     tile: MaterializedAssetRecord
     tiles: tuple[MaterializedAssetRecord, ...]
+    # tiles[i]의 원본 이미지 좌표계 bbox(xyxy) - bbox_xyxy와 같은 좌표
+    # 프레임. rough_masking이 타일별로 탐지를 라우팅하고 좌표를 복원하려면
+    # 타일 파일 경로뿐 아니라 이 bbox가 반드시 있어야 한다.
+    tile_bboxes: tuple[tuple[float, float, float, float], ...]
 
 
 @dataclass(frozen=True, slots=True)

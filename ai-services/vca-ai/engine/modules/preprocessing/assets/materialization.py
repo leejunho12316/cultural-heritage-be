@@ -20,6 +20,7 @@ from modules.preprocessing.assets.tile_materialization import (
     TilePlanningInput,
     materialize_object_tiles,
     object_target,
+    object_target_with_hints,
     tile_request,
 )
 from modules.preprocessing.contracts.records import (
@@ -181,7 +182,12 @@ def write_detection_assets(
         crop.save(paths["bbox_crop"])
         rgba.save(paths["alpha_cutout"])
         overlay.save(paths["detection_overlay"])
-        target = object_target(component_detection)
+        # mask/bbox_crop가 방금 저장됐으니 실제 픽셀로 ranking_hints를 계산할
+        # 수 있다 - largest_area 사전 집계 때 쓴 bbox 전용 object_target()과
+        # 달리, 여기서부터는 타일 우선순위에 실제로 쓰이는 값이라 정확해야 한다.
+        target = object_target_with_hints(
+            component_detection, paths["bbox_crop"], paths["mask"]
+        )
         request = tile_request(
             TilePlanningInput(
                 image=image,
@@ -191,7 +197,7 @@ def write_detection_assets(
                 target=target,
             )
         )
-        tile_paths = materialize_object_tiles(
+        tiles = materialize_object_tiles(
             TileGenerationInput(
                 image=image,
                 image_id=image_id,
@@ -203,7 +209,11 @@ def write_detection_assets(
         )
         tile_records = tuple(
             _asset_record(context.run_root, tile_path, "image/jpeg")
-            for tile_path in tile_paths
+            for tile_path, _ in tiles
+        )
+        tile_bboxes = tuple(
+            (box.left, box.top, box.left + box.width, box.top + box.height)
+            for _, box in tiles
         )
         records.append(
             ObjectAssetRecord(
@@ -249,6 +259,7 @@ def write_detection_assets(
                 ),
                 tile=tile_records[0],
                 tiles=tile_records,
+                tile_bboxes=tile_bboxes,
             )
         )
     return tuple(records)
