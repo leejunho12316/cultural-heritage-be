@@ -197,7 +197,12 @@ def _rough_record(input_record: _RoughRecordInput) -> RoughRagCandidate | None:
     if prompt is None or image is None:
         return None
     relative_path = records_path.relative_to(root)
-    object_path = "/".join(relative_path.parts[1:-1])
+    # 이 후보 id는 나중에 report_generating의 안전 경로 검증
+    # (_safe_identifier)까지 그대로 흘러갈 수 있다(예: RAG 근거가 없어
+    # passthrough로 넘어가는 후보) - "/"가 들어가면 거기서 크래시난다. 실제
+    # 파일 경로("rough_record_path")와는 별개로, id 조립에만 안전한
+    # 구분자를 쓴다.
+    object_path = "_".join(relative_path.parts[1:-1])
     raw_candidate_id = _string_field(payload, "candidate_id")
     candidate_id = (
         CandidateId(raw_candidate_id)

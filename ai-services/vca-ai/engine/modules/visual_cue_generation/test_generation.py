@@ -144,7 +144,7 @@ def test_generate_qwen_bridge_results_writes_rag_run_artifact_from_rough_records
     # Then: it writes the run-local bridge artifact keyed like RAG rough records.
     rows = read_qwen_bridge_results(result.artifact_path)
     candidate_id = CandidateId(
-        "rough:owlv2_sam2:image-001:image-001-object-01/owlv2_sam2:record-0000"
+        "rough:owlv2_sam2:image-001:image-001-object-01_owlv2_sam2:record-0000"
     )
     assert result.processed_candidates == 1
     assert result.successful_results == 1

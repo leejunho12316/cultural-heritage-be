@@ -78,6 +78,28 @@ def test_rejected_rough_records_do_not_shift_fallback_candidate_identity(
     assert interleaved_ids == plain_ids
 
 
+def test_fallback_candidate_id_is_a_safe_path_segment(tmp_path: Path) -> None:
+    # Given: a rough record with no candidate_id, filed under a records.json
+    # path with more than one intermediate directory segment (e.g.
+    # <root>/<lane>/<image-object-dir>/<lane-again>/records.json) - real
+    # rough_masking output is nested exactly this deep. The fallback ID
+    # embeds those segments; report_generating's _safe_identifier later
+    # rejects any candidate_id containing "/" wherever it's not dropped
+    # entirely upstream (e.g. the zero-RAG-evidence passthrough path).
+    root = _write_rough_records(
+        tmp_path / "rough",
+        (_accepted_record("white deposit on rim", 0),),
+    )
+
+    # When: the fallback candidate id is built from the nested path.
+    candidates = read_rough_records(root)
+
+    # Then: no path separator leaks into the id.
+    candidate_id = str(candidates[0].candidate_id)
+    assert "/" not in candidate_id
+    assert "\\" not in candidate_id
+
+
 def test_rejected_rough_records_preserve_raw_record_index(
     tmp_path: Path,
 ) -> None:
