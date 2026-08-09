@@ -8,6 +8,7 @@ from modules.anomaly_grouping.geometry import (
     mask_area_ratio,
     mask_containment,
     mask_iou,
+    mask_pixel_count,
     overlaps,
 )
 from modules.anomaly_grouping.ids import relation_group_id
@@ -95,17 +96,25 @@ def _classify(
     return RelationClass.SAME_ANOMALY_ADJACENT
 
 
-# _relation_group에서 호출된다. 두 후보 중 면적이 더 큰 쪽을 parent로 정해
-# reasons 문자열과 containment/area_ratio 계산 방향의 기준을 고정한다. 병합이
-# 확정된 뒤에는 이 parent/child 구분에 최종 의미가 없다 - relation_results.py가
-# 병합 그룹의 대표를 별도로(최소 candidate_id) 정하고 마스크는 항상 union이다.
+# _relation_group에서 호출된다. 두 후보 중 마스크 픽셀 수가 더 많은 쪽을
+# parent로 정해 reasons 문자열과 containment/area_ratio 계산 방향의 기준을
+# 고정한다. bbox 면적이 아니라 마스크 픽셀 수를 쓰는 이유: _classify의
+# containment/area_ratio 판정 자체가 마스크 기준이라, bbox 면적이 더 큰
+# 쪽과 마스크 픽셀이 더 많은 쪽이 다를 때(성긴/가느다란 탐지 vs 조밀한
+# 탐지) bbox로 고르면 REFINEMENT 방향 판정이 반대로 뒤집혀 실제로는 성립하는
+# 관계를 놓칠 수 있다. 병합이 확정된 뒤에는 이 parent/child 구분에 최종
+# 의미가 없다 - relation_results.py가 병합 그룹의 대표를 별도로(최소
+# candidate_id) 정하고 마스크는 항상 union이다.
 def _parent_child(
     left: AnomalyCandidate,
     right: AnomalyCandidate,
 ) -> tuple[AnomalyCandidate, AnomalyCandidate]:
     first, second = sorted(
         (left, right),
-        key=lambda candidate: (-candidate.bbox.area, candidate.candidate_id),
+        key=lambda candidate: (
+            -mask_pixel_count(candidate.mask),
+            candidate.candidate_id,
+        ),
     )
     return first, second
 

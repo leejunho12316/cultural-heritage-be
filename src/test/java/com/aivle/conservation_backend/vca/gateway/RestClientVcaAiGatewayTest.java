@@ -204,6 +204,69 @@ class RestClientVcaAiGatewayTest {
     }
 
     @Test
+    void parsesPopulatedMultiFragmentPolygonsFromReportResponse() {
+        // vca-ai (Pydantic tuple[tuple[tuple[float,float], ...], ...]) serializes
+        // each polygon point as a bare [x, y] array, not an {"x":..,"y":..}
+        // object - this wire shape mismatch already caused one real
+        // HttpMessageConversionException incident for the (now-legacy) singular
+        // bbox-style polygon field, so this test exercises the populated,
+        // multi-polygon case end to end rather than only the null case below.
+        server.expect(requestTo(
+                        "http://vca-ai.test/internal/vca/assessment-runs/run-1/report"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        """
+                                {
+                                  "runId":"run-1",
+                                  "assessmentId":"assessment-1",
+                                  "status":"COMPLETED",
+                                  "summary":"summary",
+                                  "findings":[{
+                                    "category":"VCA_ANOMALY",
+                                    "severity":"INFO",
+                                    "message":"message",
+                                    "polygons":[
+                                      [[10.0,20.0],[30.0,20.0],[30.0,40.0],[10.0,40.0]],
+                                      [[50.0,60.0],[55.0,60.0],[55.0,65.0]]
+                                    ]
+                                  }]
+                                }
+                                """,
+                        MediaType.APPLICATION_JSON
+                ));
+
+        VcaAiAssessmentReport report = gateway.getAssessmentReport("run-1");
+
+        var polygons = report.findings().get(0).polygons();
+        assertThat(polygons).isNotNull();
+        assertThat(polygons).hasSize(2);
+        assertThat(polygons.get(0)).hasSize(4);
+        assertThat(polygons.get(0).get(0).x()).isEqualTo(10.0);
+        assertThat(polygons.get(0).get(0).y()).isEqualTo(20.0);
+        assertThat(polygons.get(1)).hasSize(3);
+        assertThat(polygons.get(1).get(2).x()).isEqualTo(55.0);
+        assertThat(polygons.get(1).get(2).y()).isEqualTo(65.0);
+    }
+
+    @Test
+    void treatsMissingFindingPolygonsAsNull() {
+        server.expect(requestTo(
+                        "http://vca-ai.test/internal/vca/assessment-runs/run-1/report"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"runId\":\"run-1\",\"assessmentId\":\"assessment-1\","
+                                + "\"status\":\"COMPLETED\",\"summary\":\"summary\","
+                                + "\"findings\":[{\"category\":\"VCA_ANOMALY\",\"severity\":\"INFO\","
+                                + "\"message\":\"message\"}]}",
+                        MediaType.APPLICATION_JSON
+                ));
+
+        VcaAiAssessmentReport report = gateway.getAssessmentReport("run-1");
+
+        assertThat(report.findings().get(0).polygons()).isNull();
+    }
+
+    @Test
     void rejectsNullFindingsInReportResponseAsBadGateway() {
         server.expect(requestTo(
                         "http://vca-ai.test/internal/vca/assessment-runs/run-1/report"))

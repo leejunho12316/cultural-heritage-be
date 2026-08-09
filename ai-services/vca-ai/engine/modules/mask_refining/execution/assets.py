@@ -350,14 +350,28 @@ def _original_image_dimensions(
     for raw in raw_images:
         if not isinstance(raw, dict) or raw.get("image_id") != image_id:
             continue
-        raw_path = raw.get("run_root_asset_path")
-        if not isinstance(raw_path, str):
-            return None
-        original_image = _contained_asset(Path(raw_path), asset_root)
-        if original_image is None:
-            return None
-        return _decoded_dimensions(original_image.read_bytes())
+        return _manifest_entry_dimensions(raw, asset_root)
     return None
+
+
+# _original_image_dimensions에서 image_id가 일치하는 항목 하나를 찾은 뒤
+# 호출한다. 원본 이미지 경로 해석부터 바이트 읽기·크기 파싱까지 담당한다.
+def _manifest_entry_dimensions(
+    raw: JsonValue, asset_root: Path
+) -> tuple[int, int] | None:
+    if not isinstance(raw, dict):
+        return None
+    raw_path = raw.get("run_root_asset_path")
+    if not isinstance(raw_path, str):
+        return None
+    original_image = _contained_asset(Path(raw_path), asset_root)
+    if original_image is None:
+        return None
+    try:
+        contents = original_image.read_bytes()
+    except OSError:
+        return None
+    return _decoded_dimensions(contents)
 
 
 def join_preprocessing_assets(

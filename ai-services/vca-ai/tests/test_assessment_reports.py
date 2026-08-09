@@ -44,6 +44,7 @@ def write_report_artifacts(
     *,
     final_success: bool = True,
     verification_status: str = "pass",
+    polygons: list[list[list[float]]] | None = None,
 ) -> None:
     startup_path = engine_root / "output" / "result" / project_name / "receipts" / "startup.json"
     final_report_root = (
@@ -95,6 +96,7 @@ def write_report_artifacts(
                                 "x_max": 30.0,
                                 "y_max": 40.0,
                             },
+                            **({"polygons": polygons} if polygons is not None else {}),
                         }
                         for candidate_id, kept in candidate_results
                     ]
@@ -311,6 +313,53 @@ def test_assessment_report_keeps_engine_image_id_when_manifest_is_missing(
     # instead of failing the whole report.
     assert response.status_code == 200
     assert response.json()["findings"][0]["imageId"] == "image-001"
+
+
+def test_assessment_report_with_populated_multi_fragment_polygons(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a kept candidate whose mask produced two disconnected polygon
+    # fragments - the earlier bbox field once caused a real production
+    # HttpMessageConversionException because Spring expected {x,y} objects
+    # while the engine serializes bare [x, y] arrays; this exercises the
+    # equivalent populated (non-null) case for the plural polygons field so
+    # a future wire-shape regression there would be caught here too.
+    shared_root = tmp_path / "shared" / "vca"
+    input_folder = create_input_folder(shared_root)
+    engine_root = tmp_path / "vca_v2"
+    project_name = "artifact-123-run-123"
+    polygons = [
+        [[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 40.0]],
+        [[50.0, 60.0], [55.0, 60.0], [55.0, 65.0]],
+    ]
+
+    def fake_run(
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
+    ) -> subprocess.CompletedProcess[str]:
+        _ = cwd, timeout
+        write_report_artifacts(
+            engine_root,
+            project_name,
+            (("candidate-kept", True),),
+            polygons=polygons,
+        )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+
+    # When: Spring creates the run and retrieves its report.
+    created = client.post(
+        "/internal/vca/assessment-runs",
+        json={"assessmentId": "artifact-123", "projectName": project_name, "inputImageFolder": str(input_folder)},
+    )
+    response = client.get(f"/internal/vca/assessment-runs/{created.json()['runId']}/report")
+
+    # Then: the populated multi-fragment polygons survive the round trip.
+    assert response.status_code == 200
+    assert response.json()["findings"][0]["polygons"] == polygons
 
 
 def test_assessment_report_when_no_anomaly_candidates_exist(

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from modules.anomaly_grouping.models import BoundingBox
+from modules.shared import ContractValidationError
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -46,6 +47,15 @@ def load_mask_array(mask: MaskReference) -> NDArray[np.bool_]:
 
     with Image.open(mask.path) as image:
         return np.asarray(image.convert("L")) > 0
+
+
+# relations.py의 _parent_child가 두 후보 중 마스크 픽셀 수가 더 많은 쪽을
+# parent로 고를 때 쓴다 - 이 모듈의 병합 판정 전체가 bbox가 아니라 마스크를
+# 기준으로 하므로, parent/child 선택도 bbox 면적이 아니라 마스크 픽셀 수로
+# 맞춰야 containment/area_ratio 계산 방향이 실제 분류 기준과 일치한다.
+def mask_pixel_count(mask: MaskReference) -> int:
+    """Return the number of foreground pixels in one mask."""
+    return int(np.count_nonzero(load_mask_array(mask)))
 
 
 # relations.py의 _classify에서 SAME_ANOMALY_DUPLICATE 판정 기준(마스크 IoU
@@ -104,6 +114,10 @@ def mask_bbox(array: NDArray[np.bool_]) -> BoundingBox:
     """Return the tight bounding box of a non-empty boolean mask array."""
     rows = np.nonzero(np.any(array, axis=1))[0]
     cols = np.nonzero(np.any(array, axis=0))[0]
+    if rows.size == 0 or cols.size == 0:
+        field = "mask"
+        reason = "mask_bbox requires a mask with at least one foreground pixel"
+        raise ContractValidationError(field, reason)
     y_min, y_max = int(rows[0]), int(rows[-1])
     x_min, x_max = int(cols[0]), int(cols[-1])
     return BoundingBox(

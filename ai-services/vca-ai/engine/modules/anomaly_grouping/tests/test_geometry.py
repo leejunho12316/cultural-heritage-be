@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pytest
 
 from modules.anomaly_grouping.geometry import (
     load_mask_array,
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from modules.anomaly_grouping.models import BoundingBox
+from modules.shared import ContractValidationError
 
 
 def test_mask_metrics_match_bbox_for_filled_rectangles(tmp_path: Path) -> None:
@@ -65,6 +67,18 @@ def test_mask_bbox_returns_tight_bounds_of_union(tmp_path: Path) -> None:
     # Then: it spans from the top-left of the first rect to the bottom-right
     # of the second.
     assert (bbox.x_min, bbox.y_min, bbox.x_max, bbox.y_max) == (10.0, 10.0, 70.0, 90.0)
+
+
+def test_mask_bbox_rejects_an_empty_mask() -> None:
+    # Given: an all-false mask array with no foreground pixels - this should
+    # never reach mask_bbox in practice (upstream stages shouldn't hand a
+    # kept candidate a fully empty mask), but a clear contract error is far
+    # more diagnosable than a raw IndexError from an empty nonzero() result.
+    array = np.zeros((20, 20), dtype=np.bool_)
+
+    # When/Then: it fails loudly with a typed contract error, not a crash.
+    with pytest.raises(ContractValidationError):
+        mask_bbox(array)
 
 
 def test_write_mask_png_round_trips_and_is_content_addressed(tmp_path: Path) -> None:

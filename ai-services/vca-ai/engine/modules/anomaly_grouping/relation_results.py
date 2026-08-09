@@ -57,12 +57,13 @@ def candidate_results(
         root_id = min(member_ids)
         if len(member_ids) == 1:
             candidate = by_id[root_id]
+            candidate_array = load_mask_array(candidate.mask)
             results[root_id] = CandidateRelationResult(
                 root_id,
                 kept=True,
                 mask=candidate.mask,
-                bbox=candidate.bbox,
-                polygons=mask_polygons(load_mask_array(candidate.mask)),
+                bbox=mask_bbox(candidate_array),
+                polygons=mask_polygons(candidate_array),
             )
             continue
         union_mask, union_bbox, union_polygons = _materialize_union_mask(

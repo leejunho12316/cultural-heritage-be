@@ -326,6 +326,69 @@ def test_refinement_execution_passes_through_candidates_without_rag_prompts(
     assert accepted[0]["mask_path"] is None
 
 
+def test_passthrough_skips_one_candidate_instead_of_crashing_the_whole_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Given: the same "zero RAG evidence" passthrough trigger as the happy
+    # path above, but combined with an original image too small for the
+    # candidate's restored bbox to fit inside (same setup that makes the
+    # real-refinement path above fail closed for one group).
+    prompt_root = tmp_path / "prompts"
+    asset_root = tmp_path / "assets-root"
+    output_root = tmp_path / "output"
+    prompt_root.mkdir()
+    _ = (prompt_root / "manifest.json").write_text(
+        json.dumps({"schema": "rag_refinement_prompt_variants_smoke_v1"})
+    )
+    _ = (prompt_root / "rag_refinement_prompt_variants.jsonl").write_text("")
+    _write_preprocessing_assets(asset_root)
+    original_path = asset_root / "assets" / "raw-inputs" / "image-001.jpg"
+    original_path.parent.mkdir(parents=True)
+    Image.new("RGB", (15, 15), (0, 0, 0)).save(original_path, format="JPEG")
+    _ = (asset_root / "manifests" / "input_manifest.json").write_text(
+        json.dumps(
+            {
+                "images": [
+                    {
+                        "image_id": "image-001",
+                        "run_root_asset_path": str(original_path),
+                    }
+                ]
+            }
+        )
+    )
+
+    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+        return (_rough_candidate(),)
+
+    monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
+
+    request = RefinementRunRequest(
+        prompt_output_dir=prompt_root,
+        rough_root=tmp_path / "rough",
+        asset_root=asset_root,
+        output_dir=output_root,
+        model_cache_root=tmp_path / "models",
+        device="cpu",
+        verify_model_hashes=False,
+        max_groups=None,
+    )
+
+    # When: refinement runs with zero prompt groups and a candidate whose
+    # coordinate restoration will fail.
+    result = run_refinement(request)
+
+    # Then: the stage does not crash - the candidate is skipped, not
+    # silently fabricated and not fatal to the whole run.
+    assert result.records == ()
+    assert len(result.skips) == 1
+    assert result.skips[0].rag_parent_candidate_id == "rough-parent-001"
+    assert "passthrough_coordinate_restoration_failed" in result.skips[0].reason
+    passthrough_path = output_root / "passthrough_records.jsonl"
+    assert passthrough_path.is_file()
+    assert passthrough_path.read_text(encoding="utf-8") == ""
+
+
 def test_refinement_execution_fails_group_when_original_bbox_exceeds_image_bounds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

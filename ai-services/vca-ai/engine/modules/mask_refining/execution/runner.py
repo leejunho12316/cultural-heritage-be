@@ -614,15 +614,23 @@ def _passthrough_record(
             rag_parent_candidate_id=str(candidate.candidate_id),
             model_lane=None,
         )
-    original_bbox = _restore_original_bbox(
-        candidate.bbox_xyxy,
-        assets.view.coordinate_transform,
-        assets.original_image_width_px,
-        assets.original_image_height_px,
-    )
-    mask = _restore_original_mask(
-        candidate, assets, request.rough_root, request.output_dir / "passthrough"
-    )
+    try:
+        original_bbox = _restore_original_bbox(
+            candidate.bbox_xyxy,
+            assets.view.coordinate_transform,
+            assets.original_image_width_px,
+            assets.original_image_height_px,
+        )
+        mask = _restore_original_mask(
+            candidate, assets, request.rough_root, request.output_dir / "passthrough"
+        )
+    except (ContractValidationError, OSError) as error:
+        return None, RefinementSkip(
+            SkipStage.EXECUTION,
+            f"passthrough_coordinate_restoration_failed: {error}",
+            rag_parent_candidate_id=str(candidate.candidate_id),
+            model_lane=None,
+        )
     row: JsonValue = {
         "rag_parent_candidate_id": str(candidate.candidate_id),
         "detector_lane": candidate.lane.value,

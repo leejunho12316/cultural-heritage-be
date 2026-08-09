@@ -1439,6 +1439,7 @@ public class VcaService {
             return List.of();
         }
         return citations.stream()
+                .filter(citation -> citation != null)
                 .map(citation -> new ReportResponse.Citation(
                         citation.citationId(),
                         citation.sourceCitation(),
@@ -1466,6 +1467,7 @@ public class VcaService {
             return null;
         }
         return polygons.stream()
+                .filter(polygon -> polygon != null)
                 .map(VcaService::toFindingPolygon)
                 .toList();
     }
@@ -1474,6 +1476,7 @@ public class VcaService {
             List<VcaAiAssessmentFinding.Point> polygon
     ) {
         return polygon.stream()
+                .filter(point -> point != null)
                 .map(point -> new ReportResponse.Point(point.x(), point.y()))
                 .toList();
     }

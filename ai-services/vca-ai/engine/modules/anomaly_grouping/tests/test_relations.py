@@ -242,6 +242,67 @@ def test_descriptor_mismatch_keeps_both_candidates(tmp_path: Path) -> None:
     )
 
 
+def test_refinement_uses_mask_pixel_count_not_bbox_area_to_pick_parent(
+    tmp_path: Path,
+) -> None:
+    # Given: candidate-a has a huge bbox but a tiny sparse mask (a small dot
+    # inside a large nominal detection box), while candidate-b has a modest
+    # bbox that is almost fully filled by its mask - so bbox-area ranks
+    # candidate-a "bigger", but mask-pixel-count ranks candidate-b "bigger".
+    # candidate-a's whole mask sits inside candidate-b's mask region.
+    candidate_a = _candidate_with_explicit_mask(
+        tmp_path,
+        "candidate-a",
+        bbox=BoundingBox(0, 0, 300, 300),
+        mask_bbox=BoundingBox(140, 140, 150, 150),
+    )
+    candidate_b = _candidate_with_explicit_mask(
+        tmp_path,
+        "candidate-b",
+        bbox=BoundingBox(100, 100, 150, 150),
+        mask_bbox=BoundingBox(130, 130, 175, 175),
+    )
+
+    # When: relation authority evaluates the pair.
+    result = merge_post_rag_relations(
+        RelationMergeRequest((candidate_a, candidate_b), tmp_path / "masks")
+    )
+
+    # Then: picking the parent by mask pixel count (not bbox area) correctly
+    # detects the containment/area-ratio relationship in the right direction
+    # - selecting by bbox area would test containment in the wrong direction
+    # (candidate-b's mask inside candidate-a's tiny dot) and never find it,
+    # falling through to the weaker SAME_ANOMALY_ADJACENT classification.
+    relation_class = result.relation_groups[0].relation_class
+    assert relation_class is RelationClass.SAME_ANOMALY_REFINEMENT
+
+
+def _candidate_with_explicit_mask(
+    tmp_path: Path,
+    candidate_id: str,
+    *,
+    bbox: BoundingBox,
+    mask_bbox: BoundingBox,
+) -> AnomalyCandidate:
+    return AnomalyCandidate(
+        candidate_id=CandidateId(candidate_id),
+        image_id="image-1",
+        source_object_id="object-1",
+        source_view_id="view-1",
+        seed_lane="owlv2_sam2",
+        seed_prompt="specific defect",
+        bbox=bbox,
+        mask=rect_mask(tmp_path, f"explicit-mask-{candidate_id}", mask_bbox),
+        evidence=CandidateEvidence(
+            concept_family="crack",
+            descriptor_tokens=("thin",),
+            concept_card_ids=("card-crack",),
+            provenance_strength="strong",
+            rag_status=RagAccountingStatus.COMPLETED,
+        ),
+    )
+
+
 def test_non_overlapping_candidates_emit_no_relation_group(tmp_path: Path) -> None:
     # Given: two structured candidates do not overlap or contain each other.
     left = _candidate(
@@ -264,6 +325,53 @@ def test_non_overlapping_candidates_emit_no_relation_group(tmp_path: Path) -> No
     assert result.relation_groups == ()
     assert result.candidate_results[CandidateId("candidate-a")].kept
     assert result.candidate_results[CandidateId("candidate-b")].kept
+
+
+def test_unmerged_candidate_bbox_and_polygons_are_derived_from_its_own_mask(
+    tmp_path: Path,
+) -> None:
+    # Given: a candidate whose upstream (pre-refinement) bbox field is stale
+    # relative to its actual, tighter refined mask - realistic because
+    # mask_refining's real masks are rarely a perfect rectangle matching the
+    # original detector bbox exactly.
+    stale_bbox = BoundingBox(0, 0, 50, 50)
+    true_mask_bbox = BoundingBox(10, 10, 30, 30)
+    candidate = AnomalyCandidate(
+        candidate_id=CandidateId("candidate-a"),
+        image_id="image-1",
+        source_object_id="object-1",
+        source_view_id="view-1",
+        seed_lane="owlv2_sam2",
+        seed_prompt="specific defect",
+        bbox=stale_bbox,
+        mask=rect_mask(tmp_path, "stale-bbox-candidate", true_mask_bbox),
+        evidence=CandidateEvidence(
+            concept_family="crack",
+            descriptor_tokens=("thin",),
+            concept_card_ids=("card-crack",),
+            provenance_strength="strong",
+            rag_status=RagAccountingStatus.COMPLETED,
+        ),
+    )
+
+    # When: relation authority resolves the single, unmerged candidate.
+    result = merge_post_rag_relations(
+        RelationMergeRequest((candidate,), tmp_path / "masks")
+    )
+
+    # Then: the reported bbox/polygons match the actual mask, not the stale
+    # upstream bbox field.
+    kept = result.candidate_results[CandidateId("candidate-a")]
+    assert kept.kept
+    assert kept.bbox is not None
+    assert (kept.bbox.x_min, kept.bbox.y_min, kept.bbox.x_max, kept.bbox.y_max) == (
+        10.0,
+        10.0,
+        30.0,
+        30.0,
+    )
+    assert kept.polygons is not None
+    assert len(kept.polygons) == 1
 
 
 def test_duplicate_cluster_suppressed_children_inherit_kept_parent(
