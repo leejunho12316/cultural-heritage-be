@@ -471,6 +471,7 @@ public class VcaService {
                         "IMAGE_NOT_FOUND",
                         "The requested VCA image was not found."
                 ));
+        requireImageNotReferencedByAnyRun(artifact, id);
         imageStore.deleteById(id);
         if (removed.getObjectKey() != null && imageStorage.isPresent()) {
             imageStorage.get().delete(removed.getObjectKey());
@@ -480,6 +481,25 @@ public class VcaService {
         artifact.setUpdatedAt(Instant.now());
         artifactStore.save(artifact);
         log.info("VCA image metadata deleted artifactId={} imageId={}", artifactId, imageId);
+    }
+
+    // deleteImage에서만 호출된다. Postgres 이전에는 RunState.uploadedImages가
+    // run 생성 시점에 캡처한 객체 참조를 그대로 들고 있어 이미지 삭제와 무관했지만,
+    // 지금은 run.uploadedImageIds가 UUID 문자열만 들고 있고 preparePotteryInspection/
+    // ensureReportReady가 그 UUID로 imageStore를 다시 조회한다 - 삭제 시점에
+    // 참조 여부를 막지 않으면 이미 생성된 run의 리포트/도자기 검사 생성이
+    // 나중에 IMAGE_NOT_FOUND로 깨진다.
+    private void requireImageNotReferencedByAnyRun(VcaArtifactEntity artifact, UUID imageId) {
+        String imageIdText = imageId.toString();
+        boolean referenced = runStore.findByArtifactId(artifact.getId()).stream()
+                .anyMatch(run -> run.getUploadedImageIds().contains(imageIdText));
+        if (referenced) {
+            throw new VcaApiException(
+                    HttpStatus.CONFLICT,
+                    "IMAGE_REFERENCED_BY_RUN",
+                    "The requested VCA image is referenced by an existing assessment run and cannot be deleted."
+            );
+        }
     }
 
     public RunResponse createRun(String artifactId) {

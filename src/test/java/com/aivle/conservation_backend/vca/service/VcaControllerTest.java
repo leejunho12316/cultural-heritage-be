@@ -1304,6 +1304,39 @@ class VcaControllerTest {
     }
 
     @Test
+    void rejectsDeletingAnImageReferencedByAnExistingRun() throws Exception {
+        // Before the Postgres persistence migration, a run's uploaded-images
+        // list held direct object references captured at creation time, so
+        // deleting an image afterward never affected an already-created run.
+        // Now a run only durably stores image UUIDs and re-resolves them from
+        // the image store on demand (report/pottery-inspection generation),
+        // so deleting a still-referenced image must be refused up front
+        // instead of silently breaking those reads later.
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        MockMvc gatewayMvc = mvc(new VcaService(true, new StaticVcaAiGateway(), sharedStorage));
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "detail.png",
+                "image/png",
+                PNG_BYTES
+        );
+        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/image-delete-guard-artifact/images")
+                        .file(file))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String imageId = JsonPath.read(
+                uploadResult.getResponse().getContentAsString(),
+                "$.imageId"
+        );
+        gatewayMvc.perform(post("/api/vca/image-delete-guard-artifact/runs"))
+                .andExpect(status().isAccepted());
+
+        gatewayMvc.perform(delete("/api/vca/image-delete-guard-artifact/images/{imageId}", imageId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("IMAGE_REFERENCED_BY_RUN"));
+    }
+
+    @Test
     void exposesSafeIntermediateResultsForCompletedRun() throws Exception {
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         Path outputRoot = tempDirectory.resolve("engine-output");
