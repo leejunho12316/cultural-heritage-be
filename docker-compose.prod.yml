@@ -1,0 +1,41 @@
+# 운영용 오버라이드 "틀"입니다 - 아직 실제로 돌려보고 검증한 파일이 아닙니다.
+#
+# 진짜 운영 배포는 이 파일이 아니라 AWS EKS(쿠버네티스, k8s/app.yaml +
+# k8s/storage.yaml, ai-services/README-cloud3.md 참고)로 갑니다. 이 파일은
+# "로컬 docker-compose와 운영 환경설정이 실제로 뭐가 다른지"를 한눈에 보려고
+# 만든 참고용 스켈레톤입니다 - 예를 들어 단일 EC2에 docker-compose로 임시
+# 스테이징을 띄우고 싶을 때 시작점으로 쓸 수 있습니다.
+#
+# 사용법(둘 다 아직 검증 안 됨):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     --profile "" up -d
+#
+# 아직 안 풀린 것 (실제로 쓰기 전에 처리해야 함):
+# - postgres/minio/minio-init은 "local" profile이라 --profile ""(빈 문자열)
+#   이면 시작 안 되는게 맞지만, conservation-guide-ai/conservation-backend가
+#   여전히 이 서비스들에 depends_on을 걸고 있어서 Compose가 어쨌든 같이
+#   띄워버릴 수 있습니다 - depends_on 자체를 오버라이드로 지우는 방법이
+#   Compose 스펙상 마땅치 않아서, 실제로 쓰려면 이 depends_on들을 별도로
+#   정리해야 합니다.
+# - conservation-guide-ai의 DATABASE_URL이 postgres 컨테이너 호스트명을
+#   하드코딩하고 있어서 아래에서 오버라이드했지만, 실제 RDS
+#   엔드포인트/자격증명을 어떻게 주입할지(Secrets Manager vs 평문 .env)는
+#   아직 정하지 않았습니다.
+# - 이미지도 로컬 build 그대로입니다 - 실제로는 ECR에서 pull하는 형태로
+#   바뀌어야 합니다(k8s/app.yaml처럼 image: <계정ID>.dkr.ecr.../<서비스>:latest).
+
+services:
+  conservation-guide-ai:
+    environment:
+      DATABASE_URL: postgresql://${RDS_USERNAME}:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/conservation
+
+  conservation-backend:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_ENDPOINT}:5432/conservation
+      SPRING_DATASOURCE_USERNAME: ${RDS_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${RDS_PASSWORD}
+      # 로컬 MinIO 엔드포인트 오버라이드를 비워서 진짜 AWS S3로 보낸다
+      # (S3Config가 이 값이 비어있으면 region 기본 엔드포인트를 쓴다).
+      AWS_S3_ENDPOINT: ""
+      AWS_S3_PRESIGN_ENDPOINT: ""
+      AWS_S3_PATH_STYLE_ACCESS_ENABLED: "false"
