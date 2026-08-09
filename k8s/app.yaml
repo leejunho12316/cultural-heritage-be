@@ -143,6 +143,100 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: vca-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vca-ai
+  template:
+    metadata:
+      labels:
+        app: vca-ai
+    spec:
+      containers:
+        - name: vca-ai
+          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/vca-ai:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: VCA_SHARED_STORAGE_ROOT
+              value: "/vca_v2/output/input"
+            - name: VCA_ENGINE_ROOT
+              value: "/vca_v2"
+            - name: VCA_RUN_TIMEOUT_SECONDS
+              value: "3600"
+            - name: VCA_RUN_MODE
+              value: "real"
+            - name: VCA_DEVICE
+              value: "auto"
+            - name: VCA_MAX_IMAGES
+              value: "1"
+            - name: VCA_SKIP_VISUAL_CUES
+              value: "false"
+            - name: VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES
+              value: "false"
+            - name: VCA_MODEL_CACHE_ROOT
+              value: "/opt/vca-models/models"
+            - name: VCA_DOCUMENT_CORPUS_DIR
+              value: "/opt/vca-data/document"
+            # 로컬 docker-compose는 이 값을 true로 켜서 첫 기동 시 모델을
+            # 내려받는다. 운영 이미지에 모델을 미리 구워넣을지, 매 기동마다
+            # 받을지(그럴 경우 vca-model-cache를 emptyDir이 아니라 영속
+            # 볼륨으로 바꿔야 함) 아직 안 정했다 - 일단 false로 두고 미룬다.
+            - name: VCA_BOOTSTRAP_MODELS
+              value: "false"
+            - name: UV_PROJECT_ENVIRONMENT
+              value: "/opt/vca-uv-env"
+            - name: UV_CACHE_DIR
+              value: "/opt/vca-uv-cache"
+            - name: UV_FROZEN
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: app-secrets
+          volumeMounts:
+            # docker-compose가 ./shared/vca/{engine-output,input-store,document-corpus}를
+            # 각각 따로 bind-mount하는 것과 동일하게, 같은 EFS PVC를
+            # subPath로 나눠 마운트해 conservation-backend와 데이터를 공유한다.
+            - name: shared-storage
+              mountPath: /vca_v2/output
+              subPath: vca/engine-output
+            - name: shared-storage
+              mountPath: /vca_v2/output/input
+              subPath: vca/input-store
+            - name: shared-storage
+              mountPath: /opt/vca-data/document
+              subPath: vca/document-corpus
+              readOnly: true
+            - name: vca-uv-cache
+              mountPath: /opt/vca-uv-cache
+            - name: vca-model-cache
+              mountPath: /opt/vca-models
+      volumes:
+        - name: shared-storage
+          persistentVolumeClaim:
+            claimName: shared-efs-pvc
+        - name: vca-uv-cache
+          emptyDir: {}
+        - name: vca-model-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vca-ai
+spec:
+  selector:
+    app: vca-ai
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: conservation-backend
 spec:
   replicas: 1
@@ -174,6 +268,22 @@ spec:
               value: "/shared/jobs"
             - name: POTTERY_INSPECTION_AI_BASE_URL
               value: "http://pottery-inspection-ai:8000"
+            - name: VCA_AI_BASE_URL
+              value: "http://vca-ai:8000"
+            - name: VCA_AI_TIMEOUT_SECONDS
+              value: "3900"
+            # VCA_ACCESS_TOKEN도 app-secrets에 있어야 한다(아래 envFrom으로
+            # 자동 주입됨) - 없으면 Spring이 기동 시점에 바로 실패한다.
+            - name: VCA_SHARED_STORAGE_ROOT
+              value: "/shared/vca/input-store"
+            - name: VCA_SHARED_STORAGE_CONTAINER_ROOT
+              value: "/vca_v2/output/input"
+            - name: VCA_ENGINE_OUTPUT_ROOT
+              value: "/shared/vca/engine-output"
+            - name: VCA_DOCUMENT_CORPUS_ROOT
+              value: "/shared/vca/document-corpus"
+            - name: VCA_S3_OBJECT_PREFIX
+              value: "vca/images"
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
