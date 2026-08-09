@@ -162,12 +162,18 @@ VCA 이미지 업로드는 Spring이 S3-compatible object storage에 저장한�
 오래 걸리지만 이후에는 Docker volume 캐시를 재사용한다.
 
 #### AWS 콘솔에서 발급받는 방법
+
 1. IAM 관련
    AWS Console - IAM - IAM 사용자에 들어가 사용자 생성을 눌러주세요.
    사용자 이름을 입력하고 다음을 누르세요.
-   직접 정책 연결 - AmazonS3FullAccess를 부여하세요.
-   사용자 생성을 완료하세요.
-   
+   IAM 사용자에는 `AmazonS3FullAccess`를 부여하지 않습니다.
+
+   대신 대상 버킷에 한정된 `xray-test-s3-app-policy` {추후 이름 변경 예정/지금은 테스트 용}를 연결합니다.
+   - 버킷 권한: `s3:GetBucketLocation`, `s3:ListBucket`
+   - 객체 권한: `s3:GetObject`, `s3:PutObject`
+   - 객체 범위: `<bucket-arn>/xray/*`
+     사용자 생성을 완료하세요.
+
    생성된 IAM 사용자를 클릭하세요.
    액세스 키 만들기 - 로컬 코드를 선택해 액세스 코드를 생성하세요.
    3단계에 나오는 액세스 키와 비밀 액세스 키를 .env에 입력하면 됩니다.
@@ -176,12 +182,10 @@ VCA 이미지 업로드는 Spring이 S3-compatible object storage에 저장한�
 
 2. S3 관련
    AWS Console - S3에 들어가 버킷을 하나 만드세요
-   ACL 비활성화, 모든 퍼블릭 액세스 차단, 버킷 버전 관리 비활성화 등으로 전부**기본 설정**을 그냥 사용하세요.  
+   ACL 비활성화, 모든 퍼블릭 액세스 차단, 버킷 버전 관리 비활성화 등으로 전부**기본 설정**을 그냥 사용하세요.
 
    -> AWS_S3_BUCKET : S3 버킷을 만들고 버킷 이름을 적어주시면 됩니다.
    -> AWS_REGION : AWS 인프라가 구축되어 있는 리전을 입력해주시면 됩니다. (ap-northeast-2, us-east-1,,,)
-
-
 
 ### `shared/` (레포 루트)
 
@@ -374,3 +378,11 @@ JUnit Platform(test). 버전은 Spring Boot 4.1.0 BOM 이 관리.
 
 > 로컬 개발 venv 가 3.12 보다 최신 Python 으로 구성되어 있다면,
 > 배포 환경(Docker)과의 문법 호환성 문제가 없는지 유의할 것.
+
+---
+
+## X-ray S3·Lambda·RDS 통합
+
+X-ray 결합은 더 이상 Docker `shared` volume이나 EFS를 사용하지 않습니다. 입력은 presigned URL로 S3에 업로드하고, FastAPI는 URL로 입력을 받아 임시 작업공간에서 처리한 뒤 결과를 S3에 저장합니다. 작업 상태는 RDS `xray_job`, S3 객체 기록은 Lambda가 `s3_file`에 저장합니다.
+
+구조와 FE 계약은 [`docs/XRAY_S3_RDS_INTEGRATION.md`](docs/XRAY_S3_RDS_INTEGRATION.md), 참고 DDL은 [`db/xray_s3_rds.sql`](db/xray_s3_rds.sql)을 확인하세요.

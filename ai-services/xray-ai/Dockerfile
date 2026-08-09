@@ -52,20 +52,17 @@ COPY configs/ ./configs/
 
 ENV XRAY_MODEL_PATH=/code/models/final_xray_defect_best.pt
 ENV XRAY_DEVICE=cpu
-ENV XRAY_STITCH_JOBS_ROOT=/shared/jobs
+ENV XRAY_STITCH_JOBS_ROOT=/tmp/xray_jobs
+ENV XRAY_STITCH_CACHE_DIR=/tmp/xray_cache
 ENV XRAY_STITCH_ENGINE_DIR=/code
 ENV XRAY_STITCH_SINGLE_SCRIPT=/code/scripts/assemble_xray.py
 ENV XRAY_STITCH_BATCH_SCRIPT=/code/scripts/batch_assemble.py
 ENV XRAY_STITCH_CONFIG_DIR=/code/configs
 ENV XRAY_STITCH_MAPPING_DIR=/code/mappings
 ENV XRAY_STITCH_MAPPING_PATH=/code/mappings/mapping.color_front.json
-ENV XRAY_STITCH_CACHE_DIR=/shared/cache
 ENV PYTHONUNBUFFERED=1
 
 # 조각 결합 기본 경로
-ENV XRAY_STITCH_ENGINE_DIR=/code/engine
-ENV XRAY_STITCH_CONFIG_DIR=/code/configs
-ENV XRAY_STITCH_ENGINE_SCRIPT=assemble_xray.py
 
 EXPOSE 8000
 

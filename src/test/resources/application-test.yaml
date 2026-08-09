@@ -1,0 +1,60 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:conservation_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      # 운영 환경도 별도 마이그레이션 파일 없이 Hibernate 자동 DDL(update)로
+      # 스키마를 관리한다 - 테스트만 none으로 두면 이 파일에 명시된 도메인
+      # 외의 엔티티(예: VCA의 5테이블)가 실제로 쿼리되는 순간 스키마가 아예
+      # 없어서 깨진다. create-drop으로 모든 엔티티의 테이블을 매 테스트
+      # 컨텍스트마다 새로 만든다.
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  sql:
+    init:
+      mode: never
+
+aws:
+  region: ap-northeast-2
+  access-key-id: test
+  secret-access-key: test
+  s3:
+    bucket: test-bucket
+
+conservation-guide-ai:
+  base-url: http://localhost:8000
+
+pottery-inspection-ai:
+  base-url: http://localhost:8003
+
+xray:
+  s3:
+    presign-input-minutes: 30
+    presign-output-minutes: 120
+    presign-get-minutes: 120
+
+  ai:
+    base-url: http://localhost:8001
+    timeout-seconds: 300
+    config-name: config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json
+
+  stitch:
+    callback-url: http://localhost:8080/api/xray/stitch/callback
+    callback-token: test-callback-token
+    finalization-wait-seconds: 10
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173,http://localhost:5174
+
+vca:
+  access-token: test-vca-token

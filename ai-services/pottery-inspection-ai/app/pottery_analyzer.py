@@ -203,20 +203,41 @@ def extract_completeness_features(mask: np.ndarray) -> dict[str, float] | None:
 
 
 _REGION_MERGE_OVERLAP_THRESHOLD = 0.5  # 이 비율 이상 겹치면 "같은 물체의 다른 탐지"로 보고 하나만 남긴다
+_REGION_MERGE_PROXIMITY_RATIO = 0.03  # 두 영역 사이 간격이 이미지 대각선의 이 비율 이내면 안 겹쳐도 병합
+
+
+def _mask_bbox(mask: np.ndarray):
+    ys, xs = np.where(mask)
+    if len(ys) == 0:
+        return None
+    return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+
+
+def _bbox_gap(box_a, box_b) -> float:
+    """두 bbox 사이의 최소 거리(픽셀). 겹치거나 맞닿아 있으면 0."""
+    ax1, ay1, ax2, ay2 = box_a
+    bx1, by1, bx2, by2 = box_b
+    dx = max(bx1 - ax2, ax1 - bx2, 0)
+    dy = max(by1 - ay2, ay1 - by2, 0)
+    return (dx**2 + dy**2) ** 0.5
 
 
 def _deduplicate_overlapping_regions(regions: list[dict]) -> list[dict]:
-    """SAM2 마스크 기준으로, 서로 크게 겹치는 영역은 같은 물체로 보고 하나만 남긴다.
+    """SAM2 마스크 기준으로, 같은 물체로 보이는 영역은 하나만 남긴다.
 
-    Grounding DINO는 "ceramic vessel"/"pottery" 프롬프트에 대해 유물 전체와
-    그 일부(목/몸통 등)를 각각 별도 박스로 잡을 때가 있다. 이 박스들은
-    grounded_sam_detector.py 내부의 박스 IoU 기준 중복 제거(0.6)를 통과할
-    만큼 서로 다르게 생겼을 수 있지만(하나가 다른 하나에 완전히 포함되면
-    IoU 자체가 낮게 나온다), 실제로는 같은 유물 하나다. 여기서는 실제 SAM2
-    마스크(픽셀 단위)로 다시 겹침을 확인해서, 진짜 "여러 조각을 늘어놓은
-    사진"과 "유물 하나가 부분적으로 두 번 잡힌 것"을 구분한다.
+    두 가지 경우를 각각 다른 기준으로 병합한다.
+
+    ① 겹치는 경우: Grounding DINO가 유물 전체와 그 일부(목/몸통 등)를 각각
+    별도 박스로 잡을 때 - 마스크가 크게 겹치면 하나로 본다.
+
+    ② 겹치지 않지만 아주 가까이 붙어있는 경우: 유약이 반들반들한 도자기는
+    강한 반사광 때문에 SAM2가 "여기서 물체가 끊긴다"고 잘못 판단해서, 물리
+    적으로 하나인 그릇을 공간적으로 뚝 떨어진 두 덩어리로 쪼개 잡을 때가
+    있다. 이 경우 두 마스크는 서로 안 겹치지만, bbox 사이 간격이 아주 좁다
+    - 간격이 이미지 대각선의 일정 비율 이내면 같은 물체로 보고 합친다.
     """
     kept: list[dict] = []
+    image_diag = None
 
     # 마스크 면적이 큰 순서로 처리 - 더 완전하게(전체를) 잡은 탐지를 우선 남긴다.
     sorted_regions = sorted(
@@ -229,9 +250,17 @@ def _deduplicate_overlapping_regions(regions: list[dict]) -> list[dict]:
         if mask_area == 0:
             continue
 
+        if image_diag is None:
+            h, w = mask.shape
+            image_diag = (h**2 + w**2) ** 0.5
+
+        bbox = _mask_bbox(mask)
         is_duplicate = False
+
         for kept_region in kept:
             kept_mask = np.asarray(kept_region["mask"], dtype=bool)
+
+            # ① 겹침 기준
             overlap = np.logical_and(mask, kept_mask).sum()
             smaller_area = min(mask_area, kept_mask.sum())
             if (
@@ -240,6 +269,14 @@ def _deduplicate_overlapping_regions(regions: list[dict]) -> list[dict]:
             ):
                 is_duplicate = True
                 break
+
+            # ② 근접 기준 - 안 겹쳐도 아주 가까우면 병합(반사광으로 인한 분절 대응)
+            kept_bbox = _mask_bbox(kept_mask)
+            if bbox is not None and kept_bbox is not None:
+                gap = _bbox_gap(bbox, kept_bbox)
+                if gap <= image_diag * _REGION_MERGE_PROXIMITY_RATIO:
+                    is_duplicate = True
+                    break
 
         if not is_duplicate:
             kept.append(region)

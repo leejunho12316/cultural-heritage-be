@@ -1,80 +1,144 @@
+# ============================================================
+# Local runtime volumes
+# ============================================================
+
+# docker-compose's ./shared bind mount - VCA runtime uploads/engine-output
+# and any local test artifacts. X-RAY moved off this to S3; VCA still uses
+# it for local native-engine runs (docker-compose.local-vca.override.yml).
+/shared/
+
+# ============================================================
+# Gradle / Spring Boot
+# ============================================================
+
 HELP.md
-.gradle
+.gradle/
 build/
+
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### STS ###
+
+# ============================================================
+# Environment / Secrets
+# ============================================================
+
+.env
+.env.*
+!.env.example
+
+/.env
+/.env.k8s
+
+ai-services/conservation-guide-ai/.env
+ai-services/conservation-guide-ai/app/.env
+ai-services/xray-ai/.env
+
+
+# ============================================================
+# STS
+# ============================================================
+
 .apt_generated
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
-.sts4-cache
+.sts4-cache/
 bin/
+
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 
-### IntelliJ IDEA ###
-.idea
+
+# ============================================================
+# IntelliJ IDEA
+# ============================================================
+
+.idea/
 *.iws
 *.iml
 *.ipr
 out/
+
 !**/src/main/**/out/
 !**/src/test/**/out/
 
-### NetBeans ###
+
+# ============================================================
+# NetBeans
+# ============================================================
+
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 
-### VS Code ###
+
+# ============================================================
+# VS Code
+# ============================================================
+
 .vscode/
 
-### Claude Code ###
+
+# ============================================================
+# Claude Code
+# ============================================================
+
 .claude/
 
-### cloud-deploy ###
-/.env
-/.env.k8s
 
-### conservation-guide-ai ###
-ai-services/conservation-guide-ai/.env
-ai-services/conservation-guide-ai/app/.env
-ai-services/conservation-guide-ai/.venv/
+# ============================================================
+# Python Common
+# ============================================================
+
+__pycache__/
+**/__pycache__/
+*.pyc
+
+.venv/
+**/.venv/
+
+
+# ============================================================
+# conservation-guide-ai
+# ============================================================
+
 ai-services/conservation-guide-ai/checkpoints.db
 ai-services/conservation-guide-ai/checkpoints.db-shm
 ai-services/conservation-guide-ai/checkpoints.db-wal
+
 ai-services/conservation-guide-ai/test_photos/*
 !ai-services/conservation-guide-ai/test_photos/README.md
+
 ai-services/conservation-guide-ai/app/reinforcement_rag/reinforcement_docs/*
 ai-services/conservation-guide-ai/app/reinforcement_rag/vector_store/*
 ai-services/conservation-guide-ai/app/reinforcement_wetting_data/generated/*
 ai-services/conservation-guide-ai/app/bonding_rag/documents/*
 ai-services/conservation-guide-ai/app/restoration_rag/documents/*
-__pycache__/
-*.pyc
 
-### xray-ai ###
-ai-services/xray-ai/.env
-ai-services/xray-ai/.venv/
+
+# ============================================================
+# xray-ai
+# ============================================================
+
 ai-services/xray-ai/models/*.pt
+ai-services/xray-ai/models/*.pt*
 ai-services/xray-ai/models/*.pth
+
 ai-services/xray-ai/samples/
 ai-services/xray-ai/test_output/
+
 !ai-services/xray-ai/models/README.md
 
-# 결합 엔진이 만드는 캐시
+# 결합 엔진 캐시
 ai-services/xray-ai/.xray_input_cache/
 
 # 파이썬 캐시
-__pycache__/
-*.pyc
 .pytest_cache/
 
 ### vca-ai ###
@@ -87,9 +151,21 @@ ai-services/vca-ai/engine/.models
 ai-services/vca-ai/engine/.venv/
 ai-services/vca-ai/engine/**/.omo/
 
-### frontend ###
+# ============================================================
+# Local X-RAY Test Artifacts
+# ============================================================
+
+/assembled-*.png
+/layout-*.json
+/report-request*.json
+/report-response*.json
+/final-report*.txt
+/xray-report-test*.txt
+/backend-build*.log
+
+# ============================================================
+# Frontend / Node
+# ============================================================
+
 node_modules/
 dist/
-### shared xray jobs ###
-shared/*
-!shared/.gitkeep

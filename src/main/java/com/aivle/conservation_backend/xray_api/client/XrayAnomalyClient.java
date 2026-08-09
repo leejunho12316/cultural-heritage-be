@@ -2,6 +2,7 @@ package com.aivle.conservation_backend.xray_api.client;
 
 import com.aivle.conservation_backend.xray_api.dto.AnalysisTarget;
 import com.aivle.conservation_backend.xray_api.dto.XrayDetectionResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayUrlDetectionRequest;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -15,6 +16,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
@@ -184,6 +186,29 @@ public class XrayAnomalyClient {
                 .body(XrayDetectionResponse.class);
     }
 
+    /** S3 presigned GET URL의 이미지를 FastAPI가 직접 내려받아 분석한다. */
+    public XrayDetectionResponse detectUrl(
+            String fileName,
+            String downloadUrl,
+            AnalysisTarget target,
+            Double confidence,
+            Integer sourceIndex
+    ) {
+        XrayUrlDetectionRequest.Single body = new XrayUrlDetectionRequest.Single(
+                fileName,
+                downloadUrl,
+                target.getValue(),
+                confidence,
+                sourceIndex
+        );
+        return restClient.post()
+                .uri("/detect-url")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(XrayDetectionResponse.class);
+    }
+
     // ------------------------------------------------------------
     // 여러 이미지 일괄 탐지
     // ------------------------------------------------------------
@@ -274,6 +299,41 @@ public class XrayAnomalyClient {
                 .body(XrayDetectionResponse.class);
     }
 
+    /** 여러 S3 presigned GET URL을 sourceIndex 순서와 함께 분석한다. */
+    public XrayDetectionResponse detectBatchUrls(
+            List<String> fileNames,
+            List<String> downloadUrls,
+            List<Integer> sourceIndexes,
+            AnalysisTarget target,
+            Double confidence
+    ) {
+        if (fileNames.size() != downloadUrls.size()
+                || fileNames.size() != sourceIndexes.size()) {
+            throw new IllegalArgumentException("URL detection input size mismatch.");
+        }
+        List<XrayUrlDetectionRequest.Single> files = java.util.stream.IntStream
+                .range(0, fileNames.size())
+                .mapToObj(index -> new XrayUrlDetectionRequest.Single(
+                        fileNames.get(index),
+                        downloadUrls.get(index),
+                        target.getValue(),
+                        confidence,
+                        sourceIndexes.get(index)
+                ))
+                .toList();
+        XrayUrlDetectionRequest.Batch body = new XrayUrlDetectionRequest.Batch(
+                files,
+                target.getValue(),
+                confidence
+        );
+        return restClient.post()
+                .uri("/detect-batch-urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(XrayDetectionResponse.class);
+    }
+
     // ------------------------------------------------------------
     // 상태조사 문안 생성
     // ------------------------------------------------------------
@@ -353,6 +413,57 @@ public class XrayAnomalyClient {
                 .retrieve()
                 .body(String.class);
     }
+
+    /** S3에서 읽은 Resource를 이용해 전문가용 문안 초안을 생성한다. */
+public String generateReportResources(
+        String regionsJson,
+        String artifactType,
+        String material,
+        String reportStyle,
+        Resource assembled,
+        List<Resource> fragments,
+        List<Resource> rgbImages
+) {
+    MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+    body.add("regions", regionsJson);
+    body.add(
+            "report_style",
+            reportStyle != null && !reportStyle.isBlank()
+                    ? reportStyle
+                    : "summary"
+    );
+    body.add("artifact_type", artifactType != null ? artifactType : "");
+    body.add("material", material != null ? material : "");
+
+    if (assembled != null) {
+        body.add("assembled", assembled);
+    }
+
+    if (fragments != null) {
+        fragments.stream()
+                .limit(6)
+                .forEach(file -> body.add("fragments", file));
+    }
+
+    if (rgbImages != null) {
+        rgbImages.stream()
+                .limit(6)
+                .forEach(file -> body.add("rgb_images", file));
+    }
+
+    byte[] responseBytes = restClient.post()
+            .uri("/report")
+            .contentType(MediaType.MULTIPART_FORM_DATA)
+            .body(body)
+            .retrieve()
+            .body(byte[].class);
+
+    if (responseBytes == null) {
+        throw new IllegalStateException("AI report response body is empty.");
+    }
+
+    return new String(responseBytes, StandardCharsets.UTF_8);
+}
 
     // ------------------------------------------------------------
     // 내부 유틸
