@@ -44,7 +44,10 @@ _MERGE_CLASSES: frozenset[RelationClass] = frozenset(
 # 연결요소(병합 그룹)를 만들고, 그룹마다 마스크를 픽셀 union으로 합쳐
 # mask_output_dir에 기록한 뒤, 후보별 최종 유지/흡수 상태를 반환한다. 그룹의
 # 대표 id는 병합 전 어떤 후보가 "더 나았는지"와 무관하게 결정적으로 정해지는
-# 최소 candidate_id일 뿐이다 - 실제 내용(마스크/bbox)은 항상 union이다.
+# 최소 candidate_id일 뿐이다 - 실제 내용(마스크/bbox)은 항상 union이다. 3개
+# 이상이 서로 다른 관계 클래스로 섞여 병합될 때 "이 그룹의 대표 관계"를
+# 하나 고르는 개념은 없다 - 병합 근거는 항상 result.relation_merge의 전체
+# 쌍별 relation_groups에서 찾는다(예: startup_trace_source._relation_outcome).
 def candidate_results(
     candidates: tuple[AnomalyCandidate, ...],
     relation_groups: tuple[RelationGroup, ...],
@@ -53,7 +56,7 @@ def candidate_results(
     """Resolve per-candidate kept state, merging masks for merge-class groups."""
     by_id = {candidate.candidate_id: candidate for candidate in candidates}
     results: dict[CandidateId, CandidateRelationResult] = {}
-    for member_ids, group_relation_id in _merge_components(candidates, relation_groups):
+    for member_ids in _merge_components(candidates, relation_groups):
         root_id = min(member_ids)
         if len(member_ids) == 1:
             candidate = by_id[root_id]
@@ -75,7 +78,6 @@ def candidate_results(
             mask=union_mask,
             bbox=union_bbox,
             polygons=union_polygons,
-            relation_group_id=group_relation_id,
         )
         for member_id in member_ids:
             if member_id == root_id:
@@ -84,7 +86,6 @@ def candidate_results(
                 member_id,
                 kept=False,
                 inherited_parent_candidate_id=root_id,
-                relation_group_id=group_relation_id,
             )
     return results
 
@@ -96,7 +97,7 @@ def candidate_results(
 def _merge_components(
     candidates: tuple[AnomalyCandidate, ...],
     relation_groups: tuple[RelationGroup, ...],
-) -> tuple[tuple[tuple[CandidateId, ...], str | None], ...]:
+) -> tuple[tuple[CandidateId, ...], ...]:
     parent: dict[CandidateId, CandidateId] = {
         candidate.candidate_id: candidate.candidate_id for candidate in candidates
     }
@@ -124,18 +125,10 @@ def _merge_components(
             candidate.candidate_id
         )
 
-    relation_id_by_root: dict[CandidateId, str] = {}
-    for relation in merge_relations:
-        root = find(relation.parent_candidate_id)
-        relation_id_by_root.setdefault(root, relation.relation_group_id)
-
     return tuple(
         sorted(
-            (
-                (tuple(sorted(members)), relation_id_by_root.get(root))
-                for root, members in members_by_root.items()
-            ),
-            key=lambda item: item[0],
+            (tuple(sorted(members)) for members in members_by_root.values()),
+            key=lambda members: members,
         )
     )
 

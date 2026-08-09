@@ -35,7 +35,6 @@ def result_payload(result: AnomalyGroupingResult) -> JsonObject:
                     if relation.inherited_parent_candidate_id is not None
                     else None
                 ),
-                "relation_group_id": relation.relation_group_id,
             }
             for candidate_id, relation in sorted(
                 result.relation_merge.candidate_results.items()

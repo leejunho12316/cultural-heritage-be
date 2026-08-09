@@ -175,7 +175,6 @@ class CandidateRelationResult:
     bbox: BoundingBox | None = None
     polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
     inherited_parent_candidate_id: CandidateId | None = None
-    relation_group_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

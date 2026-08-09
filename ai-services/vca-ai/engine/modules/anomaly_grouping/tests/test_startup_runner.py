@@ -354,7 +354,6 @@ def test_trace_source_succeeds_when_duplicate_candidate_is_suppressed(
                     suppressed_id,
                     kept=False,
                     inherited_parent_candidate_id=kept_id,
-                    relation_group_id="relation-group-001",
                 ),
             },
         ),
