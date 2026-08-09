@@ -356,6 +356,130 @@ def test_startup_stops_after_failed_project_stage(
     )
 
 
+def test_startup_resumes_from_failed_stage_reusing_prior_completed_stages(
+    tmp_path: Path,
+) -> None:
+    # Given: a first attempt that completes five stages and then fails at
+    # mask_refining.
+    image_root = tmp_path / "inputs"
+    _ = _write_image(image_root / "source.jpg")
+    first_calls: list[str] = []
+
+    def failing_cli(stage_name: str, exit_code: int) -> startup.PreprocessingRunner:
+        def fake(arguments: tuple[str, ...]) -> int:
+            _ = arguments
+            first_calls.append(stage_name)
+            return exit_code
+
+        return fake
+
+    def successful_project(request: ProjectStageRequest) -> int:
+        first_calls.append(request.stage_name)
+        return 0
+
+    first_exit_code = startup.run(
+        ("resume-project", str(image_root)),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=failing_cli("preprocessing", 0),
+            rough_masking=successful_project,
+            visual_cue_generation=successful_project,
+            rag=successful_project,
+            prompt_generating=successful_project,
+            mask_refining=failing_cli("mask_refining", 1),
+            anomaly_grouping=successful_project,
+            report_generating=successful_project,
+        ),
+    )
+    assert first_exit_code == 1
+    assert first_calls == [
+        "preprocessing",
+        "rough_masking",
+        "visual_cue_generation",
+        "rag",
+        "prompt_generating",
+        "mask_refining",
+    ]
+
+    # When: startup is retried with --resume-from-stage mask_refining against
+    # the same project root - mirroring how vca-ai would invoke it after
+    # copying the prior failed run's completed-stage output (and its
+    # startup.json) into a fresh run's directory.
+    second_calls: list[str] = []
+
+    def tracked_cli(stage_name: str) -> startup.PreprocessingRunner:
+        def fake(arguments: tuple[str, ...]) -> int:
+            _ = arguments
+            second_calls.append(stage_name)
+            return 0
+
+        return fake
+
+    def tracked_project(request: ProjectStageRequest) -> int:
+        second_calls.append(request.stage_name)
+        return 0
+
+    second_exit_code = startup.run(
+        ("resume-project", str(image_root), "--resume-from-stage", "mask_refining"),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=tracked_cli("preprocessing"),
+            rough_masking=tracked_project,
+            visual_cue_generation=tracked_project,
+            rag=tracked_project,
+            prompt_generating=tracked_project,
+            mask_refining=tracked_cli("mask_refining"),
+            anomaly_grouping=tracked_project,
+            report_generating=tracked_project,
+        ),
+    )
+
+    # Then: only the stages from mask_refining onward actually ran, and the
+    # final receipt still carries the full eight-stage history.
+    assert second_exit_code == 0
+    assert second_calls == ["mask_refining", "anomaly_grouping", "report_generating"]
+    receipt = _run_status_receipt(tmp_path, "resume-project")
+    stages = _stage_records(receipt)
+    assert [stage["name"] for stage in stages] == list(EXPECTED_STAGE_NAMES)
+    assert [stage["status"] for stage in stages] == ["completed"] * 8
+
+
+def test_startup_resume_fails_closed_without_a_prior_receipt(tmp_path: Path) -> None:
+    # Given: no prior run has ever written a startup.json for this project -
+    # vca-ai should never send --resume-from-stage in this situation, but the
+    # orchestrator must still fail closed rather than silently doing
+    # something wrong if it somehow does.
+    image_root = tmp_path / "inputs"
+    _ = _write_image(image_root / "source.jpg")
+
+    def successful_cli(arguments: tuple[str, ...]) -> int:
+        _ = arguments
+        return 0
+
+    def successful_project(request: ProjectStageRequest) -> int:
+        _ = request
+        return 0
+
+    # When: startup is asked to resume from a stage with nothing to resume.
+    exit_code = startup.run(
+        ("resume-missing", str(image_root), "--resume-from-stage", "mask_refining"),
+        workspace_root=tmp_path,
+        stage_runners=StartupStageRunners(
+            preprocessing=successful_cli,
+            rough_masking=successful_project,
+            visual_cue_generation=successful_project,
+            rag=successful_project,
+            prompt_generating=successful_project,
+            mask_refining=successful_cli,
+            anomaly_grouping=successful_project,
+            report_generating=successful_project,
+        ),
+    )
+
+    # Then: the run fails closed instead of guessing.
+    assert exit_code == 2
+
+
 def _successful_cli_runner(arguments: tuple[str, ...]) -> int:
     _ = arguments
     return 0

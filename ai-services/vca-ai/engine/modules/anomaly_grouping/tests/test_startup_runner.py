@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
 
+    from modules.anomaly_grouping.models import MaskReference
     from modules.orchestration.stage_paths import StagePathMap
     from modules.report_generating.models import JsonObject, JsonValue
 
@@ -119,6 +120,7 @@ def test_run_anomaly_grouping_stage_includes_passthrough_candidates(
     passthrough_mask = rect_mask(
         tmp_path, "passthrough-candidate-001", BoundingBox(5.0, 5.0, 25.0, 25.0)
     )
+    _write_object_mask(request.paths, "image-001", "object-002")
     _write_jsonl(
         request.paths.mask_refining / "passthrough_records.jsonl",
         (
@@ -166,6 +168,218 @@ def test_run_anomaly_grouping_stage_includes_passthrough_candidates(
     assert passthrough_candidate["concept_family"] == "unknown"
     assert passthrough_candidate["qwen_final_success"] is False
     assert passthrough_candidate["final_success"] is True
+
+
+def test_run_anomaly_grouping_stage_merges_duplicate_candidate_id_across_lineages(
+    tmp_path: Path,
+) -> None:
+    # Given: the same real anomaly reaches mask_refining through two distinct
+    # rag_parent lineages (eg. a plain object-crop detection and a
+    # tile-merged detection of the same physical region). Refining the same
+    # region with the same prompt/lane converges to byte-identical output, so
+    # both rows end up sharing the same candidate_id - a true duplicate, not
+    # fabrication.
+    request = _request(tmp_path)
+    _write_upstream_inputs(tmp_path, request.paths)
+    mask = rect_mask(
+        tmp_path, "refined-candidate-001", BoundingBox(0.0, 0.0, 20.0, 20.0)
+    )
+    second_parent_candidate_id = "tile-merged-parent-001"
+
+    def _row(rag_parent_candidate_id: str, records_json: Path) -> JsonObject:
+        return {
+            "accepted_candidates": [
+                {
+                    "bbox_xyxy": [0.0, 0.0, 20.0, 20.0],
+                    "original_bbox_xyxy": [0.0, 0.0, 20.0, 20.0],
+                    "candidate_id": "refined-candidate-001",
+                    "image_id": "image-001",
+                    "prompt": "white surface deposit",
+                    "source_object_id": "object-001",
+                    "source_view_id": "view-001",
+                    "qwen_final_success": True,
+                    "qwen_report_display_text": "white deposit observed",
+                    "qwen_confidence": 0.75,
+                    "mask_path": mask.path,
+                    "mask_sha256": mask.sha256,
+                }
+            ],
+            "accepted_candidate_ids": ["refined-candidate-001"],
+            "detector_lane": "owlv2_sam2",
+            "diagnostics": [],
+            "model_lane": "owlv2",
+            "prompt_texts": ["white surface deposit"],
+            "rag_parent_candidate_id": rag_parent_candidate_id,
+            "records_json": str(records_json),
+            "status": "executed",
+        }
+
+    _write_jsonl(
+        request.paths.mask_refining / "refined_records.jsonl",
+        (
+            _row(
+                "rough-parent-001",
+                request.paths.mask_refining
+                / "refined"
+                / "refined-candidate-001"
+                / "records.json",
+            ),
+            _row(
+                second_parent_candidate_id,
+                request.paths.mask_refining
+                / "refined"
+                / "refined-candidate-001-b"
+                / "records.json",
+            ),
+        ),
+    )
+    _write_jsonl(
+        request.paths.rag / "rag_visual_concept_cards.jsonl",
+        (
+            {
+                "concept_card_id": "card-001",
+                "concept_family": "deposit",
+                "context_terms": ["surface"],
+                "descriptor_terms": ["white", "powdery"],
+                "material_terms": ["stone"],
+                "provenance_strength": "strong",
+                "rag_parent_candidate_id": "rough-parent-001",
+                "raw_retrieved_sentence": "white powdery deposit on stone",
+                "retrieval_score": 7.5,
+                "source_citation_ids": ["citation-001"],
+                "visual_cue": {
+                    "boundary_relation": "interior",
+                    "color_bucket": "white",
+                    "confidence": 0.91,
+                    "morphology": "crust",
+                    "reasons": ["fixture"],
+                    "size_class": "local",
+                    "texture_proxy": "powdery",
+                },
+            },
+            {
+                "concept_card_id": "card-002",
+                "concept_family": "deposit",
+                "context_terms": ["surface"],
+                "descriptor_terms": ["rough"],
+                "material_terms": ["stone"],
+                "provenance_strength": "strong",
+                "rag_parent_candidate_id": second_parent_candidate_id,
+                "raw_retrieved_sentence": "rough deposit patch",
+                "retrieval_score": 6.0,
+                "source_citation_ids": ["citation-002"],
+                "visual_cue": {
+                    "boundary_relation": "interior",
+                    "color_bucket": "white",
+                    "confidence": 0.80,
+                    "morphology": "crust",
+                    "reasons": ["fixture"],
+                    "size_class": "local",
+                    "texture_proxy": "rough",
+                },
+            },
+        ),
+    )
+
+    # When: the public startup adapter executes.
+    exit_code = _run_anomaly_grouping_stage(request)
+
+    # Then: the two rows collapse into a single reported candidate with
+    # evidence merged from both lineages, and the audit passes.
+    assert exit_code == int(ExitCode.OK)
+    trace_source = _read_json(
+        request.paths.anomaly_grouping / "report_trace_source.json"
+    )
+    audit = trace_source["no_fake_claim_audit"]
+    assert isinstance(audit, dict)
+    assert audit["fabricated_candidate_count"] == 0
+    assert audit["status"] == "pass"
+    candidates = trace_source["candidates"]
+    assert _is_json_objects(candidates)
+    assert len(candidates) == 1
+    assert candidates[0]["candidate_id"] == "refined-candidate-001"
+    citation_ids = {c["citation_id"] for c in candidates[0]["citations"]}
+    assert citation_ids == {"citation-001", "citation-002"}
+
+
+def test_run_anomaly_grouping_stage_discards_candidate_outside_object_mask(
+    tmp_path: Path,
+) -> None:
+    # Given: one candidate whose mask lands on its object's silhouette, and
+    # a second candidate whose mask lands entirely outside its own object's
+    # silhouette - mirroring the real bug where rough_masking's tile-level
+    # detection runs on the rectangular bbox crop (not the object silhouette)
+    # and can pick up background sitting in a bbox corner.
+    request = _request(tmp_path)
+    on_object_mask = rect_mask(
+        tmp_path, "on-object-candidate", BoundingBox(0.0, 0.0, 20.0, 20.0)
+    )
+    _write_object_mask(request.paths, "image-001", "object-001")
+    off_object_mask = rect_mask(
+        tmp_path, "off-object-candidate", BoundingBox(100.0, 100.0, 120.0, 120.0)
+    )
+    object_mask_dir = (
+        request.paths.preprocessing
+        / "assets"
+        / "objects"
+        / "image-001"
+        / "object-002"
+    )
+    object_mask_dir.mkdir(parents=True, exist_ok=True)
+    _ = rect_mask(object_mask_dir, "mask", BoundingBox(0.0, 0.0, 10.0, 10.0))
+
+    def _row(
+        candidate_id: str, object_id: str, mask: MaskReference, parent_id: str
+    ) -> JsonObject:
+        return {
+            "accepted_candidates": [
+                {
+                    "bbox_xyxy": [0.0, 0.0, 20.0, 20.0],
+                    "original_bbox_xyxy": [0.0, 0.0, 20.0, 20.0],
+                    "candidate_id": candidate_id,
+                    "image_id": "image-001",
+                    "prompt": "white surface deposit",
+                    "source_object_id": object_id,
+                    "source_view_id": "view-001",
+                    "qwen_final_success": True,
+                    "qwen_report_display_text": "white deposit observed",
+                    "qwen_confidence": 0.75,
+                    "mask_path": mask.path,
+                    "mask_sha256": mask.sha256,
+                }
+            ],
+            "accepted_candidate_ids": [candidate_id],
+            "detector_lane": "owlv2_sam2",
+            "diagnostics": [],
+            "model_lane": "owlv2",
+            "prompt_texts": ["white surface deposit"],
+            "rag_parent_candidate_id": parent_id,
+            "records_json": str(tmp_path / f"{candidate_id}-records.json"),
+            "status": "executed",
+        }
+
+    _write_jsonl(
+        request.paths.mask_refining / "refined_records.jsonl",
+        (
+            _row("on-object-candidate", "object-001", on_object_mask, "parent-001"),
+            _row("off-object-candidate", "object-002", off_object_mask, "parent-002"),
+        ),
+    )
+    _write_jsonl(request.paths.rag / "prompt_rag_results.jsonl", ())
+    _write_jsonl(request.paths.rag / "rag_visual_concept_cards.jsonl", ())
+
+    # When: the public startup adapter executes.
+    exit_code = _run_anomaly_grouping_stage(request)
+
+    # Then: only the candidate that actually lands on its object survives.
+    assert exit_code == int(ExitCode.OK)
+    trace_source = _read_json(
+        request.paths.anomaly_grouping / "report_trace_source.json"
+    )
+    candidates = trace_source["candidates"]
+    assert _is_json_objects(candidates)
+    candidate_ids = {c["candidate_id"] for c in candidates}
+    assert candidate_ids == {"on-object-candidate"}
 
 
 def test_run_anomaly_grouping_stage_exports_citation_from_rag_retrieval_results(
@@ -535,6 +749,7 @@ def _write_upstream_inputs(
         ],
     )
     mask = rect_mask(tmp_path, refined_candidate_id, BoundingBox(0.0, 0.0, 20.0, 20.0))
+    _write_object_mask(paths, "image-001", "object-001")
     _write_jsonl(
         paths.mask_refining / "refined_records.jsonl",
         (
@@ -619,6 +834,16 @@ def _write_upstream_inputs(
 def _write_json(path: Path, payload: JsonValue) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     _ = path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+
+
+# run_anomaly_grouping_stage's off-object filter requires a preprocessing
+# object silhouette mask for every candidate's (image_id, source_object_id).
+# Covering the whole canvas keeps every rect_mask-based candidate fixture
+# fully "on object" unless a test deliberately wants to exercise the filter.
+def _write_object_mask(paths: StagePathMap, image_id: str, object_id: str) -> None:
+    mask_dir = paths.preprocessing / "assets" / "objects" / image_id / object_id
+    mask_dir.mkdir(parents=True, exist_ok=True)
+    _ = rect_mask(mask_dir, "mask", BoundingBox(0.0, 0.0, 200.0, 200.0))
 
 
 def _write_jsonl(path: Path, rows: tuple[Mapping[str, JsonValue], ...]) -> None:

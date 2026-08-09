@@ -16,6 +16,7 @@ from modules.orchestration.receipts import (
     StageReceiptPayload,
     StartupStatus,
     progress_payload,
+    read_prior_completed_stages,
     stage_payload,
     write_startup_progress,
 )
@@ -89,6 +90,7 @@ class StageExecutionRequest:
     dry_run: bool
     verify_model_hashes: bool
     output_root: Path
+    resume_from_stage: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +111,21 @@ def execute_startup_stages(
     """Run startup stages through mask refinement and stop on first failure."""
     stages: list[StageReceiptPayload] = []
     active_request = request
-    for stage_name in EXECUTED_STAGE_NAMES:
+    executed_stage_names = EXECUTED_STAGE_NAMES
+    if request.resume_from_stage is not None:
+        # vca-ai only sets resume_from_stage after copying a prior failed
+        # run's completed-stage output directories (and its startup.json)
+        # into this run's own output_root - trust that receipt for the
+        # stages before resume_from_stage instead of re-running them, and
+        # start real execution at the first stage that never finished.
+        stages.extend(
+            read_prior_completed_stages(request.output_root, request.resume_from_stage)
+        )
+        resume_index = EXECUTED_STAGE_NAMES.index(request.resume_from_stage)
+        executed_stage_names = EXECUTED_STAGE_NAMES[resume_index:]
+        if resume_index > 0:
+            active_request = _with_preprocessing_device(active_request)
+    for stage_name in executed_stage_names:
         stage_progress.print_started(stage_name)
         _write_progress(request, stages, running_stage=stage_name)
         status, exit_code, reason = _run_stage(stage_name, active_request, runners)

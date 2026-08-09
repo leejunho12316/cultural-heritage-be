@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Final, Protocol
 
 from modules.anomaly_grouping.io import write_result
@@ -39,14 +40,21 @@ from modules.shared import (
     PathSafetyError,
     ensure_no_symlink_leaf,
 )
+from modules.shared.mask_pixels import load_mask_array
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from modules.orchestration.stage_paths import StagePathMap
     from modules.report_generating.models import JsonObject
 
 _BBOX_COORDINATE_COUNT: Final = 4
+# rough_masking의 타일 단위 탐지는 오브젝트의 사각형 bbox 크롭 위에서
+# 돌기 때문에(오브젝트 실루엣 마스크가 아니라), bbox 모서리의 배경 영역에서
+# 잘못 잡힌 탐지가 후보로 승인될 수 있다 - 실측(2026-08-10): 한 실행에서
+# kept 후보 8개 중 4개가 마스크 픽셀의 91~100%가 오브젝트 실루엣 바깥이었고
+# 전부 같은 bbox 모서리에 몰려 있었다. 여기서 최종 안전장치로 후보 자신의
+# 마스크와 오브젝트 실루엣 마스크(둘 다 "마스크 우선" 설계상 원본 이미지
+# 좌표계여야 함)의 픽셀 겹침을 다시 확인해 절반도 안 겹치면 버린다.
+_MIN_OBJECT_MASK_OVERLAP_RATIO: Final = 0.5
 
 
 class _ProjectStageRequest(Protocol):
@@ -123,7 +131,10 @@ def _read_startup_inputs(
     cards = _cards_by_candidate(
         read_jsonl_objects(request.paths.rag / "rag_visual_concept_cards.jsonl")
     )
-    candidates = _stage_candidates((*mask_rows, *passthrough_rows), cards)
+    candidates = _discard_off_object_candidates(
+        _stage_candidates((*mask_rows, *passthrough_rows), cards),
+        request.paths.preprocessing,
+    )
     if not candidates:
         raise_contract("candidates", "must not be empty")
     return (
@@ -164,11 +175,21 @@ def _citation_details_by_id(
 # _read_startup_inputs에서 호출된다. mask_refining이 승인한(accepted) 후보
 # 레코드들을 순회하며 AnomalyCandidate로 변환하고, rag_parent_candidate_id로
 # 매칭되는 concept card 증거를 붙인다.
+#
+# 같은 실제 손상이 서로 다른 rag_parent 계보(예: 오브젝트 크롭 탐지 하나와
+# 타일 병합 탐지 하나)로 두 번 정제될 수 있다 - 같은 prompt/lane으로 같은
+# 영역을 정제하면 SAM2가 byte-identical한 bbox/mask로 수렴하고,
+# normalize_candidate는 그걸 그대로 같은 candidate_id로 해시한다. 이 충돌은
+# 조작이 아니라 진짜 신호이므로(같은 후보가 두 번 보고됨), report_generating의
+# no-fake-claim 감사에 걸리기 전에 여기서 하나로 합친다 - 두 계보가 각자
+# 모은 concept card 증거는 버리지 않고 합친다.
 def _stage_candidates(
     mask_rows: tuple[JsonObject, ...],
     cards: dict[str, tuple[JsonObject, ...]],
 ) -> tuple[StartupCandidate, ...]:
-    candidates: list[StartupCandidate] = []
+    records_by_id: dict[str, tuple[JsonObject, str]] = {}
+    cards_by_id: dict[str, list[JsonObject]] = {}
+    order: list[str] = []
     for row in mask_rows:
         accepted_ids = frozenset(strings(row, "accepted_candidate_ids"))
         rag_parent_candidate_id = string(row, "rag_parent_candidate_id")
@@ -176,33 +197,97 @@ def _stage_candidates(
         candidate_cards = cards.get(rag_parent_candidate_id, ())
         for record in _accepted_records(row, accepted_ids):
             candidate_id = string(record, "candidate_id")
-            record_image_id = string(record, "image_id")
-            candidates.append(
-                StartupCandidate(
-                    AnomalyCandidate(
-                        CandidateId(candidate_id),
-                        record_image_id,
-                        string(record, "source_object_id"),
-                        string(record, "source_view_id"),
-                        seed_lane,
-                        string(record, "prompt"),
-                        _bbox(record),
-                        _mask_reference(record),
-                        _candidate_evidence(candidate_cards),
-                        qwen_final_success=bool_value(record, "qwen_final_success"),
-                        qwen_report_display_text=string(
-                            record, "qwen_report_display_text"
-                        ),
-                        qwen_confidence=_optional_float(record, "qwen_confidence"),
-                        source_tile_view_id=optional_string(
-                            record, "source_tile_view_id"
-                        ),
-                    ),
-                    record_image_id,
-                    candidate_cards,
-                )
+            if candidate_id not in records_by_id:
+                records_by_id[candidate_id] = (record, seed_lane)
+                cards_by_id[candidate_id] = []
+                order.append(candidate_id)
+            merged_cards = cards_by_id[candidate_id]
+            seen_card_ids = {string(card, "concept_card_id") for card in merged_cards}
+            merged_cards.extend(
+                card
+                for card in candidate_cards
+                if string(card, "concept_card_id") not in seen_card_ids
             )
+    candidates: list[StartupCandidate] = []
+    for candidate_id in order:
+        record, seed_lane = records_by_id[candidate_id]
+        record_image_id = string(record, "image_id")
+        candidate_cards = tuple(cards_by_id[candidate_id])
+        candidates.append(
+            StartupCandidate(
+                AnomalyCandidate(
+                    CandidateId(candidate_id),
+                    record_image_id,
+                    string(record, "source_object_id"),
+                    string(record, "source_view_id"),
+                    seed_lane,
+                    string(record, "prompt"),
+                    _bbox(record),
+                    _mask_reference(record),
+                    _candidate_evidence(candidate_cards),
+                    qwen_final_success=bool_value(record, "qwen_final_success"),
+                    qwen_report_display_text=string(
+                        record, "qwen_report_display_text"
+                    ),
+                    qwen_confidence=_optional_float(record, "qwen_confidence"),
+                    source_tile_view_id=optional_string(
+                        record, "source_tile_view_id"
+                    ),
+                ),
+                record_image_id,
+                candidate_cards,
+            )
+        )
     return tuple(candidates)
+
+
+# _read_startup_inputs에서 _stage_candidates 직후에 호출된다. 후보 자신의
+# 마스크(mask_refining이 원본 좌표로 복원했거나, 통과 경로가 rough_masking
+# 원본을 그대로 넘긴 것)가 그 오브젝트의 실루엣 마스크와 절반도 안 겹치면
+# bbox 모서리 배경에서 잘못 잡힌 탐지로 보고 버린다.
+def _discard_off_object_candidates(
+    candidates: tuple[StartupCandidate, ...], preprocessing_root: Path
+) -> tuple[StartupCandidate, ...]:
+    return tuple(
+        item
+        for item in candidates
+        if _object_mask_overlap_ratio(item.candidate, preprocessing_root)
+        >= _MIN_OBJECT_MASK_OVERLAP_RATIO
+    )
+
+
+# _discard_off_object_candidates에서 호출된다. 후보 마스크 픽셀 중 오브젝트
+# 실루엣 마스크 안에 있는 비율을 계산한다. 둘 다 "마스크 우선" 설계상 항상
+# 원본 이미지 좌표계이므로(추가 좌표 변환 없이) 그대로 겹쳐 셀 수 있다.
+def _object_mask_overlap_ratio(
+    candidate: AnomalyCandidate, preprocessing_root: Path
+) -> float:
+    object_mask_path = (
+        preprocessing_root
+        / "assets"
+        / "objects"
+        / candidate.image_id
+        / candidate.source_object_id
+        / "mask.png"
+    )
+    if not object_mask_path.is_file():
+        field = "object_mask_path"
+        reason = f"missing preprocessing object mask at {object_mask_path}"
+        raise ContractValidationError(field, reason)
+    candidate_mask = load_mask_array(Path(candidate.mask.path))
+    object_mask = load_mask_array(object_mask_path)
+    if candidate_mask.shape != object_mask.shape:
+        field = "candidate_mask"
+        reason = (
+            f"shape {candidate_mask.shape} does not match object mask "
+            f"shape {object_mask.shape}"
+        )
+        raise ContractValidationError(field, reason)
+    total = int(candidate_mask.sum())
+    if total == 0:
+        return 0.0
+    inside = int((candidate_mask & object_mask).sum())
+    return inside / total
 
 
 # _stage_candidates에서 호출된다. mask_refining 행(row)의

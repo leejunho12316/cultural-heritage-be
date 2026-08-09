@@ -14,6 +14,7 @@ from modules.orchestration.receipts import (
     write_startup_receipt,
 )
 from modules.orchestration.stage_execution import (
+    EXECUTED_STAGE_NAMES,
     STARTUP_FAILURE_EXIT_CODE,
     StageExecutionRequest,
     StartupStageRunners,
@@ -60,6 +61,7 @@ class StartupRequest:
     dry_run: bool
     verify_model_hashes: bool
     storage_config: StartupStorageConfig
+    resume_from_stage: str | None = None
 
 
 class _CliNamespace(argparse.Namespace):
@@ -73,6 +75,7 @@ class _CliNamespace(argparse.Namespace):
     artifact_id: str | None
     db_url: str | None
     allow_unverified_model_hashes_local_only: bool
+    resume_from_stage: str | None
 
     def __init__(self) -> None:
         """Initialize typed defaults before argparse mutates the namespace."""
@@ -85,6 +88,7 @@ class _CliNamespace(argparse.Namespace):
         self.max_images = None
         self.storage_mode = "filesystem"
         self.artifact_id = None
+        self.resume_from_stage = None
         self.db_url = None
         self.allow_unverified_model_hashes_local_only = False
 
@@ -106,6 +110,11 @@ def _parser() -> argparse.ArgumentParser:
     _ = parser.add_argument(
         "--allow-unverified-model-hashes-local-only",
         action="store_true",
+    )
+    _ = parser.add_argument(
+        "--resume-from-stage",
+        choices=EXECUTED_STAGE_NAMES,
+        default=None,
     )
     return parser
 
@@ -223,6 +232,7 @@ def _request(arguments: Sequence[str], workspace_root: Path) -> StartupRequest:
             parsed.storage_mode,
             RdbStorageCliArguments(parsed.artifact_id, parsed.db_url),
         ),
+        parsed.resume_from_stage,
     )
     return replace(
         request,
@@ -248,6 +258,7 @@ def _execute(
             request.dry_run,
             request.verify_model_hashes,
             request.output_root,
+            request.resume_from_stage,
         ),
         stage_runners,
     )
@@ -283,7 +294,7 @@ def run(
     runners = _stage_runners(stage_runners, preprocessing_runner)
     try:
         return _execute(request, runners, storage_writer_factory)
-    except (PathSafetyError, StoragePersistenceError) as error:
+    except (ContractValidationError, PathSafetyError, StoragePersistenceError) as error:
         _print_startup_failure("startup execution", error)
         return STARTUP_FAILURE_EXIT_CODE
 

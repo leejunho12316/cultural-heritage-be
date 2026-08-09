@@ -6,13 +6,19 @@ import json
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final, NotRequired, Protocol, TypedDict
 
-from modules.shared import StageProgressCount, receipt_file_path
+from modules.shared import (
+    ContractValidationError,
+    StageProgressCount,
+    receipt_file_path,
+)
 from modules.shared import update_stage_progress_count as _update_stage_progress_count
+from modules.shared.json_object import parse_json_object_for_field
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from modules.shared import FinalSuccessEvaluation
+    from modules.shared.json_object import JsonObject
 
 RECEIPT_SCHEMA: Final = "vca-startup-receipt-v1"
 PROGRESS_SCHEMA: Final = "vca-startup-progress-v1"
@@ -142,6 +148,74 @@ def _startup_receipt_path(request: _StartupReceiptRequest) -> Path:
     return receipt_file_path(request.output_root, "startup.json")
 
 
+# execute_startup_stages의 resume_from_stage 처리에서 호출된다. vca-ai가
+# 이전에 실패한 run의 완료된 스테이지 산출물을(그 run의 startup.json과 함께)
+# 이 run의 output_root로 미리 복사해뒀다는 전제 아래, resume_from_stage 이전
+# 스테이지들의 완료 payload를 그대로 읽어와 재사용한다 - 그 스테이지들을
+# 실제로 다시 돌리지 않고도 최종 리시트가 8단계 전체 이력을 온전히 담을 수
+# 있게 하기 위함이다. 전제가 깨져 있으면(리시트 없음/파싱 실패/completed로
+# 기록 안 됨) 조용히 넘어가지 않고 계약 오류로 실패시킨다 - vca-ai가 이미 이
+# 전제를 확인한 뒤에만 --resume-from-stage를 보내야 하기 때문이다.
+def _read_prior_completed_stages(
+    output_root: Path, resume_from_stage: str
+) -> list[_StageReceiptPayload]:
+    field = "resume_from_stage"
+    receipt_path = receipt_file_path(output_root, "startup.json")
+    try:
+        raw = receipt_path.read_text(encoding="utf-8")
+    except OSError as error:
+        reason = f"no prior startup receipt found to resume from ({error})"
+        raise ContractValidationError(field, reason) from error
+    payload = parse_json_object_for_field(raw, field)
+    raw_stages = payload.get("stages")
+    if not isinstance(raw_stages, list):
+        reason = "prior startup receipt has no stages list"
+        raise ContractValidationError(field, reason)
+    by_name = {
+        stage["name"]: stage
+        for stage in raw_stages
+        if isinstance(stage, dict) and isinstance(stage.get("name"), str)
+    }
+    if resume_from_stage not in STAGE_NAMES:
+        reason = f"{resume_from_stage!r} is not a known stage"
+        raise ContractValidationError(field, reason)
+    boundary = STAGE_NAMES.index(resume_from_stage)
+    prior_stages: list[_StageReceiptPayload] = []
+    for name in STAGE_NAMES[:boundary]:
+        stage = by_name.get(name)
+        completed = _StartupStatus.COMPLETED.value
+        if not isinstance(stage, dict) or stage.get("status") != completed:
+            reason = f"prior stage {name!r} is not recorded as completed"
+            raise ContractValidationError(field, reason)
+        prior_stages.append(_typed_stage_payload(stage, field))
+    return prior_stages
+
+
+def _typed_stage_payload(stage: JsonObject, field: str) -> _StageReceiptPayload:
+    name = stage.get("name")
+    status = stage.get("status")
+    output_dir = stage.get("output_dir")
+    if (
+        not isinstance(name, str)
+        or not isinstance(status, str)
+        or not isinstance(output_dir, str)
+    ):
+        reason = "prior stage payload is malformed"
+        raise ContractValidationError(field, reason)
+    payload: _StageReceiptPayload = {
+        "name": name,
+        "status": status,
+        "output_dir": output_dir,
+    }
+    exit_code = stage.get("exit_code")
+    if isinstance(exit_code, int) and not isinstance(exit_code, bool):
+        payload["exit_code"] = exit_code
+    reason_value = stage.get("reason")
+    if isinstance(reason_value, str):
+        payload["reason"] = reason_value
+    return payload
+
+
 # 진행 중인 스타트업 상태를 progress.json에 쓸 payload로 조립한다.
 # stage_execution.py의 _write_progress에서 스테이지 전환마다 호출된다.
 def _progress_payload(
@@ -192,3 +266,4 @@ write_startup_receipt = _write_startup_receipt
 progress_payload = _progress_payload
 write_startup_progress = _write_startup_progress
 update_stage_progress_count = _update_stage_progress_count
+read_prior_completed_stages = _read_prior_completed_stages
