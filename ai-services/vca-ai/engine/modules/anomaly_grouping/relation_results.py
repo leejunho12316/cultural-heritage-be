@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from modules.anomaly_grouping.geometry import (
     load_mask_array,
     mask_bbox,
-    mask_polygon,
+    mask_polygons,
     mask_union_array,
     write_mask_png,
 )
@@ -62,10 +62,10 @@ def candidate_results(
                 kept=True,
                 mask=candidate.mask,
                 bbox=candidate.bbox,
-                polygon=mask_polygon(load_mask_array(candidate.mask)),
+                polygons=mask_polygons(load_mask_array(candidate.mask)),
             )
             continue
-        union_mask, union_bbox, union_polygon = _materialize_union_mask(
+        union_mask, union_bbox, union_polygons = _materialize_union_mask(
             root_id, member_ids, by_id, mask_output_dir
         )
         results[root_id] = CandidateRelationResult(
@@ -73,7 +73,7 @@ def candidate_results(
             kept=True,
             mask=union_mask,
             bbox=union_bbox,
-            polygon=union_polygon,
+            polygons=union_polygons,
             relation_group_id=group_relation_id,
         )
         for member_id in member_ids:
@@ -147,7 +147,7 @@ def _materialize_union_mask(
     member_ids: tuple[CandidateId, ...],
     by_id: Mapping[CandidateId, AnomalyCandidate],
     mask_output_dir: Path,
-) -> tuple[MaskReference, BoundingBox, tuple[tuple[float, float], ...]]:
+) -> tuple[MaskReference, BoundingBox, tuple[tuple[tuple[float, float], ...], ...]]:
     masks = tuple(by_id[member_id].mask for member_id in member_ids)
     union_array = mask_union_array(masks)
     output_path = mask_output_dir / merged_mask_filename(root_id, member_ids)
@@ -155,5 +155,5 @@ def _materialize_union_mask(
     return (
         MaskReference(str(output_path), digest),
         mask_bbox(union_array),
-        mask_polygon(union_array),
+        mask_polygons(union_array),
     )

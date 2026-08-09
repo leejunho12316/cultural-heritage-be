@@ -1426,7 +1426,7 @@ public class VcaService {
                     imageIdBySha256.getOrDefault(finding.imageId(), finding.imageId()),
                     toFindingCitations(finding.citations()),
                     toFindingBbox(finding.bbox()),
-                    toFindingPolygon(finding.polygon())
+                    toFindingPolygons(finding.polygons())
             ));
         }
         return findings;
@@ -1459,12 +1459,20 @@ public class VcaService {
         );
     }
 
+    private static List<List<ReportResponse.Point>> toFindingPolygons(
+            List<List<VcaAiAssessmentFinding.Point>> polygons
+    ) {
+        if (polygons == null) {
+            return null;
+        }
+        return polygons.stream()
+                .map(VcaService::toFindingPolygon)
+                .toList();
+    }
+
     private static List<ReportResponse.Point> toFindingPolygon(
             List<VcaAiAssessmentFinding.Point> polygon
     ) {
-        if (polygon == null) {
-            return null;
-        }
         return polygon.stream()
                 .map(point -> new ReportResponse.Point(point.x(), point.y()))
                 .toList();

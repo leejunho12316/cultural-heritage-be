@@ -120,14 +120,14 @@ def _trace_candidate_payload(
     return {
         "candidate_id": candidate_id,
         "citations": citation_payloads,
-        # relation.bbox/polygon are both derived from the final (possibly
+        # relation.bbox/polygons are both derived from the final (possibly
         # mask-union-merged) mask, not the original detector bbox - mask is
-        # the standard, these are display-only. polygon is the vectorized
-        # outline the FE renders; bbox stays for auxiliary/legacy display.
-        # Absorbed candidates have neither: their pixels now live on inside
-        # the group's union.
+        # the standard, these are display-only. polygons are the vectorized
+        # outlines the FE renders (one per disconnected mask fragment); bbox
+        # stays for auxiliary/legacy display. Absorbed candidates have
+        # neither: their pixels now live on inside the group's union.
         "bbox": _bbox_payload(relation.bbox),
-        "polygon": _polygon_payload(relation.polygon),
+        "polygons": _polygons_payload(relation.polygons),
         "concept_family": candidate.evidence.concept_family,
         "duplicate_suppression_key": candidate.duplicate_suppression_key or "none",
         "final_success": relation.kept,
@@ -159,15 +159,15 @@ def _bbox_payload(bbox: BoundingBox | None) -> JsonObject | None:
     }
 
 
-# _trace_candidate_payload에서 호출된다. relation.polygon(마스크 윤곽선
-# 벡터화 결과, 흡수된 후보는 None)을 trace_source의 polygon 필드로
+# _trace_candidate_payload에서 호출된다. relation.polygons(성분별 마스크
+# 윤곽선 벡터화 결과, 흡수된 후보는 None)을 trace_source의 polygons 필드로
 # 직렬화한다.
-def _polygon_payload(
-    polygon: tuple[tuple[float, float], ...] | None,
+def _polygons_payload(
+    polygons: tuple[tuple[tuple[float, float], ...], ...] | None,
 ) -> list[JsonValue] | None:
-    if polygon is None:
+    if polygons is None:
         return None
-    return [[point[0], point[1]] for point in polygon]
+    return [[[point[0], point[1]] for point in polygon] for polygon in polygons]
 
 
 # _trace_candidate_payload에서 호출된다. 이 후보를 가리키는 follow-up 선택자를

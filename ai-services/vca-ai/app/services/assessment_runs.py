@@ -379,7 +379,7 @@ def get_assessment_report(run: AssessmentRun) -> AssessmentReport:
                     x_max=finding.bbox.x_max,
                     y_max=finding.bbox.y_max,
                 ),
-                polygon=finding.polygon,
+                polygons=finding.polygons,
             )
             for finding in artifacts.findings
         ),

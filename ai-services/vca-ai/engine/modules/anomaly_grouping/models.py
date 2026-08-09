@@ -158,19 +158,22 @@ class CandidateRelationResult:
     A kept candidate always carries the mask downstream stages should use:
     its own original mask when it was never merged, or the pixel union of
     its whole merge group when it is a merged group's canonical id. `bbox`
-    and `polygon` are both *derived from that same mask* (not the original
+    and `polygons` are both *derived from that same mask* (not the original
     detector bbox), so display/report code never has to choose which one is
-    authoritative - `polygon` is the vectorized outline the FE renders, bbox
-    stays for auxiliary/legacy display. An absorbed (kept=False) candidate
-    has none of these anymore - its pixels live on in the group's union,
-    referenced via inherited_parent_candidate_id.
+    authoritative - `polygons` are the vectorized outlines the FE renders,
+    one per disconnected mask fragment (real masks are often multi-component
+    - e.g. scattered corrosion spots - so a single polygon would either drop
+    minor fragments or falsely bridge the gaps between them), bbox stays for
+    auxiliary/legacy display. An absorbed (kept=False) candidate has none of
+    these anymore - its pixels live on in the group's union, referenced via
+    inherited_parent_candidate_id.
     """
 
     candidate_id: CandidateId
     kept: bool
     mask: MaskReference | None = None
     bbox: BoundingBox | None = None
-    polygon: tuple[tuple[float, float], ...] | None = None
+    polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
     inherited_parent_candidate_id: CandidateId | None = None
     relation_group_id: str | None = None
 

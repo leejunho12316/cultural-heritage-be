@@ -42,7 +42,7 @@ def test_t9_metadata_survives_trace_final_and_html_surfaces(tmp_path: Path) -> N
             "coverage_metrics": [{"name": "document_coverage", "value": 1.0}],
             "skip_reason": "not skipped",
             "bbox": {"x_min": 10.0, "y_min": 20.0, "x_max": 30.0, "y_max": 40.0},
-            "polygon": [[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 40.0]],
+            "polygons": [[[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 40.0]]],
         }
     )
     citations = candidate["citations"]
@@ -82,7 +82,7 @@ def test_t9_metadata_survives_trace_final_and_html_surfaces(tmp_path: Path) -> N
     assert metadata_candidate["skip_reason"] == candidate["skip_reason"]
     assert metadata_candidate["citations"] == candidate["citations"]
     assert metadata_candidate["bbox"] == candidate["bbox"]
-    assert metadata_candidate["polygon"] == candidate["polygon"]
+    assert metadata_candidate["polygons"] == candidate["polygons"]
     trace_html = (
         report_root / "candidates" / "candidate-b" / "index.html"
     ).read_text(encoding="utf-8")

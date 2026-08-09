@@ -168,7 +168,7 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
                 finding.descriptor(),
                 toFindingCitations(finding.citations()),
                 toFindingBbox(finding.bbox()),
-                toFindingPolygon(finding.polygon())
+                toFindingPolygons(finding.polygons())
         );
     }
 
@@ -200,15 +200,26 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
         );
     }
 
-    // vca-ai(Pydantic tuple[tuple[float,float], ...])는 폴리곤 점을 {"x":..,"y":..}
-    // 객체가 아니라 [x, y] 2요소 배열로 직렬화한다 - 여기서 그 실제 배열 모양
-    // 그대로 파싱해야 한다(객체로 파싱하려 하면 HttpMessageConversionException).
+    // vca-ai(Pydantic tuple[tuple[tuple[float,float], ...], ...])는 폴리곤 점을
+    // {"x":..,"y":..} 객체가 아니라 [x, y] 2요소 배열로, 폴리곤 자체는 여러
+    // 개(마스크의 분리된 조각마다 하나씩)를 배열로 직렬화한다 - 여기서 그 실제
+    // 배열 모양 그대로 파싱해야 한다(객체로 파싱하려 하면
+    // HttpMessageConversionException).
+    private static List<List<VcaAiAssessmentFinding.Point>> toFindingPolygons(
+            List<List<List<Double>>> polygons
+    ) {
+        if (polygons == null) {
+            return null;
+        }
+        return polygons.stream()
+                .filter(polygon -> polygon != null)
+                .map(RestClientVcaAiGateway::toFindingPolygon)
+                .toList();
+    }
+
     private static List<VcaAiAssessmentFinding.Point> toFindingPolygon(
             List<List<Double>> polygon
     ) {
-        if (polygon == null) {
-            return null;
-        }
         return polygon.stream()
                 .filter(point -> point != null && point.size() == 2)
                 .map(point -> new VcaAiAssessmentFinding.Point(point.get(0), point.get(1)))
@@ -286,7 +297,7 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
             String descriptor,
             List<AssessmentFindingCitationPayload> citations,
             AssessmentFindingBboxPayload bbox,
-            List<List<Double>> polygon
+            List<List<List<Double>>> polygons
     ) {
     }
 

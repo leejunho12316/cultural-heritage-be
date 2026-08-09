@@ -45,7 +45,7 @@ class AssessmentFinding:
     descriptor: str | None = None
     citations: tuple[AssessmentFindingCitation, ...] = ()
     bbox: AssessmentFindingBbox | None = None
-    polygon: tuple[tuple[float, float], ...] | None = None
+    polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)

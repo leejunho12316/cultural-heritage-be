@@ -139,7 +139,7 @@ def _candidate(payload: JsonObject) -> TraceCandidate:
         _objects_or_empty(payload, "coverage_metrics"),
         _nullable_string(payload, "skip_reason"),
         _bbox(payload, "bbox"),
-        _polygon(payload, "polygon"),
+        _polygons(payload, "polygons"),
         _nullable_bool(payload, "qwen_final_success"),
         _nullable_string(payload, "qwen_report_display_text"),
         _nullable_nonnegative_float(payload, "qwen_confidence"),
@@ -160,13 +160,22 @@ def _bbox(payload: JsonObject, field: str) -> TraceCandidateBbox | None:
     )
 
 
-# _candidate에서 선택적 polygon 필드를 파싱한다. 각 점은 [x, y] 2요소 배열.
-def _polygon(
+# _candidate에서 선택적 polygons 필드를 파싱한다. 성분(폴리곤)마다 [x, y]
+# 2요소 배열의 리스트.
+def _polygons(
     payload: JsonObject, field: str
-) -> tuple[tuple[float, float], ...] | None:
+) -> tuple[tuple[tuple[float, float], ...], ...] | None:
     value = payload.get(field)
     if value is None:
         return None
+    if not isinstance(value, list):
+        _invalid(field, "must be a list of polygons")
+    return tuple(_polygon_points(item, field) for item in value)
+
+
+def _polygon_points(
+    value: JsonValue, field: str
+) -> tuple[tuple[float, float], ...]:
     if not isinstance(value, list):
         _invalid(field, "must be a list of [x, y] points")
     points: list[tuple[float, float]] = []

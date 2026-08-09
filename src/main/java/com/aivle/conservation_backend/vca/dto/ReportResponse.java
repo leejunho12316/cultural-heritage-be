@@ -36,7 +36,7 @@ public record ReportResponse(
             String imageId,
             List<Citation> citations,
             Bbox bbox,
-            List<Point> polygon
+            List<List<Point>> polygons
     ) {
     }
 
@@ -55,9 +55,10 @@ public record ReportResponse(
     ) {
     }
 
-    // Vectorized mask outline in original-image pixel space. The mask is the
-    // standard segmentation signal; Bbox above is kept only for
-    // auxiliary/legacy display.
+    // Vectorized mask outlines in original-image pixel space, one polygon
+    // per disconnected mask fragment (real masks are often multi-component).
+    // The mask is the standard segmentation signal; Bbox above is kept only
+    // for auxiliary/legacy display.
     public record Point(
             Double x,
             Double y

@@ -145,9 +145,12 @@ def _candidate_metadata(candidate: TraceCandidate) -> JsonObject:
             "x_max": candidate.bbox.x_max,
             "y_max": candidate.bbox.y_max,
         },
-        "polygon": None
-        if candidate.polygon is None
-        else [[point[0], point[1]] for point in candidate.polygon],
+        "polygons": None
+        if candidate.polygons is None
+        else [
+            [[point[0], point[1]] for point in polygon]
+            for polygon in candidate.polygons
+        ],
         "qwen_final_success": candidate.qwen_final_success,
         "qwen_report_display_text": candidate.qwen_report_display_text,
         "qwen_confidence": candidate.qwen_confidence,

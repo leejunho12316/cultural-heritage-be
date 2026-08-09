@@ -213,7 +213,7 @@ def test_assessment_report_when_kept_candidates_exist(
             "descriptor": "line surface",
             "citations": [],
             "bbox": {"xMin": 10.0, "yMin": 20.0, "xMax": 30.0, "yMax": 40.0},
-            "polygon": None,
+            "polygons": None,
         }
     ]
 
@@ -355,7 +355,7 @@ def test_assessment_report_when_no_anomaly_candidates_exist(
             "descriptor": None,
             "citations": [],
             "bbox": None,
-            "polygon": None,
+            "polygons": None,
         }
     ]
 
@@ -445,7 +445,7 @@ def test_assessment_report_when_dry_run_evidence_is_complete(
             "descriptor": None,
             "citations": [],
             "bbox": None,
-            "polygon": None,
+            "polygons": None,
         }
     ]
 

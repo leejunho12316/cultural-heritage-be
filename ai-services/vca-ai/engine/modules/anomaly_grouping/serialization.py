@@ -29,7 +29,7 @@ def result_payload(result: AnomalyGroupingResult) -> JsonObject:
                 "kept": relation.kept,
                 "mask": _mask_payload(relation),
                 "bbox": _bbox_payload(relation),
-                "polygon": _polygon_payload(relation),
+                "polygons": _polygons_payload(relation),
                 "inherited_parent_candidate_id": (
                     str(relation.inherited_parent_candidate_id)
                     if relation.inherited_parent_candidate_id is not None
@@ -87,7 +87,9 @@ def _bbox_payload(relation: CandidateRelationResult) -> JsonObject | None:
     }
 
 
-def _polygon_payload(relation: CandidateRelationResult) -> list[JsonValue] | None:
-    if relation.polygon is None:
+def _polygons_payload(relation: CandidateRelationResult) -> list[JsonValue] | None:
+    if relation.polygons is None:
         return None
-    return [[point[0], point[1]] for point in relation.polygon]
+    return [
+        [[point[0], point[1]] for point in polygon] for polygon in relation.polygons
+    ]

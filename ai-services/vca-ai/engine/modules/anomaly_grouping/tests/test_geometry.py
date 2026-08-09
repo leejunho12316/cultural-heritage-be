@@ -10,7 +10,7 @@ from modules.anomaly_grouping.geometry import (
     mask_bbox,
     mask_containment,
     mask_iou,
-    mask_polygon,
+    mask_polygons,
     mask_union_array,
     write_mask_png,
 )
@@ -81,15 +81,17 @@ def test_write_mask_png_round_trips_and_is_content_addressed(tmp_path: Path) -> 
     assert (tmp_path / "one.png").is_file()
 
 
-def test_mask_polygon_outlines_a_filled_rectangle(tmp_path: Path) -> None:
+def test_mask_polygons_outlines_a_filled_rectangle(tmp_path: Path) -> None:
     # Given: a filled rectangle mask.
     mask = rect_mask(tmp_path, "rect", BoundingBox(10, 20, 40, 60))
 
-    # When: its outline is vectorized into a polygon.
-    polygon = mask_polygon(load_mask_array(mask))
+    # When: its outline is vectorized into polygons.
+    polygons = mask_polygons(load_mask_array(mask))
 
-    # Then: a non-trivial closed shape is returned whose points stay within
-    # the rectangle's bounds (approxPolyDP may snap corners slightly).
+    # Then: a single non-trivial closed shape is returned whose points stay
+    # within the rectangle's bounds (approxPolyDP may snap corners slightly).
+    assert len(polygons) == 1
+    polygon = polygons[0]
     assert len(polygon) >= 3
     xs = [point[0] for point in polygon]
     ys = [point[1] for point in polygon]
@@ -99,12 +101,52 @@ def test_mask_polygon_outlines_a_filled_rectangle(tmp_path: Path) -> None:
     assert max(ys) <= 60
 
 
-def test_mask_polygon_empty_mask_returns_no_points() -> None:
+def test_mask_polygons_empty_mask_returns_no_polygons() -> None:
     # Given: an all-false mask array with no foreground pixels.
     array = np.zeros((20, 20), dtype=np.bool_)
 
     # When: it is vectorized.
-    polygon = mask_polygon(array)
+    polygons = mask_polygons(array)
 
     # Then: no contour exists to outline.
-    assert polygon == ()
+    assert polygons == ()
+
+
+def test_mask_polygons_returns_one_polygon_per_disconnected_fragment(
+    tmp_path: Path,
+) -> None:
+    # Given: a mask made of two disjoint rectangles - real SAM2 masks are
+    # often multi-component (e.g. scattered corrosion spots), so a single
+    # "largest contour" polygon would silently drop the smaller fragment.
+    left = rect_mask(tmp_path, "left", BoundingBox(0, 0, 10, 10))
+    right = rect_mask(tmp_path, "right", BoundingBox(50, 50, 70, 70))
+    union = mask_union_array((left, right))
+
+    # When: the union mask is vectorized.
+    polygons = mask_polygons(union)
+
+    # Then: both fragments are represented, largest area first.
+    assert len(polygons) == 2
+    areas = [
+        (max(p[0] for p in polygon) - min(p[0] for p in polygon))
+        * (max(p[1] for p in polygon) - min(p[1] for p in polygon))
+        for polygon in polygons
+    ]
+    assert areas[0] > areas[1]
+
+
+def test_mask_polygons_keeps_tiny_fragments_instead_of_collapsing_to_a_point() -> None:
+    # Given: a mask with one large blob and one 2x2-pixel speck - the speck's
+    # raw contour is too small for approxPolyDP's perimeter-based epsilon to
+    # simplify without collapsing to a degenerate 1-2 point shape.
+    array = np.zeros((100, 100), dtype=np.bool_)
+    array[10:40, 10:40] = True
+    array[90:92, 90:92] = True
+
+    # When: it is vectorized.
+    polygons = mask_polygons(array)
+
+    # Then: both fragments survive as valid (>=3 point) closed shapes rather
+    # than the speck being silently dropped or reduced to 1-2 points.
+    assert len(polygons) == 2
+    assert all(len(polygon) >= 3 for polygon in polygons)

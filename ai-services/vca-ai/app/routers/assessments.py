@@ -184,7 +184,7 @@ def _report_response(report: AssessmentReport) -> AssessmentReportResponse:
                     xMax=finding.bbox.x_max,
                     yMax=finding.bbox.y_max,
                 ),
-                polygon=finding.polygon,
+                polygons=finding.polygons,
             )
             for finding in report.findings
         ),

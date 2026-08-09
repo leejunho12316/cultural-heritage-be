@@ -76,10 +76,11 @@ class AssessmentFindingResponse(BaseModel):
     descriptor: str | None = None
     citations: tuple[AssessmentFindingCitationResponse, ...] = ()
     bbox: AssessmentFindingBboxResponse | None = None
-    # Vectorized mask outline in original-image pixel space - (x, y) point
-    # pairs. The mask is the standard segmentation signal; bbox above is
-    # kept only for auxiliary/legacy display.
-    polygon: tuple[tuple[float, float], ...] | None = None
+    # Vectorized mask outlines in original-image pixel space - (x, y) point
+    # pairs, one polygon per disconnected mask fragment (real masks are
+    # often multi-component). The mask is the standard segmentation signal;
+    # bbox above is kept only for auxiliary/legacy display.
+    polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
 
 
 class RagQueryResponse(BaseModel):

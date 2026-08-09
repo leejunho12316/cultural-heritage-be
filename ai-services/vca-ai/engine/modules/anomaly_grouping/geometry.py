@@ -123,24 +123,49 @@ def write_mask_png(array: NDArray[np.bool_], path: Path) -> str:
     return sha256(path.read_bytes()).hexdigest()
 
 
+_MIN_POLYGON_POINTS = 3
+
 # relation_results.py가 최종 kept 후보(단독이든 병합 union이든)마다 호출한다.
-# 마스크 윤곽선을 폴리곤 좌표로 벡터화한다 - FE가 실제 세그멘테이션 모양을
+# 마스크 윤곽선을 폴리곤 좌표들로 벡터화한다 - FE가 실제 세그멘테이션 모양을
 # 그릴 수 있도록 리포트 JSON에 실어 나르는 표시용 값이다(기준은 여전히
-# 래스터 마스크). cv2는 여기서만 지역 import한다(다른 mask_* 함수들의 PIL과
-# 같은 이유 - anomaly_grouping을 그냥 import만 하는 경로가 무거운 이미지
-# 러타임을 강제로 로드하지 않게 함).
-def mask_polygon(array: NDArray[np.bool_]) -> tuple[tuple[float, float], ...]:
-    """Return a simplified polygon outline (x, y pixel points) for a mask array."""
+# 래스터 마스크). 실측 SAM2 마스크로 확인해보니 흩어진 손상(예: 점무늬 부식)은
+# 연결 성분이 여러 개인 경우가 흔해서, 가장 큰 성분 하나만 남기면 나머지
+# 조각의 면적이 통째로 사라진다(예: 표본 하나는 최대 성분이 전체 면적의 19%뿐
+# 이었다) - 그래서 성분마다 폴리곤을 따로 반환한다. cv2는 여기서만 지역
+# import한다(다른 mask_* 함수들의 PIL과 같은 이유 - anomaly_grouping을 그냥
+# import만 하는 경로가 무거운 이미지 러타임을 강제로 로드하지 않게 함).
+def mask_polygons(
+    array: NDArray[np.bool_],
+) -> tuple[tuple[tuple[float, float], ...], ...]:
+    """Return one simplified polygon outline per connected foreground component."""
     import cv2  # noqa: PLC0415
 
     mask_bytes: NDArray[np.uint8] = np.multiply(array, 255).astype(np.uint8)
     contours, _ = cv2.findContours(
         mask_bytes, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
-    if not contours:
-        return ()
-    largest = max(contours, key=cv2.contourArea)
-    perimeter = cv2.arcLength(largest, closed=True)
+    polygons = (_contour_polygon(contour) for contour in contours)
+    valid = (polygon for polygon in polygons if len(polygon) >= _MIN_POLYGON_POINTS)
+    return tuple(sorted(valid, key=_polygon_area, reverse=True))
+
+
+# mask_polygons에서 호출된다. 단순화 후 점이 3개 미만으로 쪼그라들면(아주 작은
+# 성분에서 흔함) 단순화를 건너뛰고 원본 컨투어 점을 그대로 쓴다 - 근사가
+# 폴리곤을 점 1~2개로 무너뜨려 화면에서 사실상 안 보이게 되는 것을 막는다.
+def _contour_polygon(contour: NDArray[np.int32]) -> tuple[tuple[float, float], ...]:
+    import cv2  # noqa: PLC0415
+
+    perimeter = cv2.arcLength(contour, closed=True)
     epsilon = max(1.0, _POLYGON_EPSILON_RATIO * perimeter)
-    simplified = cv2.approxPolyDP(largest, epsilon, closed=True)
-    return tuple((float(point[0][0]), float(point[0][1])) for point in simplified)
+    simplified = cv2.approxPolyDP(contour, epsilon, closed=True)
+    points = tuple((float(point[0][0]), float(point[0][1])) for point in simplified)
+    if len(points) >= _MIN_POLYGON_POINTS:
+        return points
+    return tuple((float(point[0][0]), float(point[0][1])) for point in contour)
+
+
+def _polygon_area(polygon: tuple[tuple[float, float], ...]) -> float:
+    import cv2  # noqa: PLC0415
+
+    points = np.array(polygon, dtype=np.float32).reshape(-1, 1, 2)
+    return float(cv2.contourArea(points))

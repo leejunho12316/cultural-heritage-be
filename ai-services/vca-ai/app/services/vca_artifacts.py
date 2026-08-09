@@ -52,7 +52,7 @@ class VcaReportFinding:
     descriptor: str | None = None
     citations: tuple[VcaReportFindingCitation, ...] = ()
     bbox: VcaReportFindingBbox | None = None
-    polygon: tuple[tuple[float, float], ...] | None = None
+    polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,7 +135,7 @@ class TraceMetadataCandidate(BaseModel):
     terminal_status: Literal["kept", "suppressed"]
     citations: tuple[TraceMetadataCitation, ...] = ()
     bbox: TraceMetadataBbox | None = None
-    polygon: tuple[tuple[float, float], ...] | None = None
+    polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
 
 
 class TraceReportMetadata(BaseModel):
@@ -345,7 +345,7 @@ def _finding_from_candidate(
         descriptor=candidate.hybrid_descriptor,
         citations=_top_citations(candidate.citations),
         bbox=_finding_bbox(candidate.bbox),
-        polygon=candidate.polygon,
+        polygons=candidate.polygons,
     )
 
 

@@ -120,11 +120,13 @@ class TraceCandidate:
     coverage_metrics: tuple[JsonObject, ...] = ()
     skip_reason: str | None = None
     bbox: TraceCandidateBbox | None = None
-    # Vectorized mask outline in original-image pixel space, (x, y) point
-    # pairs - the FE renders this as a <polygon> for the real segmentation
-    # shape. bbox above stays for auxiliary/legacy display; polygon is the
+    # Vectorized mask outlines in original-image pixel space, (x, y) point
+    # pairs - one polygon per disconnected mask fragment (real masks are
+    # often multi-component, e.g. scattered corrosion spots), which the FE
+    # renders as multiple <polygon> shapes for the real segmentation shape.
+    # bbox above stays for auxiliary/legacy display; polygons is the
     # standard.
-    polygon: tuple[tuple[float, float], ...] | None = None
+    polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
     qwen_final_success: bool | None = None
     qwen_report_display_text: str | None = None
     qwen_confidence: float | None = None

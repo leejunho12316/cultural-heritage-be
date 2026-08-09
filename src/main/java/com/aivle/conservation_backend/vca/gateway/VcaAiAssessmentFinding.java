@@ -11,7 +11,7 @@ public record VcaAiAssessmentFinding(
         String descriptor,
         List<Citation> citations,
         Bbox bbox,
-        List<Point> polygon
+        List<List<Point>> polygons
 ) {
 
     public record Citation(
