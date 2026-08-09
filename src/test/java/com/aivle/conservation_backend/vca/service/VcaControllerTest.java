@@ -7,6 +7,7 @@ import com.aivle.conservation_backend.vca.config.VcaAccessTokenInterceptor;
 import com.aivle.conservation_backend.vca.controller.VcaController;
 import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
 import com.aivle.conservation_backend.vca.dto.RunResponse;
+import com.aivle.conservation_backend.vca.exception.VcaApiException;
 import com.aivle.conservation_backend.vca.exception.VcaExceptionHandler;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentFinding;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentReport;
@@ -1334,6 +1335,64 @@ class VcaControllerTest {
         gatewayMvc.perform(delete("/api/vca/image-delete-guard-artifact/images/{imageId}", imageId))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("IMAGE_REFERENCED_BY_RUN"));
+    }
+
+    @Test
+    void reconcilesStuckQueuedRunLeftByAnUncaughtCrashDuringRunCreation() {
+        // Given: createRun's catch only handles RuntimeException (a normal,
+        // already-handled gateway failure - it rolls back via
+        // cancelRunReservation). If the process is killed outright between
+        // reserveRun committing a QUEUED row and the AI call returning, no
+        // catch block ever runs. An Error (not a RuntimeException) models
+        // that: it propagates straight out of createRun uncaught, exactly
+        // like a crash would, leaving the QUEUED/aiRunId=null row behind.
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        VcaAiGateway crashingGateway = new VcaAiGateway() {
+            @Override
+            public VcaAiAssessmentRun createAssessmentRun(
+                    String assessmentId, String projectName, String inputImageFolder
+            ) {
+                throw new OutOfMemoryError("simulated process crash");
+            }
+
+            @Override
+            public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public VcaAiAssessmentReport getAssessmentReport(String runId) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        VcaService service = new VcaService(true, crashingGateway, sharedStorage);
+        MockMultipartFile file = new MockMultipartFile("file", "detail.png", "image/png", PNG_BYTES);
+        service.uploadImage("stuck-run-artifact", file);
+
+        // When: run creation crashes uncaught partway through.
+        assertThatThrownBy(() -> service.createRun("stuck-run-artifact"))
+                .isInstanceOf(OutOfMemoryError.class);
+
+        // Then: the QUEUED reservation survives and blocks every subsequent
+        // run creation attempt for this artifact - the actual bug.
+        ArtifactDetailResponse beforeReconcile = service.getArtifact("stuck-run-artifact");
+        assertThat(beforeReconcile.runs()).hasSize(1);
+        assertThat(beforeReconcile.runs().get(0).status()).isEqualTo("QUEUED");
+        assertThatThrownBy(() -> service.createRun("stuck-run-artifact"))
+                .isInstanceOf(VcaApiException.class)
+                .hasMessageContaining("already queued or running");
+
+        // When: the startup reconciler runs, as it would on the next boot.
+        service.reconcileStuckRunsOnStartup();
+
+        // Then: the stuck run is marked FAILED and no longer blocks new runs.
+        ArtifactDetailResponse afterReconcile = service.getArtifact("stuck-run-artifact");
+        assertThat(afterReconcile.runs().get(0).status()).isEqualTo("FAILED");
     }
 
     @Test

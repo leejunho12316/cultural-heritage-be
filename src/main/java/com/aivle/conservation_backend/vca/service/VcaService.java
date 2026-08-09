@@ -33,6 +33,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -650,6 +652,36 @@ public class VcaService {
         artifactStore.save(artifact);
         log.info("VCA assessment run cancelled artifactId={} assessmentRunId={}", artifactId, assessmentRunId);
         return toRun(artifact, run);
+    }
+
+    // createRun은 reserveRun(QUEUED row 커밋)과 createAiAssessmentRun(vca-ai 호출)을
+    // 분리한 2단계 흐름이다 - 정상적인 RuntimeException은 createRun의 catch가
+    // cancelRunReservation으로 이미 정리하지만, 그 사이에 프로세스가 통째로
+    // 죽으면(강제 종료, OOM kill 등) catch가 실행될 기회 자체가 없어 QUEUED row가
+    // 영원히 남는다. completeRunReservation이 aiRunId를 채우기 전까지는 상태가
+    // 확정되지 않으므로, "QUEUED/RUNNING인데 aiRunId가 null"인 조합은 이
+    // 크래시 상황에서만 나올 수 있는 신호다 - 오탐 없이 앱 기동 시점에 자동
+    // 정리한다. 방치하면 activeRunExists 검사에 걸려 해당 아티팩트의 모든
+    // 후속 run 생성이 영구히 막힌다.
+    @EventListener(ApplicationReadyEvent.class)
+    public synchronized void reconcileStuckRunsOnStartup() {
+        Instant now = Instant.now();
+        List<VcaAssessmentRunEntity> stuckRuns = runStore.findAll().stream()
+                .filter(run -> ("QUEUED".equals(run.getStatus()) || "RUNNING".equals(run.getStatus()))
+                        && run.getAiRunId() == null)
+                .toList();
+        for (VcaAssessmentRunEntity run : stuckRuns) {
+            run.setStatus("FAILED");
+            run.setFailureReason("서버 재시작으로 run 예약이 완료되지 못해 자동 종료되었습니다.");
+            run.setCompletedAt(now);
+            runStore.save(run);
+            artifactStore.findById(run.getArtifactId()).ifPresent(artifact -> {
+                artifact.setUpdatedAt(now);
+                artifactStore.save(artifact);
+            });
+            log.info("VCA stuck run reconciled on startup artifactId={} assessmentRunId={}",
+                    run.getArtifactId(), run.getId());
+        }
     }
 
     // "도자기 검사" 수동 트리거 엔드포인트의 실제 로직. material 게이팅 결과에 따라
@@ -1822,6 +1854,11 @@ public class VcaService {
         @Override
         public synchronized Optional<VcaAssessmentRunEntity> findById(UUID id) {
             return Optional.ofNullable(byId.get(id));
+        }
+
+        @Override
+        public synchronized List<VcaAssessmentRunEntity> findAll() {
+            return List.copyOf(byId.values());
         }
 
         @Override

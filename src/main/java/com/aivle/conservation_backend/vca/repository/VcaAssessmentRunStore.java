@@ -12,6 +12,8 @@ public interface VcaAssessmentRunStore {
 
     Optional<VcaAssessmentRunEntity> findById(UUID id);
 
+    List<VcaAssessmentRunEntity> findAll();
+
     List<VcaAssessmentRunEntity> findByArtifactId(UUID artifactId);
 
     int countByArtifactId(UUID artifactId);
