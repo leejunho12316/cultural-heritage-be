@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -284,10 +285,9 @@ public class VcaService {
     // GET /api/vca - 아티팩트 목록 조회. 조회할 때마다 진행 중인 데모 run들의 진행 상태를 갱신한다.
     public synchronized ArtifactCollectionResponse getArtifacts() {
         return new ArtifactCollectionResponse(
-                artifactStore.findAll().stream().map(artifact -> {
-                    advanceDemoRuns(artifact);
-                    return toSummary(artifact);
-                }).toList()
+                artifactStore.findAll().stream()
+                        .map(artifact -> toSummary(artifact, advanceDemoRuns(artifact)))
+                        .toList()
         );
     }
 
@@ -306,8 +306,7 @@ public class VcaService {
     // GET /api/vca/{artifactId} - 아티팩트가 없으면 새로 생성한다(getOrCreateArtifact).
     public synchronized ArtifactDetailResponse getArtifact(String artifactId) {
         VcaArtifactEntity artifact = getOrCreateArtifact(artifactId);
-        advanceDemoRuns(artifact);
-        return toDetail(artifact);
+        return toDetail(artifact, advanceDemoRuns(artifact));
     }
 
     // 업로드 예약: uploadMode()에 따라 S3 presigned PUT 또는 로컬 폴백 URL을 발급하고
@@ -564,7 +563,21 @@ public class VcaService {
                 .uploadedImageIds(uploadedImages.stream().map(image -> image.getId().toString()).toList())
                 .stages(List.of())
                 .build();
-        runStore.save(run);
+        // runNumber is only serialized by this JVM's synchronized lock, which
+        // doesn't span multiple app instances - the (artifact_id, run_number)
+        // DB unique constraint is the real backstop under concurrent instances.
+        // Without this catch, losing that race surfaced as an uncaught 500
+        // instead of the same graceful conflict a losing activeRunExists
+        // check above already returns.
+        try {
+            runStore.save(run);
+        } catch (DataIntegrityViolationException exception) {
+            throw new VcaApiException(
+                    HttpStatus.CONFLICT,
+                    "ACTIVE_RUN_EXISTS",
+                    "An assessment run is already queued or running for this artifact."
+            );
+        }
         artifact.setUpdatedAt(now);
         artifactStore.save(artifact);
         log.info("VCA assessment run reserved artifactId={} assessmentRunId={} imageCount={}",
@@ -903,9 +916,10 @@ public class VcaService {
                 + "&signature=" + UUID.randomUUID().toString().replace("-", ""));
     }
 
-    // 엔티티 -> ArtifactSummary(목록 카드용 DTO) 변환. getArtifacts에서 사용.
-    private ArtifactSummary toSummary(VcaArtifactEntity artifact) {
-        List<VcaAssessmentRunEntity> runs = runStore.findByArtifactId(artifact.getId());
+    // 엔티티 -> ArtifactSummary(목록 카드용 DTO) 변환. getArtifacts에서 사용. runs는
+    // 호출자가 advanceDemoRuns로 이미 조회/갱신해둔 목록을 그대로 받는다 - 같은
+    // 아티팩트의 run을 두 번 조회하지 않기 위함이다.
+    private ArtifactSummary toSummary(VcaArtifactEntity artifact, List<VcaAssessmentRunEntity> runs) {
         VcaAssessmentRunEntity latestRun = runs.stream()
                 .max(Comparator.comparing(VcaAssessmentRunEntity::getStartedAt))
                 .orElse(null);
@@ -920,9 +934,9 @@ public class VcaService {
     }
 
     // 엔티티 -> ArtifactDetailResponse 변환. artifactStatus로 종합 상태를 계산해 함께 담는다.
-    private ArtifactDetailResponse toDetail(VcaArtifactEntity artifact) {
+    // runs는 toSummary와 같은 이유로 호출자가 넘겨준다.
+    private ArtifactDetailResponse toDetail(VcaArtifactEntity artifact, List<VcaAssessmentRunEntity> runs) {
         List<VcaUploadedImageEntity> images = imageStore.findByArtifactId(artifact.getId());
-        List<VcaAssessmentRunEntity> runs = runStore.findByArtifactId(artifact.getId());
         return new ArtifactDetailResponse(
                 artifact.getArtifactCode(),
                 artifact.getTitle(),
@@ -993,10 +1007,14 @@ public class VcaService {
 
     // getArtifacts/getArtifact가 매번 호출해 진행 중인 run들의 상태를 갱신하는 폴링성 메서드.
     // AI 게이트웨이가 있으면 syncRunWithAi로 위임하고, 없으면 데모 타이머로 진행을 흉내낸다.
-    private void advanceDemoRuns(VcaArtifactEntity artifact) {
+    // 조회한 run 목록을 그대로 반환해(엔티티는 이 메서드 안에서 이미 최신 상태로
+    // mutate됨) 호출자가 toSummary/toDetail에 넘길 때 같은 아티팩트의 run을
+    // 다시 조회하지 않게 한다.
+    private List<VcaAssessmentRunEntity> advanceDemoRuns(VcaArtifactEntity artifact) {
         Instant now = Instant.now();
         boolean artifactTouched = false;
-        for (VcaAssessmentRunEntity run : runStore.findByArtifactId(artifact.getId())) {
+        List<VcaAssessmentRunEntity> runs = runStore.findByArtifactId(artifact.getId());
+        for (VcaAssessmentRunEntity run : runs) {
             if ("COMPLETED".equals(run.getStatus()) || "FAILED".equals(run.getStatus())) {
                 continue;
             }
@@ -1027,6 +1045,7 @@ public class VcaService {
             artifact.setUpdatedAt(now);
             artifactStore.save(artifact);
         }
+        return runs;
     }
 
     // vca-ai 호출 직전, 업로드된 이미지를 엔진이 읽을 입력 디렉터리로 구체화(materializeRunInput)한
@@ -1784,6 +1803,18 @@ public class VcaService {
 
         @Override
         public synchronized VcaAssessmentRunEntity save(VcaAssessmentRunEntity entity) {
+            // Mirrors the real (artifact_id, run_number) DB unique constraint
+            // so tests can exercise the race-losing path the same way
+            // production does under DataIntegrityViolationException.
+            boolean duplicateRunNumber = byId.values().stream()
+                    .anyMatch(existing -> !existing.getId().equals(entity.getId())
+                            && existing.getArtifactId().equals(entity.getArtifactId())
+                            && existing.getRunNumber() == entity.getRunNumber());
+            if (duplicateRunNumber) {
+                throw new DataIntegrityViolationException(
+                        "duplicate run_number for artifact " + entity.getArtifactId()
+                );
+            }
             byId.put(entity.getId(), entity);
             return entity;
         }

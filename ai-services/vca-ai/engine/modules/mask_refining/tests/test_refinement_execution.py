@@ -326,6 +326,152 @@ def test_refinement_execution_passes_through_candidates_without_rag_prompts(
     assert accepted[0]["mask_path"] is None
 
 
+def test_max_groups_truncation_does_not_passthrough_a_candidate_with_real_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Given: two candidates each with their own real RAG-derived prompt
+    # group, but max_groups=1 only lets the first one actually run this
+    # pass - the second's group still exists, it just wasn't reached yet.
+    prompt_root = tmp_path / "prompts"
+    asset_root = tmp_path / "assets-root"
+    output_root = tmp_path / "output"
+    prompt_root.mkdir()
+    _ = (prompt_root / "manifest.json").write_text(
+        json.dumps({"schema": "rag_refinement_prompt_variants_smoke_v1"})
+    )
+    first_row = {
+        "concept_card_id": "card-001",
+        "generated_prompt": "surface crack",
+        "generated_prompt_id": "prompt-001",
+        "model_lane": "owlv2",
+        "model_prompt_variant": "owlv2",
+        "prompt_pack_id": "rag-refinement-v1",
+        "prompt_role": "rag_refinement",
+        "rag_parent_candidate_id": "rough-parent-001",
+        "source_citation_ids": ["citation-001"],
+        "source_concept_family": "crack",
+        "source_terms": ["crack", "surface"],
+    }
+    second_row = {**first_row, "rag_parent_candidate_id": "rough-parent-002"}
+    _ = (prompt_root / "rag_refinement_prompt_variants.jsonl").write_text(
+        f"{json.dumps(first_row)}\n{json.dumps(second_row)}\n"
+    )
+    # Both objects get real preprocessing assets - candidate-002 must be
+    # capable of producing a real passthrough row (not skipped for an
+    # unrelated reason like missing assets), so this test actually
+    # distinguishes "correctly absent" from "incorrectly passed through."
+    _write_preprocessing_assets(asset_root)
+    second_object_root = asset_root / "assets" / "objects" / "object-002"
+    second_object_root.mkdir(parents=True)
+    _ = (second_object_root / "bbox_crop.jpg").write_bytes(
+        PNG_HEADER + b"\x00\x00\x00\rIHDR\x00\x00\x00\x20\x00\x00\x00\x10"
+    )
+    _ = (second_object_root / "mask.png").write_bytes(PNG_HEADER + b"mask")
+    manifest_path = asset_root / "manifests" / "real_preprocessing_manifest.json"
+    manifest = parse_json_object(manifest_path.read_text(encoding="utf-8"))
+    objects = manifest["objects"]
+    assert isinstance(objects, list)
+    objects.append(
+        {
+            "object_id": "object-002",
+            "image_id": "image-001",
+            "bbox_xyxy": [10.0, 20.0, 42.0, 36.0],
+            "bbox_crop": {"path": str(second_object_root / "bbox_crop.jpg")},
+            "mask": {"path": str(second_object_root / "mask.png")},
+        }
+    )
+    _ = manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+        return (_rough_candidate(), _second_rough_candidate())
+
+    monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
+
+    def runner_factory(details: RunnerFactoryInput) -> DetectorRunner:
+        def runner(request: AdapterRequest) -> RunnerOutcome:
+            output = AnomalyMaskOutput(
+                prompt=request.prompts[0],
+                score=0.8,
+                bbox_xyxy=(1.0, 1.0, 8.0, 8.0),
+                mask_png=PNG_HEADER + b"mask",
+                overlay_jpeg=JPEG_HEADER + b"overlay",
+                quality_filter_version="test",
+                quality_score=0.8,
+                mask_area_ratio=0.1,
+                bbox_fill_ratio=0.5,
+                boundary_pixel_ratio=0.0,
+                perimeter_coverage_ratio=0.0,
+                border_touch_count=0,
+                component_count=1,
+                largest_component_ratio=1.0,
+            )
+            materialize_anomaly_outputs(request, (output,))
+            return RunnerOutcome(runner_invoked=True)
+
+        _ = details
+        return runner
+
+    request = RefinementRunRequest(
+        prompt_output_dir=prompt_root,
+        rough_root=tmp_path / "rough",
+        asset_root=asset_root,
+        output_dir=output_root,
+        model_cache_root=tmp_path / "models",
+        device="cpu",
+        verify_model_hashes=False,
+        max_groups=1,
+    )
+
+    # When: refinement runs with the group budget truncated to 1.
+    result = run_refinement(request, runner_factory, _fake_qwen_evidence_factory)
+
+    # Then: only the first candidate's group is executed, and the second
+    # candidate - which does have real RAG evidence, just not reached this
+    # pass - is neither fabricated into a "no evidence" passthrough row nor
+    # silently claimed as covered; it's simply absent from this run's output.
+    assert len(result.records) == 1
+    assert result.records[0].rag_parent_candidate_id == "rough-parent-001"
+    passthrough_path = output_root / "passthrough_records.jsonl"
+    assert passthrough_path.is_file()
+    assert passthrough_path.read_text(encoding="utf-8") == ""
+
+
+def _second_rough_candidate() -> RoughQwenCandidate:
+    metadata = PromptMetadata(
+        "static-seed", PromptRole.STATIC_SEED, RagLane.OWLV2, "seed-002", ("mark",)
+    )
+    candidate = RawDetectorCandidate(
+        CandidateId("rough-parent-002"),
+        ImageId("image-001"),
+        DetectorLane.OWLV2_SAM2,
+        CandidateStatus.ACCEPTED,
+        "mark",
+        0.9,
+        (1.0, 1.0, 2.0, 2.0),
+        AssetReference("mask.png", "a" * 64, "image/png"),
+        AssetReference("overlay.jpg", "b" * 64, "image/jpeg"),
+        "detector",
+        "sam2",
+        SeedThresholds(0.08, None, 2, 0.3),
+        metadata,
+        "source-002",
+        "object-002",
+        None,
+        (),
+    )
+    return RoughQwenCandidate(
+        rough=RoughRagCandidate(
+            "owlv2_sam2",
+            "mark",
+            "owlv2_sam2/object-002/records.json",
+            0,
+            CandidateId("rough-parent-002"),
+            "image-001",
+        ),
+        candidate=candidate,
+    )
+
+
 def test_passthrough_skips_one_candidate_instead_of_crashing_the_whole_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

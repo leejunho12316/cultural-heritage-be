@@ -731,12 +731,18 @@ def run_refinement(
     skips = list(prompt_result.skips)
     _prepare_output_dir(request.output_dir)
     processed_groups = 0
-    covered_candidate_ids: set[str] = set()
+    # 후보가 "패스스루 대상"인지 판정하는 기준은 실제로 RAG 근거 프롬프트
+    # 그룹이 존재하는지 여부이지, max_groups로 이번 실행에서 처리됐는지가
+    # 아니다 - covered_candidate_ids만 쓰면 max_groups로 잘려나간(하지만
+    # 실제로는 RAG 근거가 있는) 후보까지 "근거 없음" 패스스루로 잘못
+    # 분류된다.
+    candidates_with_prompt_groups: frozenset[str] = frozenset(
+        group.rag_parent_candidate_id for group in prompt_result.groups
+    )
     for group in prompt_result.groups:
         if request.max_groups is not None and processed_groups >= request.max_groups:
             break
         processed_groups += 1
-        covered_candidate_ids.add(group.rag_parent_candidate_id)
         candidate = candidates.get(group.rag_parent_candidate_id)
         if candidate is None or candidate.source_object_id is None:
             skips.append(
@@ -816,7 +822,7 @@ def run_refinement(
         )
     passthrough_rows: list[JsonValue] = []
     for candidate_id, candidate in candidates.items():
-        if candidate_id in covered_candidate_ids:
+        if candidate_id in candidates_with_prompt_groups:
             continue
         row, skip = _passthrough_record(candidate, request)
         if skip is not None:
