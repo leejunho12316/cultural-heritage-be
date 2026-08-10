@@ -722,31 +722,30 @@ LIMIT 5;
 
 ---
 
-## 15단계 — CI/CD 파이프라인 (CodeCommit → CodePipeline → CodeBuild → ECR)
+## 15단계 — CI/CD 파이프라인 (GitHub → CodePipeline → CodeBuild → ECR → EKS)
 
 2차 "남은 작업" 3번을 여기서 구현한다.
 
-> **주의**: AWS CodeCommit은 2024년 7월부터 **신규 리포지토리 생성이 기존 사용 이력이 없는 계정에서는 막혀 있을 수 있다**(AWS가 신규 고객에게는 더 이상 CodeCommit을 권하지 않는 방향으로 정책을 바꿨다). 계정에서 CodeCommit 콘솔에 들어가서 "리포지토리 생성" 버튼이 비활성화되어 있거나 안내 문구만 뜬다면, 소스 저장소는 GitHub을 그대로 쓰고 **CodeStar Connections**로 CodePipeline과 연결하는 방식으로 대체해야 한다(그 경우 다이어그램의 CodeCommit 자리만 GitHub+CodeStar Connections로 바뀌고 뒤 단계는 동일). 진행 전에 콘솔에서 먼저 확인할 것.
+> **CodeCommit이 아니라 GitHub을 쓰는 이유**: 이 문서 이전 버전은 AWS CodeCommit(신규 계정에서 막혀 있을 수 있음)을 기본으로 삼았었다. 실제로 4차 배포 때는 계정에서 CodeCommit 리포지토리 생성이 **막혀 있지 않았지만**, 애초에 원하는 동작이 "이미 GitHub에 올리고 있는 코드가 바뀌면 자동으로 빌드/배포"였기 때문에 CodeCommit으로 코드를 한 번 더 복제해 관리하는 대신 **GitHub 저장소를 그대로 원본으로 쓰고 AWS가 그 저장소를 지켜보게 하는 방식**(CodeStar Connections)으로 최종 결정했다. CodeCommit을 쓰고 싶다면 15-1만 "CodeCommit 리포지토리 생성 → `git remote add codecommit <clone URL>` → `git push codecommit main`"으로 바꾸고 나머지 단계(CodeBuild/CodePipeline의 Source 설정만 CodeCommit으로) 그대로 따라가면 된다.
 
-### 15-1. CodeCommit 리포지토리 생성 (또는 위 대체 경로)
-CodeCommit 콘솔 → 리포지토리 생성 → 이름 `conservation-backend` → 로컬 저장소에 원격 추가 후 push:
-```bash
-git remote add codecommit <CodeCommit에서 안내하는 clone URL>
-git push codecommit main
-```
+> **왜 "리포지토리 복제"라는 이름에 헷갈리기 쉬운가**: CodeCommit/CodeStar 설정 화면에 뜨는 "클론 URL"이라는 이름은 *다른 사람이 이 저장소를 처음 내려받을 때(clone)* 쓰는 주소라서 그렇게 부르는 것이지, 우리가 지금 그 작업을 하는 게 아니다. 우리가 하는 건 정반대 방향 — 이미 로컬/GitHub에 있는 프로젝트를 AWS가 지켜볼 수 있는 위치로 **연결(또는 push)**하는 것이다. CI/CD가 자동으로 커밋을 인식하려면 AWS 쪽에서 "지켜볼 수 있는" 저장소가 있어야 하고, GitHub 방식에서는 CodeStar Connections가 그 연결고리를 만들어준다(GitHub 저장소 자체를 옮기거나 복제하지 않는다).
 
-### 15-2. CodeBuild 프로젝트 생성
-CodeBuild 콘솔 → 빌드 프로젝트 생성
+### 15-1. CodeStar Connection 생성 (GitHub 연결)
+CodePipeline 콘솔 → 설정(Settings) → 연결(Connections) → 연결 생성
 | 항목 | 값 |
 |---|---|
-| 프로젝트 이름 | `conservation-build` |
-| 소스 | CodeCommit → `conservation-backend` 리포지토리, `main` 브랜치 |
-| 환경 이미지 | Amazon Linux, 관리형 이미지 (표준 러너) |
-| 권한 부여 | **특수 권한** 체크 (Docker 빌드 시 Docker-in-Docker가 필요) |
-| 서비스 역할 | 새로 생성 → 생성 후 `AmazonEC2ContainerRegistryPowerUser` 정책 추가 부여 |
-| Buildspec | 리포지토리의 `buildspec.yml` 사용 |
+| 공급자 | GitHub |
+| 연결 이름 | `conservation-github` |
 
-레포 루트에 `buildspec.yml` 작성:
+"GitHub App 연결" 버튼으로 GitHub 로그인 → 이 프로젝트가 있는 조직/저장소에 대한 접근 권한 승인. 연결 상태가 `보류 중(Pending)` → `사용 가능(Available)`으로 바뀌면 완료.
+
+> **저장소 이름 확인 필수**: 로컬 폴더명(`conservation_backend`)이나 문서상의 예시 이름(`conservation-backend`)과 **실제 GitHub 저장소 이름이 다를 수 있다**. CodeBuild/CodePipeline에서 저장소를 선택하기 전에 반드시 아래로 확인해서 정확한 이름을 쓴다:
+> ```bash
+> git remote get-url origin
+> ```
+
+### 15-2. `buildspec.yml` 작성
+레포 루트(`git remote get-url origin`으로 확인한 저장소의 루트)에 `buildspec.yml`을 추가한다:
 ```yaml
 version: 0.2
 
@@ -775,28 +774,79 @@ phases:
           docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:$IMAGE_TAG
           docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:latest
         done
-```
-
-> Lambda(`xray-s3-file-recorder`)는 이 파이프라인 대상이 아니다 — 코드가 바뀌면 14-6/14-7을 다시 수행(zip 재빌드 + 콘솔에서 코드 업로드)해서 갱신한다. 자주 바뀌는 컴포넌트가 아니라서 지금 단계에서는 자동화하지 않는다.
-
-### 15-3. (선택) EKS까지 자동 배포
-`buildspec.yml`의 `post_build` 뒤에 아래를 더 붙이면 이미지 push까지뿐 아니라 실행 중인 Pod도 자동으로 새 이미지로 교체된다. 다만 이러려면 **CodeBuild의 서비스 역할에도 5단계와 같은 EKS Access Entry를 만들어줘야 한다**(`AmazonEKSClusterAdminPolicy`까지는 과하고, 배포용으로 범위를 좁힌 정책을 쓰는 걸 권장):
-```yaml
       - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
       - chmod +x kubectl && mv kubectl /usr/local/bin/
       - aws eks update-kubeconfig --name conservation-cluster --region $AWS_REGION
       - kubectl rollout restart deployment/conservation-backend deployment/conservation-guide-ai deployment/xray-ai deployment/pottery-inspection-ai
 ```
-자동화가 아직 부담스럽다면 이 부분은 생략하고, 2차처럼 이미지 push까지만 자동화한 뒤 `kubectl rollout restart`는 계속 수동으로 해도 된다 — 그 경우 CI(빌드/푸시)까지만 자동, CD(배포)는 수동인 상태로 남는다는 걸 팀 안에서 인지하고 있으면 된다.
 
-### 15-4. CodePipeline 생성
+> Lambda(`xray-s3-file-recorder`)는 이 파이프라인 대상이 아니다 — 코드가 바뀌면 14-6/14-7을 다시 수행(zip 재빌드 + 콘솔에서 코드 업로드)해서 갱신한다. 자주 바뀌는 컴포넌트가 아니라서 지금 단계에서는 자동화하지 않는다.
+
+**`buildspec.yml` 해설(각 phase가 하는 일)**:
+| Phase | 하는 일 |
+|---|---|
+| `env.variables` | 이 파일 전체에서 반복 쓰는 값을 변수로 뽑아둔 것. `ACCOUNT_ID`는 계정마다 바뀌므로 실제 배포 계정 ID로 교체해야 한다. |
+| `pre_build` | ① `docker login`으로 ECR에 인증(CodeBuild 컨테이너 자체는 ECR 자격 증명이 기본으로 없어서 매 빌드마다 로그인이 필요하다). ② `IMAGE_TAG`를 커밋 해시 앞 7자리로 만든다 — `CODEBUILD_RESOLVED_SOURCE_VERSION`은 CodeBuild가 자동으로 채워주는 내장 변수로, GitHub 소스에서는 그 커밋의 SHA가 들어온다. `latest`만 쓰지 않고 커밋별 태그도 같이 남기는 이유는 "지금 떠 있는 이미지가 정확히 어느 커밋에서 빌드됐는지" 나중에 추적하기 위해서다. |
+| `build` | 4개 서비스 각각 `docker build`. 태그는 아직 로컬 이름(`conservation-backend:$IMAGE_TAG`)이고 ECR 주소가 안 붙어 있다 — ECR 주소를 붙이는 건 `post_build`의 역할. |
+| `post_build` (앞부분, 태그/push 루프) | 방금 만든 로컬 이미지에 ECR 리포지토리 전체 주소를 갖는 태그를 두 개(`$IMAGE_TAG`, `latest`) 새로 붙이고(`docker tag`는 새 이미지를 만드는 게 아니라 같은 이미지에 이름표를 하나 더 붙이는 것) 둘 다 push한다. `latest`는 "지금 배포에 쓸 최신판", 커밋 해시 태그는 "그 시점의 스냅샷" 용도로 공존한다. |
+| `post_build` (뒷부분, `kubectl` 4줄) | ECR push까지는 CI(빌드)이고, 이 4줄이 실제 배포(CD)를 수행한다. `curl`~`mv`로 CodeBuild 컨테이너 안에 `kubectl` 바이너리를 내려받고, `aws eks update-kubeconfig`로 그 컨테이너의 kubeconfig를 이 클러스터에 맞춰 설정한 다음, `kubectl rollout restart`로 4개 Deployment의 Pod를 전부 새로 띄운다. Deployment가 이미지 태그로 `:latest`를 쓰고 있으므로(`k8s/app.yaml`), 재시작된 Pod는 방금 push한 새 이미지를 pull해서 뜬다. |
+
+### 15-3. CodeBuild 프로젝트 생성
+CodeBuild 콘솔 → 빌드 프로젝트 생성
+| 항목 | 값 |
+|---|---|
+| 프로젝트 이름 | 자유(예: `conservation-be-build`) |
+| 소스 공급자 | GitHub |
+| 리포지토리 | 15-1에서 만든 연결을 통해 실제 저장소 선택 |
+| 브랜치 | `main` |
+| Git clone 깊이 | `1`(얕은 클론 — `buildspec.yml`이 커밋 히스토리를 깊이 참조하지 않으므로 최신 커밋만 받아도 충분, 빌드 속도도 더 빠르다) |
+| 환경 이미지 | 관리형 이미지, Amazon Linux, 표준 러너 |
+| 권한 부여 | **특수 권한(Privileged)** 체크 — Docker 이미지를 빌드하려면 컨테이너 안에서 또 다른 컨테이너(도커 데몬)를 띄워야 하는데(Docker-in-Docker), 이 체크가 없으면 `docker build` 자체가 실패한다 |
+| 서비스 역할 | 새로 생성(이름은 자동 생성되는 대로 둠, 예: `codebuild-<프로젝트명>-service-role`) |
+| Buildspec | "buildspec 파일 사용"(기본값 — 레포 루트의 `buildspec.yml` 자동 인식) |
+
+생성만 하고 아직 빌드는 실행하지 않는다 — 다음 단계(권한 설정)를 먼저 마쳐야 실제로 성공한다.
+
+### 15-4. 서비스 역할 권한 설정 — ECR + EKS(2단계 권한이 각각 필요)
+CodeBuild가 15-2의 `buildspec.yml`을 끝까지 실행하려면 **서로 다른 두 층의 권한**이 필요하다. 이 구분을 놓치면(특히 두 번째) 빌드가 마지막 단계에서 실패한다.
+
+**① IAM 정책 — "이 AWS API를 호출해도 되는가"**
+IAM 콘솔 → 역할 → `codebuild-<프로젝트명>-service-role` → 권한 추가
+- `AmazonEC2ContainerRegistryPowerUser`(관리형 정책 연결) — ECR에 이미지를 push할 수 있는 권한. (이름에 "EC2"가 들어가 있어 헷갈리기 쉬운데, EC2가 아니라 **ECR**용 정책이다.)
+- 인라인 정책으로 아래 JSON 추가 — `aws eks update-kubeconfig`가 내부적으로 호출하는 `eks:DescribeCluster` API를 이 역할이 부를 수 있게 허용:
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "eks:DescribeCluster",
+        "Resource": "arn:aws:eks:ap-northeast-2:<계정 ID>:cluster/conservation-cluster"
+      }
+    ]
+  }
+  ```
+
+**② EKS Access Entry — "클러스터 안에서 무엇을 할 수 있는가"**
+①은 "API를 호출할 자격이 있는가"만 확인하고, 실제로 클러스터 내부의 리소스(Pod 등)를 조작하려면 쿠버네티스 RBAC 권한이 별도로 있어야 한다. EKS 콘솔 → `conservation-cluster` → 액세스 탭 → 액세스 항목 생성:
+| 항목 | 값 |
+|---|---|
+| IAM 주체 | `arn:aws:iam::<계정 ID>:role/service-role/codebuild-<프로젝트명>-service-role` |
+| 정책 | `AmazonEKSEditPolicy`(권장 — `rollout restart`만 하면 되므로 `AmazonEKSClusterAdminPolicy`까지는 과함) |
+
+①만 하고 ②를 빠뜨리면 `update-kubeconfig` 자체는 되지만 이후 `kubectl` 명령이 "Unauthorized"로 실패하고, ②만 하고 ①을 빠뜨리면 `update-kubeconfig` 단계에서 `AccessDeniedException: ... not authorized to perform: eks:DescribeCluster`로 실패한다(둘 다 실제로 겪은 순서 — 부록 D 참고). 둘 다 있어야 끝까지 통과한다.
+
+### 15-5. CodePipeline 생성
 CodePipeline 콘솔 → 파이프라인 생성
-| 스테이지 | 공급자 | 설정 |
-|---|---|---|
-| Source | CodeCommit | 리포지토리 `conservation-backend`, 브랜치 `main` |
-| Build | CodeBuild | 프로젝트 `conservation-build` |
+| 스테이지 | 설정 |
+|---|---|
+| 파이프라인 이름 | 자유(예: `conservation-be-pipeline`) |
+| 실행 모드 | 대기열(Queued, 기본값) |
+| **Source** | 공급자: GitHub(버전 2) / 연결: 15-1에서 만든 연결 / 리포지토리·브랜치: 15-1에서 확인한 실제 저장소, `main` / 트리거: 지정된 브랜치로 push 시(기본값) |
+| **Build** | 공급자: AWS CodeBuild / 프로젝트: 15-3에서 만든 프로젝트 |
+| **Deploy** | **건너뛰기** — 배포(`kubectl rollout restart`)는 이미 `buildspec.yml`의 `post_build`가 처리하므로 CodePipeline의 별도 Deploy 스테이지는 불필요 |
 
-생성 후 `main`에 push할 때마다 파이프라인이 자동 실행된다.
+생성하면 파이프라인이 바로 한 번 자동 실행된다. 이후 `main`에 push할 때마다(또는 PR이 `main`에 머지될 때마다) 자동으로 빌드→ECR push→EKS 재배포까지 실행된다.
 
 ---
 
@@ -826,6 +876,9 @@ curl http://<ALB 도메인>/api/xray/health
 | Lambda | 호출 횟수/실행시간 기준, 업로드 이벤트마다 소량 과금(프리티어 월 100만 건까지 무료라 이 프로젝트 규모에선 사실상 무료) |
 | VPC Endpoint(S3, Gateway 타입) | 무료 |
 | S3 | 저장 용량 + 요청 건수 기준, X-ray 원본/산출물이 쌓이는 만큼 완만히 증가 |
+| CodePipeline | **활성 파이프라인당 월 $1**(30일 넘게 존재 + 그 달에 최소 1번 실행된 경우만 "활성"으로 과금, 첫 30일은 무료 체험, 실행 횟수와는 무관한 고정 요금) |
+| CodeStar Connections(GitHub 연결) | 무료 |
+| CodeBuild | 빌드 실행 시간(분) × 컴퓨팅 타입 단가로 과금(사용한 만큼만) — 기본값(`BUILD_GENERAL1_SMALL`) 기준 분당 약 $0.005. 4개 이미지 docker build에 5~6분 정도 걸리므로 1회 실행당 대략 $0.03 수준 |
 
 > **EFS가 없어서 더 단순해진 부분**: 이전 버전 문서는 EFS(파일 시스템 + 마운트 타깃 개수만큼 과금)도 비용 항목에 있었지만, X-ray가 S3 기반으로 바뀌면서 이 항목 자체가 사라졌다. S3는 EFS보다 저장 비용이 저렴하고, 쓴 만큼만 과금된다.
 
@@ -838,7 +891,60 @@ curl http://<ALB 도메인>/api/xray/health
 1. **Lambda → EC2 알림 경로 재검토**: 지금은 Lambda가 RDS `s3_file`에 직접 쓰기만 한다. `xray-ai`/`conservation-backend`가 이 상태 변화를 실시간으로 알아야 한다면(폴링이 아니라 즉시 알림이 필요하다면) Lambda에서 ALB(내부 경로) 또는 내부 API 호출을 추가하는 걸 고려. (현재는 `conservation-backend`가 필요 시점에 S3 객체 존재 여부/`s3_file` 레코드를 직접 조회하는 방식으로 충분히 동작한다.)
 2. **IRSA로 S3 접근 전환**: `conservation-backend`가 여전히 `.env.k8s`의 정적 `AWS_ACCESS_KEY_ID`/`SECRET`으로 S3에 접근 중이면, ServiceAccount 기반 IAM 역할로 전환 검토(`S3Config.java`는 `DefaultCredentialsProvider`도 지원하므로 정적 키를 비워두면 자동으로 IRSA를 타게 되어 있어 — 전환 자체는 이미 코드 레벨에서 가능한 상태).
 3. **HTTPS**: 지금 ALB는 `HTTP` 80 포트만 연다. 도메인을 붙이고 ACM 인증서를 발급해서 `HTTPS` 리스너를 추가하는 게 다음 단계.
-4. **CodeCommit 대체 경로 확정**: 15단계 서두의 주의사항대로, 계정에서 CodeCommit이 막혀 있다면 GitHub + CodeStar Connections로 소스 스테이지를 바꿔야 한다.
+4. ~~**CodeCommit 대체 경로 확정**~~: 15단계를 GitHub + CodeStar Connections 기준으로 다시 썼으므로 해결됨.
+
+---
+
+## 19단계 — EKS 클러스터 삭제 후 재구축 (비용 절감용)
+
+17단계에서 다룬 대로 EKS 노드 그룹을 0으로 줄이거나 RDS를 중지해도 **EKS 컨트롤 플레인 자체의 시간당 요금은 계속 청구된다.** 장기간(며칠~) 쓸 일이 없다면 노드 그룹 축소보다 **클러스터 자체를 삭제**하는 게 더 확실히 비용을 없앤다. VPC/서브넷/RDS/ECR/S3/Lambda/IAM 역할은 EKS 클러스터와 독립적인 리소스라 클러스터를 지워도 그대로 남는다 — 재구축은 "처음부터 전부 다시"가 아니라 "EKS 관련 부분만" 다시 만들면 된다.
+
+### 19-1. 삭제
+**반드시 이 순서로** 지운다(역순으로 지우면 ALB가 고아로 남아 계속 과금될 수 있다):
+```bash
+# 1. Ingress부터 지워서 ALB Controller가 실제 ALB 리소스를 정리하게 한다
+kubectl delete ingress conservation-backend
+kubectl get ingress   # 비어있는지 확인
+
+# 2. 노드 그룹 삭제
+aws eks delete-nodegroup --cluster-name conservation-cluster --nodegroup-name workers
+aws eks describe-nodegroup --cluster-name conservation-cluster --nodegroup-name workers   # ResourceNotFoundException 뜨면 완료
+
+# 3. 클러스터 삭제
+aws eks delete-cluster --name conservation-cluster
+aws eks describe-cluster --name conservation-cluster   # ResourceNotFoundException 뜨면 완료
+```
+삭제 후 ALB가 고아로 남지 않았는지 확인(비어있어야 정상):
+```bash
+aws elbv2 describe-load-balancers --query 'LoadBalancers[].{Name:LoadBalancerName,State:State.Code}' --output table
+```
+
+이 시점에 삭제되는 것과 남는 것:
+| 삭제됨 (재구축 시 다시 만들어야 함) | 남음 (그대로 재사용) |
+|---|---|
+| EKS 클러스터, 노드 그룹, ALB(Ingress), OIDC 신뢰 관계, `app-secrets` Secret, `aws-load-balancer-controller` Helm release, 클러스터의 Kubernetes RBAC(Access Entry 자체는 IAM 쪽 리소스라 남지만 클러스터가 없으면 무의미) | VPC/서브넷/라우팅 테이블/NAT Gateway, RDS(중지했다면 중지 상태 그대로), ECR 이미지, S3 버킷, Lambda 함수, `eksClusterRole`/`eksNodeRole`/`AmazonEKSLoadBalancerControllerRole` 등 IAM 역할, CodeBuild/CodePipeline(15단계) |
+
+### 19-2. 재구축 체크리스트
+| 순서 | 할 일 | 참고 |
+|---|---|---|
+| 1 | EKS 클러스터 재생성 (`conservation-cluster`, 기존 VPC/서브넷/`eksClusterRole` 재사용) | 4단계 |
+| 2 | 노드 그룹 재생성 (`workers`, 기존 `eksNodeRole` 재사용) | 4단계 |
+| 3 | **OIDC 공급자 재등록** — 클러스터를 새로 만들면 OIDC 발급자 URL(끝의 ID 값)이 바뀐다. IAM 콘솔에서 새 OIDC 공급자를 다시 추가해야 한다 | 6단계, 아래 참고 |
+| 4 | **`AmazonEKSLoadBalancerControllerRole`의 신뢰 정책 갱신** — 역할 자체는 남아있지만 신뢰 정책이 옛 OIDC ID를 참조하고 있어서, 새 OIDC ID로 3곳(Federated ARN + 두 Condition 키)을 바꿔줘야 한다 | 7단계 |
+| 5 | `kubectl` 로컬 연동 (`aws eks update-kubeconfig`) + 필요 시 Access Entry 재확인 | 5단계 |
+| 6 | AWS Load Balancer Controller 재설치 (`helm install`) — **`serviceAccount.create=true`로 새로 만들 경우 IRSA 어노테이션을 반드시 같이 지정하거나, 설치 후 별도로 붙여야 한다**(아래 부록 C의 에러 1 참고) | 7단계 |
+| 7 | `kubectl apply -f k8s/app.yaml` | 12~13단계 |
+| 8 | **`app-secrets` Secret 재생성** — 클러스터와 함께 지워졌으므로 `.env.k8s`가 로컬에 남아있다면 그대로 재사용 가능: `kubectl create secret generic app-secrets --from-env-file=.env.k8s` | 11단계 |
+| 9 | `kubectl get ingress`로 새 ALB 주소 확인 — **주소가 이전과 달라진다**, FE에 다시 공지 필요 | 16단계 |
+
+**OIDC 재등록 상세**:
+```bash
+# 새 클러스터의 OIDC 발급자 URL 확인
+aws eks describe-cluster --name conservation-cluster --query "cluster.identity.oidc.issuer" --output text
+```
+IAM 콘솔 → ID 공급자 → 공급자 추가 → 유형 `OpenID Connect` → URL에 위 값 붙여넣기 → 대상 `sts.amazonaws.com`.
+
+**`AmazonEKSLoadBalancerControllerRole` 신뢰 정책 갱신 상세**: IAM 콘솔 → 역할 → `AmazonEKSLoadBalancerControllerRole` → 신뢰 관계 탭 → 편집. `Federated` ARN과 `Condition`의 두 키 이름에 있는 옛 OIDC ID를 전부 새 ID로 바꾼다(형태는 7단계와 동일, ID 값만 다름).
 
 ---
 
@@ -987,3 +1093,76 @@ S3 버킷(`conservation-image-uploads`)은 11단계에서 이미 만들어둔 �
 - `alb.ingress.kubernetes.io/scheme: internet-facing`: ALB 노드를 퍼블릭 서브넷(`public-a`/`c`)에 만들라는 뜻 — 1단계에서 붙인 `kubernetes.io/role/elb` 태그 덕분에 컨트롤러가 어느 서브넷인지 자동으로 찾는다.
 - `alb.ingress.kubernetes.io/target-type: ip`: ALB가 워커 노드의 NodePort를 거치지 않고 **Pod IP로 직접** 트래픽을 쏜다는 뜻 — 홉이 하나 줄어 2차의 `LoadBalancer` 방식보다 지연이 약간 적다.
 - `rules`: 경로 `/`(전부)를 `conservation-backend` Service의 8080 포트로 전달. 즉 X-ray/보존처리 가이드/도자기 검수 등 모든 API가 결국 `conservation-backend` Pod 하나(정확히는 그 Service)를 거쳐 들어온다 — 나머지 3개 AI 서비스는 외부에 직접 노출되지 않고 `conservation-backend`를 통해서만 내부 호출된다.
+
+---
+
+## 부록 C — EKS 클러스터 삭제 후 재구축 실전 기록 (2026-08-10)
+
+비용 절감을 위해 EKS 노드 그룹을 0으로 줄이고 RDS를 중지했는데도 요금이 계속 나가는 걸 확인하고, "EKS 다시 만들 때 30분도 안 걸릴 텐데 그냥 클러스터 자체를 지웠다가 나중에 다시 만들면 안 되냐"는 판단으로 클러스터를 통째로 삭제 후 재구축한 기록. 19단계의 절차를 실제로 처음 밟아본 결과이자, 그 절차 자체가 이 경험을 근거로 작성됐다.
+
+### 삭제
+`kubectl delete ingress` → `aws eks delete-nodegroup` → `aws eks delete-cluster` 순서로 진행. 삭제 도중 `kubectl get ingress`가 `Unable to connect to the server: dial tcp <IP>:443: i/o timeout`을 냈는데, 이건 에러가 아니라 **클러스터가 이미 `DELETING` 상태로 넘어가서 API 서버 자체가 응답을 멈춘 것**이 정상 동작이다(`aws eks describe-cluster`로 상태가 `DELETING`인 걸 확인해서 안심시켰다). 삭제 완료 후 `aws elbv2 describe-load-balancers`로 고아 ALB가 없는지 확인했고, 결과가 비어있어서 Ingress 삭제가 순서대로 잘 이루어졌음을 확인했다.
+
+### 재구축 — 순서대로 겪은 이슈들
+
+**1) 클러스터 생성**: 6단계 절차대로 진행, 특이사항 없음. `aws iam get-role --role-name eksClusterRole`/`eksNodeRole`로 두 역할이 클러스터 삭제와 무관하게 그대로 살아있음을 미리 확인하고 시작했다.
+
+**2) 노드 그룹**: 처음 "생성 시작했다"고 했을 때 `aws eks list-nodegroups`로 확인해보니 목록이 비어있었다 — 콘솔에서 생성 버튼까지 끝까지 누르지 않은 상태였던 것으로 보이며, 사용자가 다시 생성해서 해결(`workers`, `t3.medium`, desired 1, `ACTIVE`).
+
+**3) OIDC 재등록**: 새 클러스터의 OIDC 발급자 URL을 확인해보니 옛 클러스터 때와 ID 값이 달랐다(`615914B72E19B447603062C4F383E5E2` → `848F660916EE81EA24A0ABA5F94B2228`). IAM에 새 OIDC 공급자를 추가하는 것 자체는 문제없이 진행됐다.
+
+**4) `AmazonEKSLoadBalancerControllerRole` 신뢰 정책**: `aws iam get-role`로 이 역할의 기존 신뢰 정책을 직접 조회해서 옛 OIDC ID가 3곳(Federated ARN, Condition의 `:sub`/`:aud` 키 이름)에 박혀 있는 걸 확인하고, 새 OIDC ID로 교체한 JSON을 만들어줬다. 사용자는 콘솔에서 직접 편집하는 방식을 택했다.
+
+**5) kubeconfig 갱신**: `aws eks update-kubeconfig` + `kubectl get nodes -o wide` 한 번에 성공 — Access Entry를 별도로 다시 만들 필요가 없었다(부록 A 5단계와 마찬가지로 콘솔 신원과 CLI 신원이 동일했기 때문으로 추정).
+
+**6) ALB 컨트롤러 재설치 — 에러 1, IRSA 어노테이션 누락**: `helm install`에 `--set serviceAccount.create=true`만 주고 IRSA 역할 연결 어노테이션(`eks.amazonaws.com/role-arn`)을 안 줬더니, 컨트롤러 Pod는 `Running`으로 뜨는데 `kubectl get ingress`의 `ADDRESS`가 계속 비어있었다. `kubectl describe ingress`의 Events에서 `Failed build model due to ... no EC2 IMDS role found`(=AWS 자격 증명을 전혀 못 찾고 있다는 뜻)를 확인하고 원인을 특정했다. 아래로 해결:
+```bash
+kubectl annotate serviceaccount aws-load-balancer-controller -n kube-system \
+  eks.amazonaws.com/role-arn=arn:aws:iam::428270342381:role/AmazonEKSLoadBalancerControllerRole --overwrite
+kubectl rollout restart deployment aws-load-balancer-controller -n kube-system
+```
+(7단계 본문은 `serviceAccount.create=false` + 사전에 별도로 서비스 계정을 만들고 어노테이션을 미리 붙이는 방식을 쓰고 있어 이 문제가 원래는 발생하지 않는다 — 이번엔 재구축을 빠르게 하려고 `helm install` 한 줄에 `serviceAccount.create=true`를 써서 지름길을 탄 게 원인이었다.)
+
+**7) 앱 재배포 — 에러 2, Secret 소실**: `kubectl apply -f k8s/app.yaml` 후 4개 Pod가 전부 `CreateContainerConfigError`. `kubectl describe pod`의 Events에 `Error: secret "app-secrets" not found` — 클러스터를 지우면서 `app-secrets`도 같이 사라진 것(매니페스트 `apply`와 달리 Secret은 이번 재배포 절차에 포함되지 않았었다). 로컬에 `.env.k8s`가 남아있어서 아래로 즉시 해결:
+```bash
+kubectl create secret generic app-secrets --from-env-file=.env.k8s
+```
+(`--from-env`로 잘못 알고 있었는데, 정확한 플래그는 `--from-env-file`이라고 정정했다.)
+
+**8) Ingress 확인**: 새 ALB 주소(`k8s-default-conserva-a3c5743a4e-228691374.ap-northeast-2.elb.amazonaws.com`)가 이전 배포 때의 주소와 다르다는 걸 확인 — Ingress를 삭제했다가 다시 만들 때마다 ALB 도메인이 바뀐다는 걸 재확인했고, FE에 이 새 주소를 다시 공지해야 한다는 점을 짚었다.
+
+### 결과
+클러스터 재구축 완료까지 총 6단계(클러스터 → 노드 그룹 → OIDC → 신뢰 정책 → kubeconfig → ALB 컨트롤러+앱), 실제 소요 시간은 클러스터/노드 그룹 생성 대기 시간을 빼면 짧았다. 이 경험을 바탕으로 19단계 체크리스트에 "IRSA 어노테이션을 반드시 명시할 것"과 "`app-secrets`를 반드시 재생성할 것" 두 가지를 놓치기 쉬운 함정으로 강조해뒀다.
+
+---
+
+## 부록 D — BE CI/CD(15단계) 구축 실전 기록 (2026-08-10)
+
+### GitHub 방식 선택 배경
+사용자가 처음 CodeCommit 리포지토리 생성을 안내받고 "지금 이 프로젝트에 대한 커밋을 자동으로 인식하게 하고 싶은 건데 왜 리포지토리 복제를 실행하는 거냐"는 질문을 했다 — CodeCommit의 "클론 URL"이라는 이름과 실제로 하려는 작업(로컬 코드를 AWS 쪽 저장소로 올리는 것)의 방향이 반대라 헷갈린 것. git push/remote의 의미를 다시 설명한 뒤, 사용자가 원한 건 "GitHub에 있는 코드가 갱신되면 자동으로 빌드하고 EKS까지 배포하는 것"이라고 명확히 하면서, CodeCommit 대신 **GitHub + CodeStar Connections**로 방향을 바꿨다(이 계정은 CodeCommit 자체는 막혀 있지 않았지만, 굳이 두 번째 원본을 만들 이유가 없었다).
+
+### FE CI/CD와의 충돌 여부
+"React FE도 CloudFront로 CI/CD 배포할 예정인데 이 `buildspec.yml`이 충돌하지 않냐"는 질문에는, FE가 별도 GitHub 저장소에 있다는 점(이전 세션에서 이미 확인된 사실)과, 설령 같은 저장소라도 CodeBuild 프로젝트마다 참조하는 buildspec 파일을 각자 지정할 수 있어 파일명만 다르게 하면 충돌하지 않는다는 점을 설명했다.
+
+### `buildspec.yml` 커밋 + 실제 저장소 이름 불일치 발견
+`buildspec.yml`을 작성해 `distribution/fourth_try_BE_CICD` 브랜치에 커밋 → push → PR #26으로 `main`에 머지, `git log origin/main --name-only`로 반영을 확인했다. 이후 CodeBuild 프로젝트의 소스 설정 화면 스크린샷에서 리포지토리 URL이 `https://github.com/BigProject09/cultural-heritage-be`인 걸 보고, 이 문서와 대화에서 계속 "`conservation-backend`"라고 부르던 게 실제 GitHub 저장소 이름과 다르다는 걸 발견했다 — `git remote get-url origin`으로 재확인해서 실제 이름이 `cultural-heritage-be`임을 확정했다. (로컬 폴더명 `conservation_backend`, 이전 문서의 CodeCommit 리포지토리 예시 이름 `conservation-backend`, 실제 GitHub 저장소명 `cultural-heritage-be` 세 가지가 전부 다르다 — 15-1에 "저장소 이름 확인 필수" 경고를 추가한 이유.)
+
+### CodeBuild 프로젝트 생성
+콘솔에서 실제로 만들어진 프로젝트 이름은 `conservation-be-build`(안내했던 `conservation-build`와 다르게 자유롭게 지음). Git clone 깊이(`1`)와 빌드 상태 보고(체크 안 함) 항목에 대한 질문에 각각 설명했다.
+
+### 서비스 역할 권한 부여 — 두 계층 혼동
+"CodeBuild가 EC2에 push할 수 있는 권한을 주고, EKS가 CodeBuild의 역할을 Admin으로 접근하게 하는 거구나"라는 사용자의 요약에서 "EC2"를 "ECR"로 정정했다(관리형 정책 이름 `AmazonEC2ContainerRegistryPowerUser`에 "EC2"가 들어 있어서 생긴 흔한 오해). `AmazonEC2ContainerRegistryPowerUser` 연결 + EKS Access Entry(`AmazonEKSClusterAdminPolicy` 부여) 두 가지를 완료.
+
+### CodePipeline 생성 + 첫 실행 결과
+Source(GitHub, `cultural-heritage-be`, `main`) → Build(`conservation-be-build`) → Deploy 스테이지 생략 구성으로 파이프라인 생성, 생성 직후 자동으로 첫 실행이 시작됐다.
+
+**해프닝 — "ECR 이미지가 다 없어졌다"**: 사용자가 ECR 콘솔에서 리포지토리가 비어 보인다고 보고했다. `aws ecr describe-images`로 직접 4개 리포지토리를 조회해보니 실제로는 8/8에 push된 기존 이미지가 그대로 남아있었다 — 원인은 이미지 삭제가 아니라 **콘솔이 오사카(ap-northeast-3) 리전으로 전환돼 있어서 서울(ap-northeast-2) 리전의 리포지토리가 안 보였던 것**(사용자가 최종적으로 직접 확인해서 확정). 리전 드롭다운이 서비스별로 각각 유지되는 걸 놓치기 쉬운 AWS 콘솔의 흔한 함정이라는 걸 기록해둔다.
+
+**실제 에러 — `AccessDeniedException: eks:DescribeCluster`**: 파이프라인이 `POST_BUILD` 단계에서 실패. `aws codebuild batch-get-builds`로 단계별 상태를 조회해 `BUILD`(docker build)와 `POST_BUILD` 앞부분(ECR push)은 이미 성공했고, 실패 지점이 정확히 `aws eks update-kubeconfig` 명령이라는 걸 phase 상세로 특정했다. CloudWatch Logs(MSYS 경로 변환 문제로 `MSYS_NO_PATHCONV=1`을 앞에 붙여 조회)에서 정확한 에러 메시지를 확인:
+```
+AccessDeniedException: User: arn:aws:sts::...assumed-role/codebuild-conservation-be-build-service-role/...
+is not authorized to perform: eks:DescribeCluster on resource: arn:aws:eks:...cluster/conservation-cluster
+because no identity-based policy allows the eks:DescribeCluster action
+```
+**원인 분석**: 이전에 만든 EKS Access Entry는 클러스터 **내부** RBAC 권한(쿠버네티스 리소스를 조작할 수 있는지)만 다루고, `update-kubeconfig`가 호출하는 `eks:DescribeCluster`는 그보다 앞선 **IAM 레벨의 API 호출 권한**이라 별도로 필요하다는 걸, 이 실패를 통해 처음으로 확인했다. 이 발견을 바탕으로 15-4를 "① IAM 정책 / ② Access Entry" 두 계층으로 명시적으로 나눠 다시 썼다.
+**조치**: `codebuild-conservation-be-build-service-role`에 `eks:DescribeCluster`를 허용하는 인라인 정책을 추가하고 파이프라인 재시도하도록 안내(재시도 결과 확인은 이 기록 시점 이후로 이어짐).
