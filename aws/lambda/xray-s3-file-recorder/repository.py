@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import uuid
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Any, Iterator
 
 import psycopg2
@@ -46,6 +47,7 @@ def upsert_s3_file(
     schema = os.getenv("DB_SCHEMA", "public")
     table = os.getenv("S3_FILE_TABLE", "s3_file")
     available = _columns(conn, schema, table)
+    now = datetime.now(timezone.utc)
 
     values: dict[str, Any] = {
         "id": str(uuid.uuid4()),
@@ -59,6 +61,8 @@ def upsert_s3_file(
         "size_bytes": size_bytes,
         "etag": etag,
         "status": "COMPLETED",
+        "created_at": now,
+        "updated_at": now,
     }
     insert_values = {key: value for key, value in values.items() if key in available}
     required = {"id", "artifact_id", "module_type", "usage_name", "s3_key"}
@@ -71,7 +75,15 @@ def upsert_s3_file(
     update_names = [
         name
         for name in insert_values
-        if name not in {"id", "s3_key", "artifact_id", "module_type", "usage_name"}
+        if name not in {
+            "id",
+            "s3_key",
+            "artifact_id",
+            "module_type",
+            "usage_name",
+            "created_at",
+            "updated_at",
+        }
     ]
     assignments = [
         sql.SQL("{} = EXCLUDED.{}").format(sql.Identifier(name), sql.Identifier(name))
