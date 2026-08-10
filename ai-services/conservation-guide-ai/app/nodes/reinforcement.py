@@ -70,13 +70,18 @@ def _get_agent_solvent_recommendation(relic_info: dict) -> dict:
 
 
 # 습윤 효과 테스트 - 이전/이후 사진 기반 색 변화 분석 (VLM)
-def _get_color_change_analysis(before_photo_urls: list, after_photo_urls: list) -> dict:
+def _get_color_change_analysis(
+    relic_info: dict,
+    confirmed_agent: dict,
+    before_photo_urls: list,
+    after_photo_urls: list,
+) -> dict:
 
     structured_vlm = vision_llm.with_structured_output(ColorChangeAnalysis)
 
     content = [{
         "type": "text",
-        "text": """당신은 문화재 보존처리 전문가입니다.
+        "text": f"""당신은 문화재 보존처리 전문가입니다.
         강화처리 습윤 효과 테스트의 전/후 사진을 비교해서, 토기 표면에 나타난 변화를 아래 9개 항목별로 각각 분석해주세요.
         각 항목은 반드시 severity(none/mild/moderate/severe)와 description을 채워야 하며, 변화가 없으면 severity를 "none"으로 표시하세요.
 
@@ -91,7 +96,13 @@ def _get_color_change_analysis(before_photo_urls: list, after_photo_urls: list) 
         9. texture_change (질감 변화): 표면의 거칠기/매끄러움 등 촉감상 변화가 있는지.
 
         위 9개 항목을 종합해서 overall_severity(mild/moderate/severe)를 판정하고,
-        moderate 이상인 경우 강화제 수지 변경, 강화제 농도 낮추기, 희석제(용제) 변경 중 적절한 개선 방향을 recommendation에 제안해주세요."""
+        moderate 이상인 경우 강화제 수지 변경, 강화제 농도 낮추기, 희석제(용제) 변경 중 적절한 개선 방향을 recommendation에 제안해주세요.
+
+        이번 테스트에 실제로 사용된 강화제/용매와 유물 정보는 다음과 같습니다. 각 항목을 판단할 때
+        참고하세요(예: blanching은 사용된 용제의 휘발 특성과, gloss_change는 강화제 수지 자체의
+        광택 성질과 관련이 있을 수 있습니다).
+        유물 정보: {relic_info}
+        확정된 강화제/용매: {confirmed_agent}"""
     }]
     for url in before_photo_urls:
         content.append({"type": "text", "text": "[테스트 전 사진]"})
@@ -106,7 +117,11 @@ def _get_color_change_analysis(before_photo_urls: list, after_photo_urls: list) 
 
 
 # 강화 처리 방법(분무법/침지법) 안내
-def _get_reinforcement_method(relic_info: dict, confirmed_agent: dict) -> dict:
+def _get_reinforcement_method(
+    relic_info: dict,
+    confirmed_agent: dict,
+    ai_color_analysis: dict,
+) -> dict:
 
     structured_llm = llm.with_structured_output(ReinforcementMethod)
 
@@ -121,13 +136,20 @@ def _get_reinforcement_method(relic_info: dict, confirmed_agent: dict) -> dict:
 
     prompt = f"""당신은 문화재 보존처리 전문가입니다.
     아래 유물 정보와 확정된 강화제/용매를 참고해서 분무법 또는 침지법 중 적절한 방법을 추천하고,
-    강화 처리 작업을 처음부터 끝까지 5~6단계로 요약해서 순서대로 안내해주세요.
-    세부 동작을 잘게 나누지 말고, 유사하거나 연속된 작업은 하나의 단계로 묶어주세요.
+    강화 처리 작업을 처음부터 끝까지 정확히 5단계로 요약해서 순서대로 안내해주세요.
+    세부 동작을 잘게 나누지 말고, 유사하거나 연속된 작업은 하나의 단계로 묶어서 정확히 5개를 채워주세요.
 
     label, caution, overall_caution은 자연스러운 한국어 문장으로 풀어서 작성하고,
     ·, /, (), {{}} 같은 기호는 최대한 쓰지 마세요.
     예를 들어 "아세톤/에탄올" 대신 "아세톤이나 에탄올", "(농도 20%)" 대신 "농도는 20퍼센트로" 처럼 표현하세요.
     참고 문헌에 이런 기호가 있어도 그대로 옮기지 말고 문장으로 바꿔서 작성하세요.
+
+    # 습윤 효과 테스트 결과 반영(중요)
+    아래는 본 처리 전에 시행한 습윤 효과 테스트(전/후 사진 비교)의 분석 결과입니다.
+    severity가 mild 이상으로 나온 항목(예: 백화, 얼룩, 광택 변화 등)이 있다면, 그 원인을
+    줄이기 위한 구체적인 조치(도포량 줄이기, 농도 낮추기, 건조 간격 늘리기 등)를 관련 단계의
+    caution에 반영하세요. 전부 none이면 이 결과를 특별히 언급하지 않아도 됩니다.
+    습윤 효과 테스트 결과: {ai_color_analysis}
 
     아래는 보존처리 참고 문헌에서 검색된 분무법/침지법 관련 내용입니다.
     실제 현장 절차와 주의사항을 반영하되, 문헌에 없는 내용을 있는 것처럼 단정하지 마세요.
@@ -207,9 +229,13 @@ def reinforcement_wetting_photos_node(state: State):
 # (2-2) 습윤 효과(색 변화) 분석 : VLM 호출 1회.
 @stage_guard("reinforcement")
 def reinforcement_wetting_test_node(state: State):
+  relic_info = state.get("relic_info", {})
+  confirmed_agent = state["results"]["reinforcement"]["confirmed_agent"]
   wetting_photos = state["results"]["reinforcement"]["wetting_test_photos"]
 
   ai_color_analysis = _get_color_change_analysis(
+      relic_info,
+      confirmed_agent,
       wetting_photos.get("before_photo_urls", []),
       wetting_photos.get("after_photo_urls", []),
   )
@@ -257,8 +283,9 @@ def route_after_wetting_test(state: State) -> str:
 def reinforcement_method_node(state: State):
   relic_info = state.get("relic_info", {})
   confirmed_agent = state["results"]["reinforcement"]["confirmed_agent"]
+  ai_color_analysis = state["results"]["reinforcement"].get("ai_color_analysis", {})
 
-  ai_method = _get_reinforcement_method(relic_info, confirmed_agent)
+  ai_method = _get_reinforcement_method(relic_info, confirmed_agent, ai_color_analysis)
 
   return {
     "cur_flow": "reinforcement",
