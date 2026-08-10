@@ -32,7 +32,7 @@ class DisassemblyStep(BaseModel):
     caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
 
 class DisassemblyMethod(BaseModel):
-    steps: list[DisassemblyStep] = Field(min_length=5, max_length=6, description="해체 작업을 5~6단계로 요약한 순서")
+    steps: list[DisassemblyStep] = Field(min_length=5, max_length=5, description="해체 작업을 정확히 5단계로 요약한 순서")
     overall_caution: str = Field(description="전체 해체 작업에서 가장 중요한 주의사항 한 줄")
 
 
@@ -52,7 +52,7 @@ class CleaningStep(BaseModel):
     caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
 
 class CleaningGuide(BaseModel):
-    steps: list[CleaningStep]
+    steps: list[CleaningStep] = Field(min_length=5, max_length=5, description="세척 작업을 정확히 5단계로 요약한 순서")
     overall_caution: str = Field(description="전체 세척 작업에서 가장 중요한 주의사항 한 줄")
 
 # 세척 - 건조 안내
@@ -62,7 +62,7 @@ class DryingStep(BaseModel):
     caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
 
 class DryingGuide(BaseModel):
-    steps: list[DryingStep]
+    steps: list[DryingStep] = Field(min_length=5, max_length=5, description="건조 작업을 정확히 5단계로 요약한 순서")
     overall_caution: str = Field(description="건조 작업에서 가장 중요한 주의사항 한 줄")
 
 
@@ -99,7 +99,7 @@ class ReinforcementStep(BaseModel):
 
 class ReinforcementMethod(BaseModel):
     method_type: str = Field(description="'분무법' 또는 '침지법'")
-    steps: list[ReinforcementStep] = Field(min_length=5, max_length=6, description="강화 처리 작업을 5~6단계로 요약한 순서")
+    steps: list[ReinforcementStep] = Field(min_length=5, max_length=5, description="강화 처리 작업을 정확히 5단계로 요약한 순서")
     overall_caution: str = Field(description="전체 강화처리 작업에서 가장 중요한 주의사항 한 줄")
 
 
@@ -140,7 +140,7 @@ class BondingStep(BaseModel):
 
 class BondingMethodRecommendation(BaseModel):
     method_type: str = Field(description="'복합접합', '단일접합', '결합접합', '모세관접합' 중 하나")
-    steps: list[BondingStep]
+    steps: list[BondingStep] = Field(min_length=5, max_length=5, description="접합 작업을 정확히 5단계로 요약한 순서")
     overall_caution: str = Field(description="전체 접합 작업에서 가장 중요한 주의사항 한 줄")
 
 
@@ -157,7 +157,7 @@ class RestorationStep(BaseModel):
     caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
 
 class RestorationGuide(BaseModel):
-    steps: list[RestorationStep]
+    steps: list[RestorationStep] = Field(min_length=5, max_length=5, description="복원 작업을 정확히 5단계로 요약한 순서")
     overall_caution: str = Field(description="전체 복원 작업에서 가장 중요한 주의사항 한 줄")
 
 # 복원 - 마감처리(연마·채색·광택) 안내
@@ -168,5 +168,5 @@ class RestorationFinishingStep(BaseModel):
     caution: str = Field(description="이 단계에서 특히 주의할 점 한 줄")
 
 class RestorationFinishingGuide(BaseModel):
-    steps: list[RestorationFinishingStep]
+    steps: list[RestorationFinishingStep] = Field(min_length=5, max_length=5, description="마감처리 작업을 정확히 5단계로 요약한 순서")
     overall_caution: str = Field(description="전체 마감처리 작업에서 가장 중요한 주의사항 한 줄")
