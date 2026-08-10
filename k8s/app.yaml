@@ -136,6 +136,57 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: report-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-ai
+  template:
+    metadata:
+      labels:
+        app: report-ai
+    spec:
+      containers:
+        - name: report-ai
+          image: 428270342381.dkr.ecr.ap-northeast-2.amazonaws.com/report-ai:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: app-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-ai
+spec:
+  selector:
+    app: report-ai
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: conservation-backend
 spec:
   replicas: 1
@@ -157,6 +208,8 @@ spec:
               value: "http://conservation-guide-ai:8000"
             - name: POTTERY_INSPECTION_AI_BASE_URL
               value: "http://pottery-inspection-ai:8000"
+            - name: REPORT_AI_BASE_URL
+              value: "http://report-ai:8000"
             - name: XRAY_AI_BASE_URL
               value: "http://xray-ai:8000"
             - name: XRAY_AI_TIMEOUT_SECONDS
