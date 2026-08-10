@@ -1,0 +1,21 @@
+{
+  "jobId": "ff2c961d-aa01-4fc5-a3fc-0f8393e5221d",
+  "artifactId": "artifact-1785976429850",
+  "status": "COMPLETED",
+  "message": "X-ray stitching completed.",
+  "errorMessage": null,
+  "windowsJobDirectory": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d",
+  "colorDirectory": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/inputs/color",
+  "xrayDirectory": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/inputs/xray",
+  "outputDirectory": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/outputs/assembly",
+  "configName": "config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json",
+  "updatedAt": "2026-08-06T04:13:45.654085+00:00",
+  "resultUrl": "/api/xray/stitch/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/result",
+  "acceptedByAi": true,
+  "returnCode": 0,
+  "reportPath": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/outputs/assembly/artifacts/artifact-1785976429850/report.json",
+  "layoutPath": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/outputs/assembly/artifacts/artifact-1785976429850/layout.json",
+  "assembledImagePath": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/outputs/assembly/artifacts/artifact-1785976429850/assembled_xray.png",
+  "stdoutLog": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/logs/stitch.stdout.log",
+  "stderrLog": "/shared/jobs/ff2c961d-aa01-4fc5-a3fc-0f8393e5221d/logs/stitch.stderr.log"
+}

@@ -1,0 +1,1225 @@
+{
+  "schemaVersion": "2.1",
+  "algorithm": "xray_overlap_registration_then_color_global_alignment",
+  "routing": {
+    "algorithmRoute": "complete_reference",
+    "requested": {
+      "referenceMode": "auto",
+      "captureMode": "auto",
+      "shapePrior": "auto",
+      "source": "default"
+    },
+    "resolved": {
+      "referenceMode": "complete_with_separate_fragments",
+      "captureMode": "split_scan",
+      "shapePrior": "auto"
+    },
+    "referenceEvidence": {
+      "componentCount": 6,
+      "areas": [
+        183161,
+        119227,
+        110249,
+        83340,
+        5403,
+        2268
+      ],
+      "largestAreaFraction": 0.36366867335917147,
+      "totalAreaPx": 503648,
+      "minimumAreaPx": 366,
+      "detectedMode": "complete_with_separate_fragments",
+      "confidence": 0.58,
+      "reason": "several_reference_components_without_array_level_evidence"
+    },
+    "captureEvidence": {
+      "detectedMode": "split_scan",
+      "confidence": 0.8914285714285715,
+      "reason": "mostly_frame_clipped_scanner_tiles",
+      "fragmentCount": 7,
+      "scannerFrameRatio": 0.8571428571428571,
+      "multiObjectFrameRatio": 0.0,
+      "maskComponentCounts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "seriesCount": 1
+    },
+    "warnings": [],
+    "reviewRequired": false
+  },
+  "coordinateSystem": "output_canvas_pixels",
+  "canvas": {
+    "width": 3312,
+    "height": 2623,
+    "backgroundValue": 0
+  },
+  "constraints": {
+    "fragmentScale": 1.0,
+    "allowedTransforms": [
+      "rotation",
+      "translation"
+    ],
+    "nonlinearWarp": false,
+    "perspectiveWarp": false,
+    "generativeCompletion": false,
+    "blending": false,
+    "interpolation": "nearest",
+    "eachFragmentUsedOnce": true,
+    "runtimeInvariantValidation": {
+      "inputCount": 7,
+      "layoutItemCount": 7,
+      "uniquePlacementUnitCount": 7,
+      "duplicatePlacementUnitCount": 0,
+      "uniqueOriginalSourceCount": 7,
+      "splitOriginalSourceCount": 0,
+      "maxPlacementUnitsPerOriginalSource": 1,
+      "missingOrExtraLayoutItemCount": 0,
+      "allLayoutScalesOne": true,
+      "rigidTransformFailureIndices": [],
+      "sourceForegroundPartitionFailureCount": 0,
+      "sourceForegroundPartitionFailures": [],
+      "passed": true
+    }
+  },
+  "reference": {
+    "path": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/color/artifact-color-1.jpg",
+    "role": "stitched_mosaic_global_orientation_and_silhouette_only",
+    "scaleAppliedToReferenceOnly": 0.7416609615453175,
+    "segmentation": {
+      "method": "border_distance",
+      "quality": -0.5416032653061225,
+      "analysisScale": 0.37614185921547555,
+      "analysisShape": [
+        1050,
+        1400
+      ],
+      "originalShape": [
+        2792,
+        3722
+      ],
+      "ignoreBottomRatio": 0.08,
+      "candidates": {
+        "border_distance": -0.5416032653061225
+      }
+    }
+  },
+  "registration": {
+    "connectedComponents": [
+      [
+        0,
+        1
+      ],
+      [
+        2
+      ],
+      [
+        3,
+        4,
+        5,
+        6
+      ]
+    ],
+    "selectedPairCount": 4,
+    "globalTransform": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "globalAlignment": {
+      "score": 0.6834274642649694,
+      "iou": 0.7507336551259641,
+      "boundaryF1": 0.3768103725648825,
+      "xrayComponentCount": 3,
+      "referenceComponentCount": 6,
+      "assignedComponentCount": 3,
+      "unassignedComponentCount": 0,
+      "assignmentMode": "conservative_rigid_alignment_gated_assignment",
+      "assignmentDebug": {
+        "mode": "conservative_rigid_alignment_gated_assignment",
+        "candidateTopK": 3,
+        "maximumAssignmentCost": 2.2,
+        "minimumAlignmentScore": 0.28,
+        "minimumAlignmentIou": 0.3,
+        "explicitUnassignedUtility": 0.18,
+        "assignmentCostWeight": 0.08,
+        "candidatePairCount": 9,
+        "eligibleCandidatePairCount": 6,
+        "selectedPairCount": 3
+      },
+      "components": [
+        {
+          "xrayComponentIndex": 0,
+          "referenceComponentIndex": 0,
+          "fragmentIndices": [
+            0,
+            1
+          ],
+          "assignmentCost": 0.11947706946151787,
+          "alignmentUtility": 0.8833292094915997,
+          "alignment": {
+            "score": 0.8928873750485211,
+            "iou": 0.9194393734173488,
+            "boundaryF1": 0.7719282713683064,
+            "rotationDeg": 0.0,
+            "analysisScale": 0.3984819734345351
+          },
+          "status": "assigned_to_reference_component",
+          "candidateReferenceComponentAssignments": [
+            {
+              "referenceComponentIndex": 0,
+              "assignmentCost": 0.11947706946151787,
+              "alignmentUtility": 0.8833292094915997,
+              "alignment": {
+                "score": 0.8928873750485211,
+                "iou": 0.9194393734173488,
+                "boundaryF1": 0.7719282713683064,
+                "rotationDeg": 0.0,
+                "analysisScale": 0.3984819734345351
+              },
+              "eligible": true,
+              "rejectionReasons": []
+            },
+            {
+              "referenceComponentIndex": 2,
+              "assignmentCost": 1.0863546161536948,
+              "alignmentUtility": 0.3401967073501011,
+              "alignment": {
+                "score": 0.42710507664239666,
+                "iou": 0.49195764481735244,
+                "boundaryF1": 0.1316655994009315,
+                "rotationDeg": -10.967375000000004,
+                "analysisScale": 0.49645390070921985
+              },
+              "eligible": true,
+              "rejectionReasons": []
+            },
+            {
+              "referenceComponentIndex": 1,
+              "assignmentCost": 2.269690723950241,
+              "alignmentUtility": 0.19323087819364285,
+              "alignment": {
+                "score": 0.3748061361096621,
+                "iou": 0.4255605736470961,
+                "boundaryF1": 0.14359147621690763,
+                "rotationDeg": -10.059210000000007,
+                "analysisScale": 0.32507739938080493
+              },
+              "eligible": false,
+              "rejectionReasons": [
+                "assignment_cost_above_maximum"
+              ]
+            }
+          ],
+          "reviewRequired": false
+        },
+        {
+          "xrayComponentIndex": 1,
+          "referenceComponentIndex": 2,
+          "fragmentIndices": [
+            2
+          ],
+          "assignmentCost": 0.10171080786323021,
+          "alignmentUtility": 0.9261036807897604,
+          "alignment": {
+            "score": 0.9342405454188187,
+            "iou": 0.9475134378246534,
+            "boundaryF1": 0.8737751466811277,
+            "rotationDeg": -4.0,
+            "analysisScale": 0.5915492957746479
+          },
+          "status": "assigned_to_reference_component",
+          "candidateReferenceComponentAssignments": [
+            {
+              "referenceComponentIndex": 2,
+              "assignmentCost": 0.10171080786323021,
+              "alignmentUtility": 0.9261036807897604,
+              "alignment": {
+                "score": 0.9342405454188187,
+                "iou": 0.9475134378246534,
+                "boundaryF1": 0.8737751466811277,
+                "rotationDeg": -4.0,
+                "analysisScale": 0.5915492957746479
+              },
+              "eligible": true,
+              "rejectionReasons": []
+            },
+            {
+              "referenceComponentIndex": 0,
+              "assignmentCost": 0.9436539652783242,
+              "alignmentUtility": 0.43203663678937415,
+              "alignment": {
+                "score": 0.5075289540116401,
+                "iou": 0.5566395041891427,
+                "boundaryF1": 0.2838031143141288,
+                "rotationDeg": 24.0,
+                "analysisScale": 0.4077669902912621
+              },
+              "eligible": true,
+              "rejectionReasons": []
+            },
+            {
+              "referenceComponentIndex": 1,
+              "assignmentCost": 1.7323041408622908,
+              "alignmentUtility": 0.27417459958708335,
+              "alignment": {
+                "score": 0.4127589308560666,
+                "iou": 0.4628330995792426,
+                "boundaryF1": 0.18464327333937589,
+                "rotationDeg": -2.0,
+                "analysisScale": 0.32507739938080493
+              },
+              "eligible": true,
+              "rejectionReasons": []
+            }
+          ],
+          "reviewRequired": false
+        },
+        {
+          "xrayComponentIndex": 2,
+          "referenceComponentIndex": 1,
+          "fragmentIndices": [
+            3,
+            4,
+            5,
+            6
+          ],
+          "assignmentCost": 2.1090258833782984,
+          "alignmentUtility": 0.44135464891264475,
+          "alignment": {
+            "score": 0.6100767195829087,
+            "iou": 0.6282100421617478,
+            "boundaryF1": 0.5274693611681974,
+            "rotationDeg": 0.0,
+            "analysisScale": 0.27486910994764396
+          },
+          "status": "assigned_to_reference_component",
+          "candidateReferenceComponentAssignments": [
+            {
+              "referenceComponentIndex": 1,
+              "assignmentCost": 2.1090258833782984,
+              "alignmentUtility": 0.44135464891264475,
+              "alignment": {
+                "score": 0.6100767195829087,
+                "iou": 0.6282100421617478,
+                "boundaryF1": 0.5274693611681974,
+                "rotationDeg": 0.0,
+                "analysisScale": 0.27486910994764396
+              },
+              "eligible": true,
+              "rejectionReasons": []
+            },
+            {
+              "referenceComponentIndex": 3,
+              "assignmentCost": 2.4688328757511844,
+              "alignmentUtility": 0.22502773374839793,
+              "alignment": {
+                "score": 0.4225343638084927,
+                "iou": 0.4258266309204647,
+                "boundaryF1": 0.40753625807617583,
+                "rotationDeg": 0.0,
+                "analysisScale": 0.29432375613174494
+              },
+              "eligible": false,
+              "rejectionReasons": [
+                "assignment_cost_above_maximum"
+              ]
+            },
+            {
+              "referenceComponentIndex": 0,
+              "assignmentCost": 1.8603914482667399,
+              "alignmentUtility": 0.14485018878777295,
+              "alignment": {
+                "score": 0.29368150464911214,
+                "iou": 0.3142740174672489,
+                "boundaryF1": 0.19987116847760036,
+                "rotationDeg": 6.0,
+                "analysisScale": 0.30791788856304986
+              },
+              "eligible": false,
+              "rejectionReasons": [
+                "does_not_beat_explicit_unassignment"
+              ]
+            }
+          ],
+          "reviewRequired": false
+        }
+      ]
+    }
+  },
+  "fragments": [
+    {
+      "index": 0,
+      "file": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-1.jpg",
+      "sourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-1.jpg",
+      "originalSourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-1.jpg",
+      "originalSourceName": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-1.jpg",
+      "originalSourceIndex": 0,
+      "subfragmentIndex": 0,
+      "centerX": 771.7523809523809,
+      "centerY": 1209.7284888885833,
+      "rotationDeg": 0.0,
+      "scale": 1.0,
+      "affineMatrix": [
+        [
+          1.0,
+          0.0,
+          483.2523809523809
+        ],
+        [
+          0.0,
+          1.0,
+          1050.7284888885833
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "originalCropBBoxXYWH": [
+        62,
+        84,
+        578,
+        319
+      ],
+      "maskAreaPx": 95299,
+      "maskDiagnostics": {
+        "method": "otsu_bright",
+        "background_median": 0.0,
+        "background_robust_sigma": 0.0,
+        "area_ratio": 0.31021809895833335,
+        "candidate_quality": {
+          "otsu_bright": 2.859814120837783,
+          "otsu_dark": 1.9675645404887243,
+          "border_bright": 2.8460459945862704,
+          "border_dark": -1000000000.0
+        },
+        "touches_frame": true,
+        "touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 398
+        },
+        "source_shape": [
+          480,
+          640
+        ],
+        "sourceImagePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-1.jpg",
+        "source_touches_frame": true,
+        "source_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "source_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 398
+        },
+        "component_touches_frame": true,
+        "component_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "component_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 398
+        },
+        "component_touch_strip_px": 6,
+        "component_touch_threshold_px": 5,
+        "capture_role": "partial_capture_candidate"
+      },
+      "xrayComponentIndex": 0,
+      "sourceFrameIndex": null,
+      "sourceFile": null,
+      "sourceFramePath": null,
+      "sourceFrameStatus": "assigned_to_reference_component",
+      "sourceFrameSupportedFragmentCount": null,
+      "sourceFrameRequiredSupportedFragmentCount": null,
+      "assignmentStatus": "assigned_to_reference_component",
+      "referenceComponentIndex": 0,
+      "referenceSlotIndices": [],
+      "assignmentReviewRequired": false,
+      "componentRole": null,
+      "componentCaptureRoles": [],
+      "referenceRole": null,
+      "packingOrder": null,
+      "packingBBoxXYWH": null,
+      "componentSourceImageCount": null,
+      "assignmentMatchingMode": null,
+      "assignmentUnassignedReason": null,
+      "assignmentUnassignedReasonDetails": [],
+      "assignmentCandidateGeneration": null,
+      "assignmentPrimaryReferenceSlotIndex": null,
+      "assignmentCombinedMatchScore": null,
+      "assignmentMutualBest": null,
+      "assignmentBundleScoreMargin": null,
+      "assignmentSlotScoreMargin": null
+    },
+    {
+      "index": 1,
+      "file": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-2.jpg",
+      "sourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-2.jpg",
+      "originalSourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-2.jpg",
+      "originalSourceName": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-2.jpg",
+      "originalSourceIndex": 1,
+      "subfragmentIndex": 0,
+      "centerX": 870.3885684558106,
+      "centerY": 1210.8570491799287,
+      "rotationDeg": 0.3397663367471466,
+      "scale": 1.0,
+      "affineMatrix": [
+        [
+          0.9999824166297914,
+          -0.005930006504058838,
+          593.8422488816929
+        ],
+        [
+          0.005930006504058838,
+          0.9999824166297914,
+          1049.2142857142858
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "originalCropBBoxXYWH": [
+        0,
+        81,
+        556,
+        321
+      ],
+      "maskAreaPx": 89992,
+      "maskDiagnostics": {
+        "method": "otsu_bright",
+        "background_median": 0.0,
+        "background_robust_sigma": 0.0,
+        "area_ratio": 0.29294270833333336,
+        "candidate_quality": {
+          "otsu_bright": 2.7714686993517006,
+          "otsu_dark": 1.9072553174945948,
+          "border_bright": 2.750432844634223,
+          "border_dark": -1000000000.0
+        },
+        "touches_frame": true,
+        "touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 636,
+          "right": 0
+        },
+        "source_shape": [
+          480,
+          640
+        ],
+        "sourceImagePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-2.jpg",
+        "source_touches_frame": true,
+        "source_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "source_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 636,
+          "right": 0
+        },
+        "component_touches_frame": true,
+        "component_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "component_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 636,
+          "right": 0
+        },
+        "component_touch_strip_px": 6,
+        "component_touch_threshold_px": 5,
+        "capture_role": "partial_capture_candidate"
+      },
+      "xrayComponentIndex": 0,
+      "sourceFrameIndex": null,
+      "sourceFile": null,
+      "sourceFramePath": null,
+      "sourceFrameStatus": "assigned_to_reference_component",
+      "sourceFrameSupportedFragmentCount": null,
+      "sourceFrameRequiredSupportedFragmentCount": null,
+      "assignmentStatus": "assigned_to_reference_component",
+      "referenceComponentIndex": 0,
+      "referenceSlotIndices": [],
+      "assignmentReviewRequired": false,
+      "componentRole": null,
+      "componentCaptureRoles": [],
+      "referenceRole": null,
+      "packingOrder": null,
+      "packingBBoxXYWH": null,
+      "componentSourceImageCount": null,
+      "assignmentMatchingMode": null,
+      "assignmentUnassignedReason": null,
+      "assignmentUnassignedReasonDetails": [],
+      "assignmentCandidateGeneration": null,
+      "assignmentPrimaryReferenceSlotIndex": null,
+      "assignmentCombinedMatchScore": null,
+      "assignmentMutualBest": null,
+      "assignmentBundleScoreMargin": null,
+      "assignmentSlotScoreMargin": null
+    },
+    {
+      "index": 2,
+      "file": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-3.jpg",
+      "sourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-3.jpg",
+      "originalSourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-3.jpg",
+      "originalSourceName": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-3.jpg",
+      "originalSourceIndex": 2,
+      "subfragmentIndex": 0,
+      "centerX": 965.7500193285065,
+      "centerY": 1386.1566147049123,
+      "rotationDeg": 4.0,
+      "scale": 1.0,
+      "affineMatrix": [
+        [
+          0.9975640502598242,
+          -0.0697564737441253,
+          754.2730445150474
+        ],
+        [
+          0.0697564737441253,
+          0.9975640502598242,
+          1256.589106726455
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "originalCropBBoxXYWH": [
+        102,
+        121,
+        441,
+        230
+      ],
+      "maskAreaPx": 62536,
+      "maskDiagnostics": {
+        "method": "otsu_bright",
+        "background_median": 0.0,
+        "background_robust_sigma": 0.0,
+        "area_ratio": 0.20356770833333335,
+        "candidate_quality": {
+          "otsu_bright": 2.629735608996076,
+          "otsu_dark": 1.8150116772733715,
+          "border_bright": 2.6118117404925516,
+          "border_dark": -1000000000.0
+        },
+        "touches_frame": false,
+        "touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": false
+        },
+        "touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 0
+        },
+        "source_shape": [
+          480,
+          640
+        ],
+        "sourceImagePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-3.jpg",
+        "source_touches_frame": false,
+        "source_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": false
+        },
+        "source_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 0
+        },
+        "component_touches_frame": false,
+        "component_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": false
+        },
+        "component_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 0
+        },
+        "component_touch_strip_px": 6,
+        "component_touch_threshold_px": 5,
+        "capture_role": "independent_fragment_candidate"
+      },
+      "xrayComponentIndex": 1,
+      "sourceFrameIndex": null,
+      "sourceFile": null,
+      "sourceFramePath": null,
+      "sourceFrameStatus": "assigned_to_reference_component",
+      "sourceFrameSupportedFragmentCount": null,
+      "sourceFrameRequiredSupportedFragmentCount": null,
+      "assignmentStatus": "assigned_to_reference_component",
+      "referenceComponentIndex": 2,
+      "referenceSlotIndices": [],
+      "assignmentReviewRequired": false,
+      "componentRole": null,
+      "componentCaptureRoles": [],
+      "referenceRole": null,
+      "packingOrder": null,
+      "packingBBoxXYWH": null,
+      "componentSourceImageCount": null,
+      "assignmentMatchingMode": null,
+      "assignmentUnassignedReason": null,
+      "assignmentUnassignedReasonDetails": [],
+      "assignmentCandidateGeneration": null,
+      "assignmentPrimaryReferenceSlotIndex": null,
+      "assignmentCombinedMatchScore": null,
+      "assignmentMutualBest": null,
+      "assignmentBundleScoreMargin": null,
+      "assignmentSlotScoreMargin": null
+    },
+    {
+      "index": 3,
+      "file": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-4.jpg",
+      "sourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-4.jpg",
+      "originalSourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-4.jpg",
+      "originalSourceName": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-4.jpg",
+      "originalSourceIndex": 3,
+      "subfragmentIndex": 0,
+      "centerX": 1503.5086630040475,
+      "centerY": 1296.1190476190477,
+      "rotationDeg": 0.0,
+      "scale": 1.0,
+      "affineMatrix": [
+        [
+          1.0,
+          0.0,
+          1207.0086630040475
+        ],
+        [
+          0.0,
+          1.0,
+          1183.6190476190477
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "originalCropBBoxXYWH": [
+        46,
+        137,
+        594,
+        226
+      ],
+      "maskAreaPx": 55969,
+      "maskDiagnostics": {
+        "method": "otsu_bright",
+        "background_median": 0.0,
+        "background_robust_sigma": 0.0,
+        "area_ratio": 0.18219075520833333,
+        "candidate_quality": {
+          "otsu_bright": 3.9740357493666156,
+          "otsu_dark": 2.566082218793463,
+          "border_bright": 3.9407118741919325,
+          "border_dark": -1000000000.0
+        },
+        "touches_frame": true,
+        "touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 166
+        },
+        "source_shape": [
+          480,
+          640
+        ],
+        "sourceImagePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-4.jpg",
+        "source_touches_frame": true,
+        "source_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "source_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 166
+        },
+        "component_touches_frame": true,
+        "component_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "component_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 166
+        },
+        "component_touch_strip_px": 6,
+        "component_touch_threshold_px": 5,
+        "capture_role": "partial_capture_candidate"
+      },
+      "xrayComponentIndex": 2,
+      "sourceFrameIndex": null,
+      "sourceFile": null,
+      "sourceFramePath": null,
+      "sourceFrameStatus": "assigned_to_reference_component",
+      "sourceFrameSupportedFragmentCount": null,
+      "sourceFrameRequiredSupportedFragmentCount": null,
+      "assignmentStatus": "assigned_to_reference_component",
+      "referenceComponentIndex": 1,
+      "referenceSlotIndices": [],
+      "assignmentReviewRequired": false,
+      "componentRole": null,
+      "componentCaptureRoles": [],
+      "referenceRole": null,
+      "packingOrder": null,
+      "packingBBoxXYWH": null,
+      "componentSourceImageCount": null,
+      "assignmentMatchingMode": null,
+      "assignmentUnassignedReason": null,
+      "assignmentUnassignedReasonDetails": [],
+      "assignmentCandidateGeneration": null,
+      "assignmentPrimaryReferenceSlotIndex": null,
+      "assignmentCombinedMatchScore": null,
+      "assignmentMutualBest": null,
+      "assignmentBundleScoreMargin": null,
+      "assignmentSlotScoreMargin": null
+    },
+    {
+      "index": 4,
+      "file": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-5.jpg",
+      "sourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-5.jpg",
+      "originalSourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-5.jpg",
+      "originalSourceName": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-5.jpg",
+      "originalSourceIndex": 4,
+      "subfragmentIndex": 0,
+      "centerX": 2072.466209615916,
+      "centerY": 1299.4794618504081,
+      "rotationDeg": 0.6504786789798231,
+      "scale": 1.0,
+      "affineMatrix": [
+        [
+          0.999935555448295,
+          -0.011352750781622843,
+          1771.0192511572673
+        ],
+        [
+          0.011352750781622843,
+          0.999935555448295,
+          1249.0539600082882
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "originalCropBBoxXYWH": [
+        0,
+        195,
+        605,
+        95
+      ],
+      "maskAreaPx": 36502,
+      "maskDiagnostics": {
+        "method": "otsu_bright",
+        "background_median": 0.0,
+        "background_robust_sigma": 0.0,
+        "area_ratio": 0.11882161458333333,
+        "candidate_quality": {
+          "otsu_bright": 4.243240486069728,
+          "otsu_dark": 2.662869052380281,
+          "border_bright": 4.1964126174270815,
+          "border_dark": -1000000000.0
+        },
+        "touches_frame": true,
+        "touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 258,
+          "right": 0
+        },
+        "source_shape": [
+          480,
+          640
+        ],
+        "sourceImagePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-5.jpg",
+        "source_touches_frame": true,
+        "source_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "source_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 258,
+          "right": 0
+        },
+        "component_touches_frame": true,
+        "component_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "component_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 258,
+          "right": 0
+        },
+        "component_touch_strip_px": 6,
+        "component_touch_threshold_px": 5,
+        "capture_role": "partial_capture_candidate"
+      },
+      "xrayComponentIndex": 2,
+      "sourceFrameIndex": null,
+      "sourceFile": null,
+      "sourceFramePath": null,
+      "sourceFrameStatus": "assigned_to_reference_component",
+      "sourceFrameSupportedFragmentCount": null,
+      "sourceFrameRequiredSupportedFragmentCount": null,
+      "assignmentStatus": "assigned_to_reference_component",
+      "referenceComponentIndex": 1,
+      "referenceSlotIndices": [],
+      "assignmentReviewRequired": false,
+      "componentRole": null,
+      "componentCaptureRoles": [],
+      "referenceRole": null,
+      "packingOrder": null,
+      "packingBBoxXYWH": null,
+      "componentSourceImageCount": null,
+      "assignmentMatchingMode": null,
+      "assignmentUnassignedReason": null,
+      "assignmentUnassignedReasonDetails": [],
+      "assignmentCandidateGeneration": null,
+      "assignmentPrimaryReferenceSlotIndex": null,
+      "assignmentCombinedMatchScore": null,
+      "assignmentMutualBest": null,
+      "assignmentBundleScoreMargin": null,
+      "assignmentSlotScoreMargin": null
+    },
+    {
+      "index": 5,
+      "file": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-6.jpg",
+      "sourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-6.jpg",
+      "originalSourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-6.jpg",
+      "originalSourceName": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-6.jpg",
+      "originalSourceIndex": 5,
+      "subfragmentIndex": 0,
+      "centerX": 1968.1022525292767,
+      "centerY": 1284.035489548563,
+      "rotationDeg": -177.93219532102017,
+      "scale": 1.0,
+      "affineMatrix": [
+        [
+          -0.9993488266356966,
+          0.036082165980661475,
+          2260.209469848669
+        ],
+        [
+          -0.036082165980661475,
+          -0.9993488266356966,
+          1355.6219658546452
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "originalCropBBoxXYWH": [
+        0,
+        189,
+        590,
+        123
+      ],
+      "maskAreaPx": 40204,
+      "maskDiagnostics": {
+        "method": "otsu_bright",
+        "background_median": 0.0,
+        "background_robust_sigma": 0.0,
+        "area_ratio": 0.13087239583333332,
+        "candidate_quality": {
+          "otsu_bright": 3.9906419040752996,
+          "otsu_dark": 2.5383243129944275,
+          "border_bright": 3.9492909007074717,
+          "border_dark": -1000000000.0
+        },
+        "touches_frame": true,
+        "touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 172,
+          "right": 0
+        },
+        "source_shape": [
+          480,
+          640
+        ],
+        "sourceImagePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-6.jpg",
+        "source_touches_frame": true,
+        "source_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "source_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 172,
+          "right": 0
+        },
+        "component_touches_frame": true,
+        "component_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": true,
+          "right": false
+        },
+        "component_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 172,
+          "right": 0
+        },
+        "component_touch_strip_px": 6,
+        "component_touch_threshold_px": 5,
+        "capture_role": "partial_capture_candidate"
+      },
+      "xrayComponentIndex": 2,
+      "sourceFrameIndex": null,
+      "sourceFile": null,
+      "sourceFramePath": null,
+      "sourceFrameStatus": "assigned_to_reference_component",
+      "sourceFrameSupportedFragmentCount": null,
+      "sourceFrameRequiredSupportedFragmentCount": null,
+      "assignmentStatus": "assigned_to_reference_component",
+      "referenceComponentIndex": 1,
+      "referenceSlotIndices": [],
+      "assignmentReviewRequired": false,
+      "componentRole": null,
+      "componentCaptureRoles": [],
+      "referenceRole": null,
+      "packingOrder": null,
+      "packingBBoxXYWH": null,
+      "componentSourceImageCount": null,
+      "assignmentMatchingMode": null,
+      "assignmentUnassignedReason": null,
+      "assignmentUnassignedReasonDetails": [],
+      "assignmentCandidateGeneration": null,
+      "assignmentPrimaryReferenceSlotIndex": null,
+      "assignmentCombinedMatchScore": null,
+      "assignmentMutualBest": null,
+      "assignmentBundleScoreMargin": null,
+      "assignmentSlotScoreMargin": null
+    },
+    {
+      "index": 6,
+      "file": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-7.jpg",
+      "sourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-7.jpg",
+      "originalSourcePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-7.jpg",
+      "originalSourceName": "3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-7.jpg",
+      "originalSourceIndex": 6,
+      "subfragmentIndex": 0,
+      "centerX": 2105.2857967693735,
+      "centerY": 1284.183520504784,
+      "rotationDeg": -177.93219532102017,
+      "scale": 1.0,
+      "affineMatrix": [
+        [
+          -0.9993488266356966,
+          0.036082165980661475,
+          2386.899851409091
+        ],
+        [
+          -0.036082165980661475,
+          -0.9993488266356966,
+          1355.3911340680693
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "originalCropBBoxXYWH": [
+        71,
+        195,
+        569,
+        123
+      ],
+      "maskAreaPx": 39194,
+      "maskDiagnostics": {
+        "method": "otsu_bright",
+        "background_median": 0.0,
+        "background_robust_sigma": 0.0,
+        "area_ratio": 0.12758463541666668,
+        "candidate_quality": {
+          "otsu_bright": 4.049001769525618,
+          "otsu_dark": 2.576827707595069,
+          "border_bright": 4.008039683219226,
+          "border_dark": -1000000000.0
+        },
+        "touches_frame": true,
+        "touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 343
+        },
+        "source_shape": [
+          480,
+          640
+        ],
+        "sourceImagePath": "/shared/jobs/0af1ca14-6fba-4e8d-9270-df60c9f839ae/inputs/xray/3호 토광묘 6 청동숟가락 (77.4kV, 0.06mA)-7.jpg",
+        "source_touches_frame": true,
+        "source_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "source_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 343
+        },
+        "component_touches_frame": true,
+        "component_touch_sides": {
+          "top": false,
+          "bottom": false,
+          "left": false,
+          "right": true
+        },
+        "component_touch_counts": {
+          "top": 0,
+          "bottom": 0,
+          "left": 0,
+          "right": 343
+        },
+        "component_touch_strip_px": 6,
+        "component_touch_threshold_px": 5,
+        "capture_role": "partial_capture_candidate"
+      },
+      "xrayComponentIndex": 2,
+      "sourceFrameIndex": null,
+      "sourceFile": null,
+      "sourceFramePath": null,
+      "sourceFrameStatus": "assigned_to_reference_component",
+      "sourceFrameSupportedFragmentCount": null,
+      "sourceFrameRequiredSupportedFragmentCount": null,
+      "assignmentStatus": "assigned_to_reference_component",
+      "referenceComponentIndex": 1,
+      "referenceSlotIndices": [],
+      "assignmentReviewRequired": false,
+      "componentRole": null,
+      "componentCaptureRoles": [],
+      "referenceRole": null,
+      "packingOrder": null,
+      "packingBBoxXYWH": null,
+      "componentSourceImageCount": null,
+      "assignmentMatchingMode": null,
+      "assignmentUnassignedReason": null,
+      "assignmentUnassignedReasonDetails": [],
+      "assignmentCandidateGeneration": null,
+      "assignmentPrimaryReferenceSlotIndex": null,
+      "assignmentCombinedMatchScore": null,
+      "assignmentMutualBest": null,
+      "assignmentBundleScoreMargin": null,
+      "assignmentSlotScoreMargin": null
+    }
+  ],
+  "artifact": {
+    "id": "artifact-1785377623786"
+  }
+}

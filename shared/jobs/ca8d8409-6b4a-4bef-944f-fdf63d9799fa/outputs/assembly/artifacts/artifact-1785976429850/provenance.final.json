@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "jobId": "ca8d8409-6b4a-4bef-944f-fdf63d9799fa",
+  "artifactId": "artifact-1785976429850",
+  "layoutFile": "layout.final.json",
+  "assembledImage": "assembled_xray.final.png",
+  "sourceOwner": {
+    "file": "source_owner.final.png",
+    "encoding": "uint16_png",
+    "backgroundValue": 0,
+    "sourceIndexValue": "originalSourceIndex + 1"
+  },
+  "fragmentOwner": {
+    "file": "fragment_owner.final.png",
+    "encoding": "uint16_png",
+    "backgroundValue": 0,
+    "fragmentIndexValue": "layout fragment index + 1"
+  },
+  "seamZone": {
+    "file": "seam_zone.final.png",
+    "encoding": "binary_8bit_png",
+    "radiusPx": 8,
+    "meaning": "boundary neighborhood where adjacent visible pixels come from different originalSourceIndex values"
+  },
+  "overlapMask": {
+    "file": "overlap_mask.final.png",
+    "encoding": "binary_8bit_png",
+    "meaning": "pixels covered by masks from two or more layout fragments before winner selection"
+  },
+  "finalizedAt": "2026-08-06T04:24:46.119162+00:00"
+}

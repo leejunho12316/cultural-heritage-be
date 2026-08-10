@@ -1,0 +1,5709 @@
+{
+  "routing": {
+    "algorithmRoute": "complete_reference",
+    "requested": {
+      "referenceMode": "auto",
+      "captureMode": "auto",
+      "shapePrior": "auto",
+      "source": "default"
+    },
+    "resolved": {
+      "referenceMode": "complete_with_separate_fragments",
+      "captureMode": "split_scan",
+      "shapePrior": "auto"
+    },
+    "referenceEvidence": {
+      "componentCount": 6,
+      "areas": [
+        183161,
+        119227,
+        110249,
+        83340,
+        5403,
+        2268
+      ],
+      "largestAreaFraction": 0.36366867335917147,
+      "totalAreaPx": 503648,
+      "minimumAreaPx": 366,
+      "detectedMode": "complete_with_separate_fragments",
+      "confidence": 0.58,
+      "reason": "several_reference_components_without_array_level_evidence"
+    },
+    "captureEvidence": {
+      "detectedMode": "split_scan",
+      "confidence": 0.8914285714285715,
+      "reason": "mostly_frame_clipped_scanner_tiles",
+      "fragmentCount": 7,
+      "scannerFrameRatio": 0.8571428571428571,
+      "multiObjectFrameRatio": 0.0,
+      "maskComponentCounts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "seriesCount": 1
+    },
+    "warnings": [],
+    "reviewRequired": false
+  },
+  "placementMode": null,
+  "registrationMode": "legacy_short_sequence",
+  "captureRolePolicy": null,
+  "partialCaptureCandidateIndices": [],
+  "independentFragmentCandidateIndices": [],
+  "longestScannerRun": 4,
+  "allRegistrations": [
+    {
+      "firstIndex": 0,
+      "secondIndex": 1,
+      "secondToFirst": [
+        [
+          0.9999824166297914,
+          -0.005930006504058838,
+          110.58986792931191
+        ],
+        [
+          0.005930006504058838,
+          0.9999824166297914,
+          -1.5142031742976263
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.9084325794017616,
+      "overlapRatio": 0.8976775197244138,
+      "intensityNcc": 0.9141268358270553,
+      "gradientNcc": 0.6577229145761443,
+      "method": "sift_ransac_fixed_scale",
+      "inlierCount": 57,
+      "matchCount": 60,
+      "phaseResponse": 0.0,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "right",
+      "selectionConfidence": 0.95,
+      "reviewRequired": false,
+      "selectionReason": "image_supported_sift_anchor",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    },
+    {
+      "firstIndex": 1,
+      "secondIndex": 2,
+      "secondToFirst": [
+        [
+          -0.9906131655265327,
+          0.13669512165948894,
+          396.29253916274786
+        ],
+        [
+          -0.13669512165948894,
+          -0.9906131655265327,
+          242.55046098987702
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.7413770827492822,
+      "overlapRatio": 0.7668665547293516,
+      "intensityNcc": 0.772283958967325,
+      "gradientNcc": 0.25890489369424063,
+      "method": "phase_correlation_rotation_search",
+      "inlierCount": 0,
+      "matchCount": 0,
+      "phaseResponse": 0.0844364994764328,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "right",
+      "selectionConfidence": 0.7413770827492822,
+      "reviewRequired": false,
+      "selectionReason": "image_supported_phase_anchor",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    },
+    {
+      "firstIndex": 2,
+      "secondIndex": 3,
+      "secondToFirst": [
+        [
+          0.9961946980917455,
+          -0.08715574274765817,
+          162.7243138595111
+        ],
+        [
+          0.08715574274765817,
+          0.9961946980917455,
+          -2.8651081648118346
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.5996542025866212,
+      "overlapRatio": 0.6023190166511827,
+      "intensityNcc": 0.32750070758736743,
+      "gradientNcc": 0.2673129422640386,
+      "method": "phase_correlation_rotation_search",
+      "inlierCount": 0,
+      "matchCount": 0,
+      "phaseResponse": 0.08485924445069683,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "right",
+      "selectionConfidence": 0.5996542025866212,
+      "reviewRequired": true,
+      "selectionReason": "phase_candidate_unconfirmed",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    },
+    {
+      "firstIndex": 3,
+      "secondIndex": 4,
+      "secondToFirst": [
+        [
+          0.999935555448295,
+          -0.011352750781622843,
+          564.0105881532196
+        ],
+        [
+          0.011352750781622843,
+          0.999935555448295,
+          65.4349123892404
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.8186957071287211,
+      "overlapRatio": 0.03758698153525834,
+      "intensityNcc": 0.18507675018946132,
+      "gradientNcc": 0.18815481760390929,
+      "method": "legacy_frame_continuation_right_to_left",
+      "inlierCount": 0,
+      "matchCount": 0,
+      "phaseResponse": 0.0,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "right",
+      "selectionConfidence": 0.8186957071287211,
+      "reviewRequired": false,
+      "selectionReason": "legacy_short_sequence_continuation",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    },
+    {
+      "firstIndex": 4,
+      "secondIndex": 5,
+      "secondToFirst": [
+        [
+          -0.9996940558866068,
+          0.02473448250894803,
+          490.3685330587281
+        ],
+        [
+          -0.02473448250894803,
+          -0.9996940558866068,
+          101.0074834813831
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.6310314084143764,
+      "overlapRatio": 0.7965590926524574,
+      "intensityNcc": 0.0833763756409215,
+      "gradientNcc": 0.2651888670285595,
+      "method": "phase_correlation_rotation_search",
+      "inlierCount": 0,
+      "matchCount": 0,
+      "phaseResponse": 0.1135386481370128,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "right",
+      "selectionConfidence": 0.6310314084143764,
+      "reviewRequired": true,
+      "selectionReason": "phase_candidate_unconfirmed",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    },
+    {
+      "firstIndex": 5,
+      "secondIndex": 6,
+      "secondToFirst": [
+        [
+          1.0,
+          0.0,
+          -126.5995552475998
+        ],
+        [
+          0.0,
+          1.0,
+          4.801944850681341
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.782307049845326,
+      "overlapRatio": 0.819258049701485,
+      "intensityNcc": 0.6702285937443841,
+      "gradientNcc": 0.6756321425828568,
+      "method": "phase_correlation_rotation_search",
+      "inlierCount": 0,
+      "matchCount": 0,
+      "phaseResponse": 0.04641049710811411,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "left",
+      "selectionConfidence": 0.782307049845326,
+      "reviewRequired": false,
+      "selectionReason": "image_supported_phase_anchor",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    }
+  ],
+  "selectedTreeEdges": [
+    {
+      "firstIndex": 0,
+      "secondIndex": 1,
+      "secondToFirst": [
+        [
+          0.9999824166297914,
+          -0.005930006504058838,
+          110.58986792931191
+        ],
+        [
+          0.005930006504058838,
+          0.9999824166297914,
+          -1.5142031742976263
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.9084325794017616,
+      "overlapRatio": 0.8976775197244138,
+      "intensityNcc": 0.9141268358270553,
+      "gradientNcc": 0.6577229145761443,
+      "method": "sift_ransac_fixed_scale",
+      "inlierCount": 57,
+      "matchCount": 60,
+      "phaseResponse": 0.0,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "right",
+      "selectionConfidence": 0.95,
+      "reviewRequired": false,
+      "selectionReason": "image_supported_sift_anchor",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    },
+    {
+      "firstIndex": 5,
+      "secondIndex": 6,
+      "secondToFirst": [
+        [
+          1.0,
+          0.0,
+          -126.5995552475998
+        ],
+        [
+          0.0,
+          1.0,
+          4.801944850681341
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.782307049845326,
+      "overlapRatio": 0.819258049701485,
+      "intensityNcc": 0.6702285937443841,
+      "gradientNcc": 0.6756321425828568,
+      "method": "phase_correlation_rotation_search",
+      "inlierCount": 0,
+      "matchCount": 0,
+      "phaseResponse": 0.04641049710811411,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "left",
+      "selectionConfidence": 0.782307049845326,
+      "reviewRequired": false,
+      "selectionReason": "image_supported_phase_anchor",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    },
+    {
+      "firstIndex": 3,
+      "secondIndex": 4,
+      "secondToFirst": [
+        [
+          0.999935555448295,
+          -0.011352750781622843,
+          564.0105881532196
+        ],
+        [
+          0.011352750781622843,
+          0.999935555448295,
+          65.4349123892404
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.8186957071287211,
+      "overlapRatio": 0.03758698153525834,
+      "intensityNcc": 0.18507675018946132,
+      "gradientNcc": 0.18815481760390929,
+      "method": "legacy_frame_continuation_right_to_left",
+      "inlierCount": 0,
+      "matchCount": 0,
+      "phaseResponse": 0.0,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "right",
+      "selectionConfidence": 0.8186957071287211,
+      "reviewRequired": false,
+      "selectionReason": "legacy_short_sequence_continuation",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    },
+    {
+      "firstIndex": 4,
+      "secondIndex": 5,
+      "secondToFirst": [
+        [
+          -0.9996940558866068,
+          0.02473448250894803,
+          490.3685330587281
+        ],
+        [
+          -0.02473448250894803,
+          -0.9996940558866068,
+          101.0074834813831
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "score": 0.6310314084143764,
+      "overlapRatio": 0.7965590926524574,
+      "intensityNcc": 0.0833763756409215,
+      "gradientNcc": 0.2651888670285595,
+      "method": "phase_correlation_rotation_search",
+      "inlierCount": 0,
+      "matchCount": 0,
+      "phaseResponse": 0.1135386481370128,
+      "boundaryNcc": 0.0,
+      "boundaryGradientNcc": 0.0,
+      "boundaryOccupancyNcc": 0.0,
+      "boundaryReliability": 0.0,
+      "direction": "right",
+      "selectionConfidence": 0.6310314084143764,
+      "reviewRequired": true,
+      "selectionReason": "phase_candidate_unconfirmed",
+      "cyclePathLength": 0,
+      "cycleTranslationResidualPx": 0.0,
+      "cycleRotationResidualDeg": 0.0,
+      "cycleConsistent": null
+    }
+  ],
+  "components": [
+    [
+      0,
+      1
+    ],
+    [
+      2
+    ],
+    [
+      3,
+      4,
+      5,
+      6
+    ]
+  ],
+  "candidateAlternatives": {
+    "0:1": [
+      {
+        "firstIndex": 0,
+        "secondIndex": 1,
+        "secondToFirst": [
+          [
+            0.9999824166297914,
+            -0.005930006504058838,
+            110.58986792931191
+          ],
+          [
+            0.005930006504058838,
+            0.9999824166297914,
+            -1.5142031742976263
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.9084325794017616,
+        "overlapRatio": 0.8976775197244138,
+        "intensityNcc": 0.9141268358270553,
+        "gradientNcc": 0.6577229145761443,
+        "method": "sift_ransac_fixed_scale",
+        "inlierCount": 57,
+        "matchCount": 60,
+        "phaseResponse": 0.0,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.95,
+        "reviewRequired": false,
+        "selectionReason": "image_supported_sift_anchor",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      }
+    ],
+    "1:2": [
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9906131655265327,
+            0.13669512165948894,
+            396.29253916274786
+          ],
+          [
+            -0.13669512165948894,
+            -0.9906131655265327,
+            242.55046098987702
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.7413770827492822,
+        "overlapRatio": 0.7668665547293516,
+        "intensityNcc": 0.772283958967325,
+        "gradientNcc": 0.25890489369424063,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0844364994764328,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.7413770827492822,
+        "reviewRequired": false,
+        "selectionReason": "image_supported_phase_anchor",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9987573482156267,
+            0.049837329235115295,
+            303.55242442260425
+          ],
+          [
+            -0.049837329235115295,
+            -0.9987573482156267,
+            231.18886689045667
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.7087254086406894,
+        "overlapRatio": 0.715110329389191,
+        "intensityNcc": 0.7281142583774317,
+        "gradientNcc": 0.2141020562988558,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0752118555828929,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.7087254086406894,
+        "reviewRequired": false,
+        "selectionReason": "image_supported_phase_anchor",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            -0.0871557427476582,
+            552.7660979029382
+          ],
+          [
+            0.0871557427476582,
+            -0.9961946980917454,
+            137.64876237674923
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5761030105650605,
+        "overlapRatio": 0.6111262132817372,
+        "intensityNcc": 0.29292791092147946,
+        "gradientNcc": 0.05642372427086427,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0917608854174614,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5761030105650605,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            0.08715574274765817,
+            -26.522402596726376
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917454,
+            16.47539920856279
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5684015298744665,
+        "overlapRatio": 0.8210527998976622,
+        "intensityNcc": -0.13025303569244673,
+        "gradientNcc": -0.016456182927363186,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.024877177178859712,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.5684015298744665,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9999999999999999,
+            0.0,
+            -13.111600464302684
+          ],
+          [
+            0.0,
+            0.9999999999999999,
+            -13.537793116045076
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5623576049399996,
+        "overlapRatio": 0.8127318664449277,
+        "intensityNcc": -0.15095325685489983,
+        "gradientNcc": 0.006910819248091029,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.04645858686417341,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.5623576049399996,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            0.0871557427476582,
+            553.5535181088914
+          ],
+          [
+            -0.0871557427476582,
+            -0.9961946980917454,
+            169.85967584016498
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5400898112973916,
+        "overlapRatio": 0.5605391921711599,
+        "intensityNcc": 0.26244346604928254,
+        "gradientNcc": -0.006006296523194687,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.007428733929991722,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5400898112973916,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9987573482156267,
+            -0.049837329235115295,
+            -11.040588489442186
+          ],
+          [
+            0.049837329235115295,
+            0.9987573482156267,
+            -37.73253512281412
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5299455709901192,
+        "overlapRatio": 0.7923010491299898,
+        "intensityNcc": -0.2673509134859432,
+        "gradientNcc": -0.030056632518071665,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.03433887399733067,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.5299455709901192,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9749298184991982,
+            0.22251258166926272,
+            420.3156820052189
+          ],
+          [
+            -0.22251258166926272,
+            -0.9749298184991982,
+            203.51013593796824
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5187971677138135,
+        "overlapRatio": 0.5350871581640813,
+        "intensityNcc": 0.20405238280029156,
+        "gradientNcc": -0.014898255657041328,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0037407378852367403,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5187971677138135,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9749298184991982,
+            -0.22251258166926288,
+            -0.34240493050925375
+          ],
+          [
+            0.22251258166926288,
+            0.9749298184991982,
+            -57.02166324150385
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5086617010416363,
+        "overlapRatio": 0.6861697874858084,
+        "intensityNcc": -0.16885913954185477,
+        "gradientNcc": -0.018889319598534265,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.003345981240272522,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "up",
+        "selectionConfidence": 0.5086617010416363,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9906131655265324,
+            -0.13669512165948902,
+            82.73678203875686
+          ],
+          [
+            0.13669512165948902,
+            0.9906131655265324,
+            -14.262801276243966
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5058167171920522,
+        "overlapRatio": 0.6238684707161821,
+        "intensityNcc": -0.06621175086976948,
+        "gradientNcc": -0.0084405127797692,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.02514774590730667,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "up",
+        "selectionConfidence": 0.5058167171920522,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9999999999999999,
+            -1.2246467991473532e-16,
+            277.14459964820674
+          ],
+          [
+            1.2246467991473532e-16,
+            -0.9999999999999999,
+            193.19795282266065
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5025114944435851,
+        "overlapRatio": 0.5601093769988487,
+        "intensityNcc": 0.06237039302754857,
+        "gradientNcc": -0.022438076731306197,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.011451135203242303,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.5025114944435851,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9906131655265324,
+            -0.13669512165948902,
+            68.4455223407126
+          ],
+          [
+            0.13669512165948902,
+            0.9906131655265324,
+            46.02875582267292
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4907519015241048,
+        "overlapRatio": 0.3536778465524687,
+        "intensityNcc": 0.4098958023268042,
+        "gradientNcc": 0.010642106609035229,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.02514774590730667,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.4907519015241048,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            -0.08715574274765817,
+            -206.55999774581045
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917454,
+            -5.619727407164412
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.38726686650229486,
+        "overlapRatio": 0.40058526288857615,
+        "intensityNcc": -0.3135514130306999,
+        "gradientNcc": 0.03942649302756229,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.1256845274567604,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.38726686650229486,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            0.08715574274765817,
+            123.54669497692814
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917454,
+            112.6129504850243
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3644429869433,
+        "overlapRatio": 0.05064201992420487,
+        "intensityNcc": 0.35056330475131964,
+        "gradientNcc": 0.006049938861330433,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.024877177178859712,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.3644429869433,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9999999999999999,
+            0.0,
+            128.58852354122575
+          ],
+          [
+            0.0,
+            0.9999999999999999,
+            103.3531777314297
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.359998645643189,
+        "overlapRatio": 0.0198445695279519,
+        "intensityNcc": 0.41942523429145956,
+        "gradientNcc": -0.030388329498953863,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.04645858686417341,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.359998645643189,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9906131655265327,
+            0.13669512165948894,
+            564.5251564577829
+          ],
+          [
+            -0.13669512165948894,
+            -0.9906131655265327,
+            367.22204600215554
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3366453240201241,
+        "overlapRatio": 0.0850682784866801,
+        "intensityNcc": 0.12676692377798382,
+        "gradientNcc": -0.0356485805343743,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0844364994764328,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.3366453240201241,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            -0.08715574274765817,
+            343.8421981299458
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917454,
+            57.91984516732246
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.33477189221985626,
+        "overlapRatio": 0.13642468819955228,
+        "intensityNcc": -0.0043597864881750065,
+        "gradientNcc": -0.03825799375507743,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.1256845274567604,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.33477189221985626,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9749298184991982,
+            -0.22251258166926288,
+            178.2534580553236
+          ],
+          [
+            0.22251258166926288,
+            0.9749298184991982,
+            54.60517556723249
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3340169814536859,
+        "overlapRatio": 0.08292425526471482,
+        "intensityNcc": 0.17877731432279007,
+        "gradientNcc": -0.09874910999424232,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.003345981240272522,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.3340169814536859,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9987573482156267,
+            0.049837329235115295,
+            680.9131128439913
+          ],
+          [
+            -0.049837329235115295,
+            -0.9987573482156267,
+            342.2017084438706
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.30993220754365125,
+        "overlapRatio": 0.06087498800729157,
+        "intensityNcc": 0.020634383480839687,
+        "gradientNcc": -0.014271882606442741,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0752118555828929,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.30993220754365125,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            -0.0871557427476582,
+            462.20960971686014
+          ],
+          [
+            0.0871557427476582,
+            -0.9961946980917454,
+            374.80134946812495
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.258146350028008,
+        "overlapRatio": 0.12903535280855757,
+        "intensityNcc": -0.44477411656307825,
+        "gradientNcc": 0.03666603817062522,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0917608854174614,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.258146350028008,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            0.0871557427476582,
+            421.1642815069731
+          ],
+          [
+            -0.0871557427476582,
+            -0.9961946980917454,
+            419.3786679381385
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.24202428629403966,
+        "overlapRatio": 0.17253014360188057,
+        "intensityNcc": -0.6086662397163499,
+        "gradientNcc": 0.05577030838468553,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.007428733929991722,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.24202428629403966,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9749298184991982,
+            0.22251258166926272,
+            513.7732648699669
+          ],
+          [
+            -0.22251258166926272,
+            -0.9749298184991982,
+            440.4448132747646
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.2323092627084791,
+        "overlapRatio": 0.03663548412888782,
+        "intensityNcc": -0.3372455684538577,
+        "gradientNcc": -0.011324632119180892,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0037407378852367403,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.2323092627084791,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            -0.9999999999999999,
+            -1.2246467991473532e-16,
+            719.3784772748701
+          ],
+          [
+            1.2246467991473532e-16,
+            -0.9999999999999999,
+            358.5251241004163
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.23098365165784682,
+        "overlapRatio": 0.0012472815658180888,
+        "intensityNcc": -0.09771417423912179,
+        "gradientNcc": -0.3258883208631668,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.011451135203242303,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.23098365165784682,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 1,
+        "secondIndex": 2,
+        "secondToFirst": [
+          [
+            0.9987573482156267,
+            -0.049837329235115295,
+            138.57505122284667
+          ],
+          [
+            0.049837329235115295,
+            0.9987573482156267,
+            105.88042132694827
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 6.684256816182937e-05,
+        "overlapRatio": 0.00017590149516270889,
+        "intensityNcc": -1.0,
+        "gradientNcc": -1.0,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.03433887399733067,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 6.684256816182937e-05,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      }
+    ],
+    "2:3": [
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9961946980917455,
+            -0.08715574274765817,
+            162.7243138595111
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917455,
+            -2.8651081648118346
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5996542025866212,
+        "overlapRatio": 0.6023190166511827,
+        "intensityNcc": 0.32750070758736743,
+        "gradientNcc": 0.2673129422640386,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.08485924445069683,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5996542025866212,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9965016602677081,
+            -0.08357296861845426,
+            162.73712055745636
+          ],
+          [
+            0.08357296861845426,
+            0.9965016602677081,
+            -2.6845537786077602
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5983211134151009,
+        "overlapRatio": 0.6017153578129187,
+        "intensityNcc": 0.3237251088529812,
+        "gradientNcc": 0.25808108699307747,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.09317748588912281,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5983211134151009,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9854258064447446,
+            -0.1701057905913986,
+            71.49386456545403
+          ],
+          [
+            0.1701057905913986,
+            0.9854258064447446,
+            -22.618737429817276
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5921934477579653,
+        "overlapRatio": 0.733386938264987,
+        "intensityNcc": 0.18083049542539342,
+        "gradientNcc": 0.00016697882156398633,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.01567040264238546,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5921934477579653,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            1.0,
+            0.0,
+            141.94773272359802
+          ],
+          [
+            0.0,
+            1.0,
+            14.750742179007016
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5789712368468646,
+        "overlapRatio": 0.6202898032839608,
+        "intensityNcc": 0.24882467222308688,
+        "gradientNcc": 0.14249065629744484,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.07039341615099046,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5789712368468646,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9999935347518808,
+            0.003595894108414669,
+            -39.754181152309286
+          ],
+          [
+            -0.003595894108414669,
+            0.9999935347518808,
+            53.737607508078696
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5499113687217823,
+        "overlapRatio": 0.6361492281303602,
+        "intensityNcc": 0.12067076520521856,
+        "gradientNcc": 0.04241846496639254,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.03686796331111296,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.5499113687217823,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9961946980917455,
+            0.08715574274765817,
+            -146.32854693147183
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917455,
+            98.35034882808498
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4952878716153656,
+        "overlapRatio": 0.49451433064112643,
+        "intensityNcc": 0.04892468374970497,
+        "gradientNcc": 0.15805842510070128,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.046002339778674975,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.4952878716153656,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9965016602677081,
+            0.08357296861845448,
+            568.7539527316194
+          ],
+          [
+            -0.08357296861845448,
+            -0.9965016602677081,
+            234.26350360328928
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4615523929689477,
+        "overlapRatio": 0.4813279491119608,
+        "intensityNcc": -0.018352022854129072,
+        "gradientNcc": 0.019511364201458044,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.06239277538326052,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.4615523929689477,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9999935347518808,
+            -0.003595894108414595,
+            354.9082659758503
+          ],
+          [
+            0.003595894108414595,
+            -0.9999935347518808,
+            294.1575604071512
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.449225748260241,
+        "overlapRatio": 0.49808819325328757,
+        "intensityNcc": -0.17642238540281197,
+        "gradientNcc": 0.09625447247728552,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.034713615812821154,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.449225748260241,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -1.0,
+            -1.2246467991473532e-16,
+            355.3471892071225
+          ],
+          [
+            1.2246467991473532e-16,
+            -1.0,
+            295.4610954275739
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.44841321060242556,
+        "overlapRatio": 0.49750754882166914,
+        "intensityNcc": -0.16949084946654938,
+        "gradientNcc": 0.07941220708189242,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0321245707663489,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.44841321060242556,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9965016602677081,
+            0.08357296861845448,
+            443.1028425088703
+          ],
+          [
+            -0.08357296861845448,
+            -0.9965016602677081,
+            266.9494345541643
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4443230657732746,
+        "overlapRatio": 0.6247833467345663,
+        "intensityNcc": -0.41847929539030804,
+        "gradientNcc": 0.02231667184394865,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.06239277538326052,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.4443230657732746,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9854258064447446,
+            -0.1701057905913986,
+            -180.10526174014583
+          ],
+          [
+            0.1701057905913986,
+            0.9854258064447446,
+            -70.59182158440218
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.44419475465737984,
+        "overlapRatio": 0.3729764499874924,
+        "intensityNcc": 0.10317353504511063,
+        "gradientNcc": 0.029522431954697427,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.01567040264238546,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.44419475465737984,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9961946980917455,
+            0.08715574274765817,
+            -26.27845026128146
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917455,
+            -41.158629041040214
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.41780136994855227,
+        "overlapRatio": 0.39023082970056455,
+        "intensityNcc": -0.04796997675097994,
+        "gradientNcc": -0.04611889909206366,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.046002339778674975,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "up",
+        "selectionConfidence": 0.41780136994855227,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9961946980917455,
+            -0.08715574274765818,
+            533.5848434622106
+          ],
+          [
+            0.08715574274765818,
+            -0.9961946980917455,
+            289.49683082007135
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4168942748714943,
+        "overlapRatio": 0.25792849613178725,
+        "intensityNcc": 0.2458649224968331,
+        "gradientNcc": -0.05657099642715671,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.004714332245014332,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.4168942748714943,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9999935347518808,
+            0.003595894108414669,
+            -116.40091767430418
+          ],
+          [
+            -0.003595894108414669,
+            0.9999935347518808,
+            -47.03096811912837
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4156926237393474,
+        "overlapRatio": 0.3323268237774482,
+        "intensityNcc": 0.02554094077780535,
+        "gradientNcc": 0.02598983565245305,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.03686796331111296,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "up",
+        "selectionConfidence": 0.4156926237393474,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9965016602677081,
+            -0.08357296861845426,
+            -297.3016081056386
+          ],
+          [
+            0.08357296861845426,
+            0.9965016602677081,
+            -41.60530745576875
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.39069866720291974,
+        "overlapRatio": 0.24871799453249235,
+        "intensityNcc": 0.06093991643757327,
+        "gradientNcc": -0.003740048315379013,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.09317748588912281,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.39069866720291974,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            0.9961946980917455,
+            -0.08715574274765817,
+            -296.3043103074438
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917455,
+            -43.48419443236133
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.39068900679620483,
+        "overlapRatio": 0.24850347551060523,
+        "intensityNcc": 0.06503036507959765,
+        "gradientNcc": -0.005393342791945375,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.08485924445069683,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.39068900679620483,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9961946980917455,
+            -0.08715574274765818,
+            516.3144614228502
+          ],
+          [
+            0.08715574274765818,
+            -0.9961946980917455,
+            110.23452631596061
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.38819652762045503,
+        "overlapRatio": 0.21864503680411634,
+        "intensityNcc": 0.13749352698725778,
+        "gradientNcc": 0.000797188424835875,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.004714332245014332,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.38819652762045503,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            1.0,
+            0.0,
+            -297.3015788774442
+          ],
+          [
+            0.0,
+            1.0,
+            -10.181511409776247
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.38425267011895387,
+        "overlapRatio": 0.2647537029427004,
+        "intensityNcc": 0.0032696831669980077,
+        "gradientNcc": -0.011658849383913454,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.07039341615099046,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.38425267011895387,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -1.0,
+            -1.2246467991473532e-16,
+            677.2989646390312
+          ],
+          [
+            1.2246467991473532e-16,
+            -1.0,
+            156.8927507262722
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.36692886641953604,
+        "overlapRatio": 0.24570744519287463,
+        "intensityNcc": -0.02313557201122063,
+        "gradientNcc": -0.04203034037717516,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0321245707663489,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.36692886641953604,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9999935347518808,
+            -0.003595894108414595,
+            678.5391405430709
+          ],
+          [
+            0.003595894108414595,
+            -0.9999935347518808,
+            156.0588771269754
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.36176987680107736,
+        "overlapRatio": 0.24516267352736237,
+        "intensityNcc": -0.045999929002953285,
+        "gradientNcc": -0.05194768867558003,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.034713615812821154,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.36176987680107736,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9854258064447444,
+            0.17010579059139871,
+            433.3307344656843
+          ],
+          [
+            -0.17010579059139871,
+            -0.9854258064447444,
+            389.2825992157015
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3441979904922329,
+        "overlapRatio": 0.10859971054371326,
+        "intensityNcc": 0.12717669645726723,
+        "gradientNcc": -0.011253952179778657,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.019394839021526736,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.3441979904922329,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9961946980917455,
+            0.08715574274765818,
+            606.9523499334296
+          ],
+          [
+            -0.08715574274765818,
+            -0.9961946980917455,
+            123.04227754649608
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3129373237862336,
+        "overlapRatio": 0.002876438219109555,
+        "intensityNcc": 0.06638707169380113,
+        "gradientNcc": 0.15226075960485705,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.07780880662670106,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.3129373237862336,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9854258064447444,
+            0.17010579059139871,
+            552.572970401315
+          ],
+          [
+            -0.17010579059139871,
+            -0.9854258064447444,
+            160.85103672159488
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.28857598677284535,
+        "overlapRatio": 0.04657602772765441,
+        "intensityNcc": 0.010022618122933476,
+        "gradientNcc": -0.12090665367082944,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.019394839021526736,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.28857598677284535,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 2,
+        "secondIndex": 3,
+        "secondToFirst": [
+          [
+            -0.9961946980917455,
+            0.08715574274765818,
+            403.91995420681064
+          ],
+          [
+            -0.08715574274765818,
+            -0.9961946980917455,
+            380.23010197375396
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.2836980779442703,
+        "overlapRatio": 0.04648669894413378,
+        "intensityNcc": -0.05162607963487099,
+        "gradientNcc": -0.09342701717825794,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.07780880662670106,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.2836980779442703,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      }
+    ],
+    "3:4": [
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.999935555448295,
+            -0.011352750781622843,
+            564.0105881532196
+          ],
+          [
+            0.011352750781622843,
+            0.999935555448295,
+            65.4349123892404
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.8186957071287211,
+        "overlapRatio": 0.03758698153525834,
+        "intensityNcc": 0.18507675018946132,
+        "gradientNcc": 0.18815481760390929,
+        "method": "legacy_frame_continuation_right_to_left",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.8186957071287211,
+        "reviewRequired": false,
+        "selectionReason": "legacy_short_sequence_continuation",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.999935555448295,
+            0.011352750781622881,
+            1165.8932167642872
+          ],
+          [
+            -0.011352750781622881,
+            -0.999935555448295,
+            159.5650876107596
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.8054291291941063,
+        "overlapRatio": 0.019067448358994026,
+        "intensityNcc": -0.059336711172133884,
+        "gradientNcc": -0.04594981427675316,
+        "method": "legacy_frame_continuation_right_to_left",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.8054291291941063,
+        "reviewRequired": false,
+        "selectionReason": "legacy_short_sequence_continuation",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9971199566225415,
+            0.0758405703107562,
+            627.2993961696371
+          ],
+          [
+            -0.0758405703107562,
+            -0.9971199566225415,
+            158.06569270431902
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.6598741496133046,
+        "overlapRatio": 0.8646997589305282,
+        "intensityNcc": 0.12813894584427205,
+        "gradientNcc": 0.24699027076731359,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.058736731516726225,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.6598741496133046,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9999999999999999,
+            0.0,
+            180.81440214181163
+          ],
+          [
+            0.0,
+            0.9999999999999999,
+            65.46780034028323
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.6429987362277994,
+        "overlapRatio": 0.7205632568078462,
+        "intensityNcc": 0.18043261898363724,
+        "gradientNcc": 0.4673389682219955,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.16621550669272742,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.6429987362277994,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.999935555384687,
+            0.011352756384120819,
+            105.20438872367183
+          ],
+          [
+            -0.011352756384120819,
+            0.999935555384687,
+            73.62383807631933
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.6376430467052323,
+        "overlapRatio": 0.8270864156940106,
+        "intensityNcc": -0.03909636146443601,
+        "gradientNcc": 0.4505173004401441,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.08893039601820486,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.6376430467052323,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            0.08715574274765817,
+            6.35762271765691
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917454,
+            103.91892587494073
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.6061525609255313,
+        "overlapRatio": 0.9102388517585187,
+        "intensityNcc": -0.19007694019285243,
+        "gradientNcc": 0.1147099294987755,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.05007755903550136,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.6061525609255313,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9971199566225415,
+            -0.07584057031075611,
+            96.86608607149816
+          ],
+          [
+            0.07584057031075611,
+            0.9971199566225415,
+            40.83175504246194
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.6045432434790251,
+        "overlapRatio": 0.8272971344035943,
+        "intensityNcc": -0.09191239415354098,
+        "gradientNcc": 0.23341654547489252,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.056215146763457194,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.6045432434790251,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9999999999999999,
+            -1.2246467991473532e-16,
+            692.8231219072571
+          ],
+          [
+            1.2246467991473532e-16,
+            -0.9999999999999999,
+            147.28351468893052
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.6002465299797791,
+        "overlapRatio": 0.7539312914360857,
+        "intensityNcc": 0.09638456437889785,
+        "gradientNcc": 0.15596749045038558,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.013444476680439195,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.6002465299797791,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9951410407927591,
+            0.09845968174793286,
+            4.49165823108882
+          ],
+          [
+            -0.09845968174793286,
+            0.9951410407927591,
+            106.62535072829027
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5999305471514116,
+        "overlapRatio": 0.9003862907865537,
+        "intensityNcc": -0.20118564816560672,
+        "gradientNcc": 0.10966063684646081,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.05051849396140487,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.5999305471514116,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            -0.08715574274765817,
+            -70.17611598640372
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917454,
+            25.1333387549258
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5843540534159146,
+        "overlapRatio": 0.7904454062345916,
+        "intensityNcc": -0.11163743073530855,
+        "gradientNcc": 0.17568070274664185,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.10852443840768602,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "up",
+        "selectionConfidence": 0.5843540534159146,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            -0.08715574274765817,
+            66.62897354279507
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917454,
+            52.799314983432446
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5541444869477467,
+        "overlapRatio": 0.7782129944121836,
+        "intensityNcc": -0.1548592873108418,
+        "gradientNcc": -0.002132455173927708,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.10852443840768602,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5541444869477467,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            0.08715574274765818,
+            703.1615393833081
+          ],
+          [
+            -0.08715574274765818,
+            -0.9961946980917454,
+            153.9113570315314
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5523592927589612,
+        "overlapRatio": 0.6532708744247205,
+        "intensityNcc": 0.12089911844064603,
+        "gradientNcc": 0.021421317653328362,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0035397898819711474,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5523592927589612,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9999999999999999,
+            0.0,
+            -194.77594060335008
+          ],
+          [
+            0.0,
+            0.9999999999999999,
+            64.83989196740906
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5292845626451151,
+        "overlapRatio": 0.5644622212481508,
+        "intensityNcc": 0.0432253900887836,
+        "gradientNcc": 0.1703541795327309,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.16621550669272742,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.5292845626451151,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9971199566225415,
+            -0.07584057031075611,
+            -102.02619136075005
+          ],
+          [
+            0.07584057031075611,
+            0.9971199566225415,
+            43.860457803124724
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5259555057443912,
+        "overlapRatio": 0.7009998630324613,
+        "intensityNcc": -0.16444291145333875,
+        "gradientNcc": 0.05802373047849494,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.056215146763457194,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.5259555057443912,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9999999999999999,
+            -1.2246467991473532e-16,
+            503.2153396312042
+          ],
+          [
+            1.2246467991473532e-16,
+            -0.9999999999999999,
+            169.1780237726079
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5238513177211367,
+        "overlapRatio": 0.6581283217357953,
+        "intensityNcc": -0.023116268041461857,
+        "gradientNcc": -0.028831848918287183,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.013444476680439195,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5238513177211367,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.999935555384687,
+            0.011352756384120819,
+            -120.1836178256219
+          ],
+          [
+            -0.011352756384120819,
+            0.999935555384687,
+            63.55827015026828
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5148325114018469,
+        "overlapRatio": 0.6644931506849315,
+        "intensityNcc": -0.15647213954737368,
+        "gradientNcc": 0.05154275499007935,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.08893039601820486,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.5148325114018469,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            0.08715574274765817,
+            -26.12914188813729
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917454,
+            79.4721765880838
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5024517191406733,
+        "overlapRatio": 0.6929125229445768,
+        "intensityNcc": -0.22376918205219504,
+        "gradientNcc": -0.035812403510008396,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.05007755903550136,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.5024517191406733,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            0.9951410407927591,
+            0.09845968174793286,
+            -24.67785059647722
+          ],
+          [
+            -0.09845968174793286,
+            0.9951410407927591,
+            83.70270600926766
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5010506511144789,
+        "overlapRatio": 0.6910096970361037,
+        "intensityNcc": -0.22927430508676538,
+        "gradientNcc": -0.032947684813070706,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.05051849396140487,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.5010506511144789,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.999935555384687,
+            -0.01135275638412087,
+            667.6432617988372
+          ],
+          [
+            0.01135275638412087,
+            -0.999935555384687,
+            98.4496454747359
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4557527386615063,
+        "overlapRatio": 0.4386334995342721,
+        "intensityNcc": 0.08147751653609933,
+        "gradientNcc": -0.08282896345028407,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.044815870116890213,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.4557527386615063,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9971199566225415,
+            0.0758405703107562,
+            559.9376321965378
+          ],
+          [
+            -0.0758405703107562,
+            -0.9971199566225415,
+            204.01132521932504
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.42232090569312525,
+        "overlapRatio": 0.48263108870746807,
+        "intensityNcc": -0.1999768477890278,
+        "gradientNcc": -0.08607279304691208,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.058736731516726225,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.42232090569312525,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            0.08715574274765818,
+            482.4625261372233
+          ],
+          [
+            -0.08715574274765818,
+            -0.9961946980917454,
+            214.9252199993412
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.376249279673734,
+        "overlapRatio": 0.3729760828470453,
+        "intensityNcc": -0.21313918864424317,
+        "gradientNcc": -0.07328965245097764,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0035397898819711474,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.376249279673734,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.999935555384687,
+            -0.01135275638412087,
+            529.4128903800356
+          ],
+          [
+            0.01135275638412087,
+            -0.999935555384687,
+            211.1374770679072
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3736041439517147,
+        "overlapRatio": 0.20554962062070287,
+        "intensityNcc": -0.011187187774395355,
+        "gradientNcc": 0.14820029708225346,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.044815870116890213,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.3736041439517147,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            -0.08715574274765818,
+            704.8319014350827
+          ],
+          [
+            0.08715574274765818,
+            -0.9961946980917454,
+            41.80345701628835
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.35744775022915226,
+        "overlapRatio": 0.1388029037118203,
+        "intensityNcc": 0.14169611216194086,
+        "gradientNcc": -0.008026533704888084,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.023919730366748056,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.35744775022915226,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            -0.08715574274765818,
+            497.0165408123208
+          ],
+          [
+            0.08715574274765818,
+            -0.9961946980917454,
+            221.57467128991772
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.26763492415446677,
+        "overlapRatio": 0.02326027397260274,
+        "intensityNcc": -0.03643859223910554,
+        "gradientNcc": -0.14645033352083264,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.023919730366748056,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.26763492415446677,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9951410407927591,
+            -0.0984596817479328,
+            384.6173622922545
+          ],
+          [
+            0.0984596817479328,
+            -0.9951410407927591,
+            -343.4664476020434
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 5.5618186791737875e-05,
+        "overlapRatio": 0.0,
+        "intensityNcc": -1.0,
+        "gradientNcc": -1.0,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0009269697798622979,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 5.5618186791737875e-05,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 3,
+        "secondIndex": 4,
+        "secondToFirst": [
+          [
+            -0.9951410407927591,
+            -0.0984596817479328,
+            817.645753150057
+          ],
+          [
+            0.0984596817479328,
+            -0.9951410407927591,
+            599.9076216337163
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 5.5618186791737875e-05,
+        "overlapRatio": 0.0,
+        "intensityNcc": -1.0,
+        "gradientNcc": -1.0,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0009269697798622979,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 5.5618186791737875e-05,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      }
+    ],
+    "4:5": [
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9996940558866068,
+            0.02473448250894803,
+            490.3685330587281
+          ],
+          [
+            -0.02473448250894803,
+            -0.9996940558866068,
+            101.0074834813831
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.6310314084143764,
+        "overlapRatio": 0.7965590926524574,
+        "intensityNcc": 0.0833763756409215,
+        "gradientNcc": 0.2651888670285595,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.1135386481370128,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.6310314084143764,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9980456703826173,
+            -0.06248871762575923,
+            533.6777890605923
+          ],
+          [
+            0.06248871762575923,
+            -0.9980456703826173,
+            77.74580464872763
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.591248305787984,
+        "overlapRatio": 0.760999397293299,
+        "intensityNcc": 0.0952700897059806,
+        "gradientNcc": 0.005783041291340798,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.07236024233866457,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.591248305787984,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9937341659935246,
+            -0.11176943829667306,
+            -49.424001326664204
+          ],
+          [
+            0.11176943829667306,
+            0.9937341659935246,
+            -48.91701631964015
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5825273156978156,
+        "overlapRatio": 0.6498274067174401,
+        "intensityNcc": 0.24552345757108188,
+        "gradientNcc": 0.08221123098488468,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.05295926139842008,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "up",
+        "selectionConfidence": 0.5825273156978156,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            0.08715574274765818,
+            620.1969956256914
+          ],
+          [
+            -0.08715574274765818,
+            -0.9961946980917454,
+            108.73174572256441
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5798425473712931,
+        "overlapRatio": 0.6566215549832886,
+        "intensityNcc": 0.17526807247538673,
+        "gradientNcc": 0.15590940017099073,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.05311939024957937,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5798425473712931,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9980456703826173,
+            0.0624887176257592,
+            -11.702378371116668
+          ],
+          [
+            -0.0624887176257592,
+            0.9980456703826173,
+            5.567655985253121
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5745691307442578,
+        "overlapRatio": 0.7453016273080927,
+        "intensityNcc": 0.0667566942729405,
+        "gradientNcc": -0.022939902214250123,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.027204960324636703,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.5745691307442578,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9980456703826173,
+            0.0624887176257592,
+            19.107911956557828
+          ],
+          [
+            -0.0624887176257592,
+            0.9980456703826173,
+            3.538117640009211
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5706392153567884,
+        "overlapRatio": 0.7452468357898198,
+        "intensityNcc": 0.04004391582252074,
+        "gradientNcc": -0.013947847108751073,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.027204960324636703,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.5706392153567884,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9937341659935246,
+            -0.11176943829667306,
+            80.85848948506406
+          ],
+          [
+            0.11176943829667306,
+            0.9937341659935246,
+            -44.033272547523815
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5615578729450722,
+        "overlapRatio": 0.6742096323489124,
+        "intensityNcc": 0.06351210988812184,
+        "gradientNcc": 0.10748477188718347,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.05295926139842008,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5615578729450722,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            0.08715574274765817,
+            96.69415702947165
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917454,
+            -3.1405678262332617
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.544786101906135,
+        "overlapRatio": 0.7101254725768451,
+        "intensityNcc": -0.03453596017429819,
+        "gradientNcc": 0.009068835873102836,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.004133526183286648,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.544786101906135,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9996940558866068,
+            -0.02473448250894791,
+            158.5355953241918
+          ],
+          [
+            0.02473448250894791,
+            0.9996940558866068,
+            -39.53200849535074
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5431264437779952,
+        "overlapRatio": 0.6317462056873596,
+        "intensityNcc": 0.10833289636878828,
+        "gradientNcc": 0.021635504347576703,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.023323563927649144,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5431264437779952,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9937341659935246,
+            0.11176943829667306,
+            458.1115817520162
+          ],
+          [
+            -0.11176943829667306,
+            -0.9937341659935246,
+            129.35870502145156
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5417273406282916,
+        "overlapRatio": 0.6968933209139225,
+        "intensityNcc": -0.06637737161234004,
+        "gradientNcc": 0.051064012322757125,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.06249007231577597,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.5417273406282916,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9999999999999999,
+            -1.2246467991473532e-16,
+            476.9173561911188
+          ],
+          [
+            1.2246467991473532e-16,
+            -0.9999999999999999,
+            85.13986400309881
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5311451647718096,
+        "overlapRatio": 0.667360692564791,
+        "intensityNcc": 0.005331148747923091,
+        "gradientNcc": -0.04711090218436178,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.02165975068331746,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5311451647718096,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            0.08715574274765817,
+            -91.24104300876664
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917454,
+            26.99637847761206
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4918925076328061,
+        "overlapRatio": 0.5773656238014355,
+        "intensityNcc": -0.036625075203850437,
+        "gradientNcc": -0.011619274460434875,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.004133526183286648,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.4918925076328061,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9937341659935246,
+            0.11176943829667306,
+            715.8000839357376
+          ],
+          [
+            -0.11176943829667306,
+            -0.9937341659935246,
+            154.39927615340468
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.48944555241445414,
+        "overlapRatio": 0.49556188701988935,
+        "intensityNcc": 0.1048253618675921,
+        "gradientNcc": -0.014859341282169442,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.06249007231577597,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.48944555241445414,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9980456703826173,
+            -0.06248871762575923,
+            664.26283120012
+          ],
+          [
+            0.06248871762575923,
+            -0.9980456703826173,
+            103.95611403370219
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.48806562856663643,
+        "overlapRatio": 0.5992274395923511,
+        "intensityNcc": -0.10148639071907133,
+        "gradientNcc": -0.05714862689344049,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.07236024233866457,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.48806562856663643,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9996940558866068,
+            0.02473448250894803,
+            697.7855418744798
+          ],
+          [
+            -0.02473448250894803,
+            -0.9996940558866068,
+            132.24702985414046
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.48237854613918796,
+        "overlapRatio": 0.5198619253739521,
+        "intensityNcc": 0.012121426215448601,
+        "gradientNcc": -0.0416316110991532,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.1135386481370128,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.48237854613918796,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            0.08715574274765818,
+            558.1987450366521
+          ],
+          [
+            -0.08715574274765818,
+            -0.9961946980917454,
+            160.83931873121278
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.44044484193804523,
+        "overlapRatio": 0.46813873212426715,
+        "intensityNcc": -0.10620277469174566,
+        "gradientNcc": -0.015185402396368326,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.05311939024957937,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.44044484193804523,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9996940558866068,
+            -0.02473448250894791,
+            -141.34351641124593
+          ],
+          [
+            0.02473448250894791,
+            0.9996940558866068,
+            -2.9148125324806786
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.43360873640509084,
+        "overlapRatio": 0.46359103610761054,
+        "intensityNcc": -0.13605269737098696,
+        "gradientNcc": 0.005342143753174775,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.023323563927649144,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.43360873640509084,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9999999999999999,
+            -1.2246467991473532e-16,
+            714.4672591934964
+          ],
+          [
+            1.2246467991473532e-16,
+            -0.9999999999999999,
+            133.5909052276704
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.41207291756410674,
+        "overlapRatio": 0.39734809051558817,
+        "intensityNcc": -0.06799930593481754,
+        "gradientNcc": -0.07979066804548583,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.02165975068331746,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.41207291756410674,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            -0.08715574274765818,
+            774.8210937728086
+          ],
+          [
+            0.08715574274765818,
+            -0.9961946980917454,
+            33.10265509205275
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3978930814861084,
+        "overlapRatio": 0.34773437071941266,
+        "intensityNcc": -0.041424386876016586,
+        "gradientNcc": -0.07708431880018751,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.01531403550722308,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.3978930814861084,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9999999999999999,
+            0.0,
+            101.94070408744471
+          ],
+          [
+            0.0,
+            0.9999999999999999,
+            -77.07868401432388
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.32350911784108094,
+        "overlapRatio": 0.24119226343761985,
+        "intensityNcc": -0.17723793108659947,
+        "gradientNcc": -0.162411146696267,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.044450813680682814,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.32350911784108094,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            -0.08715574274765817,
+            174.91281031746703
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917454,
+            -108.5137160654232
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3229146465389308,
+        "overlapRatio": 0.13070516684017314,
+        "intensityNcc": -0.05440937135675324,
+        "gradientNcc": 0.01506701120450712,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.02556114772383241,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.3229146465389308,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            -0.08715574274765818,
+            425.07194605263993
+          ],
+          [
+            0.08715574274765818,
+            -0.9961946980917454,
+            133.84922656426062
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3145875552895102,
+        "overlapRatio": 0.2585611747301518,
+        "intensityNcc": -0.277708312039165,
+        "gradientNcc": -0.14597037071331137,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.01531403550722308,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.3145875552895102,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9999999999999999,
+            0.0,
+            -87.97916562590626
+          ],
+          [
+            0.0,
+            0.9999999999999999,
+            49.15560709124696
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.2786115934129166,
+        "overlapRatio": 0.03520355049038409,
+        "intensityNcc": -0.10264551035383453,
+        "gradientNcc": 0.037104360902608435,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.044450813680682814,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.2786115934129166,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 4,
+        "secondIndex": 5,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            -0.08715574274765817,
+            -147.9623971336569
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917454,
+            29.75034391933816
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.26698780950749373,
+        "overlapRatio": 0.02158785819955071,
+        "intensityNcc": -0.06617137913447056,
+        "gradientNcc": -0.10838397227560759,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.02556114772383241,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.26698780950749373,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      }
+    ],
+    "5:6": [
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            1.0,
+            0.0,
+            -126.5995552475998
+          ],
+          [
+            0.0,
+            1.0,
+            4.801944850681341
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.782307049845326,
+        "overlapRatio": 0.819258049701485,
+        "intensityNcc": 0.6702285937443841,
+        "gradientNcc": 0.6756321425828568,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.04641049710811411,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.782307049845326,
+        "reviewRequired": false,
+        "selectionReason": "image_supported_phase_anchor",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9999252280106501,
+            -0.012228588955769774,
+            -106.25420674444328
+          ],
+          [
+            0.012228588955769774,
+            0.9999252280106501,
+            1.1609476147088076
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.7612329514690294,
+        "overlapRatio": 0.8343963669762221,
+        "intensityNcc": 0.5758745171061186,
+        "gradientNcc": 0.49323855576559483,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.1863510560400692,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.7612329514690294,
+        "reviewRequired": false,
+        "selectionReason": "image_supported_phase_anchor",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9999252280152676,
+            0.01222858857820421,
+            -539.3884986922761
+          ],
+          [
+            -0.01222858857820421,
+            0.9999252280152676,
+            6.877027872019433
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.8190291409186291,
+        "overlapRatio": 0.03643600734843846,
+        "intensityNcc": 0.29818996751709786,
+        "gradientNcc": 0.07149978422333236,
+        "method": "legacy_frame_continuation_left_to_right",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.8190291409186291,
+        "reviewRequired": false,
+        "selectionReason": "legacy_short_sequence_continuation",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9999252280152676,
+            -0.012228588578204384,
+            31.843473523957186
+          ],
+          [
+            0.012228588578204384,
+            -0.9999252280152676,
+            115.12297212798046
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.8137477581907389,
+        "overlapRatio": 0.026098936143072175,
+        "intensityNcc": 0.23722230442624612,
+        "gradientNcc": -0.04619396641995942,
+        "method": "legacy_frame_continuation_left_to_right",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.8137477581907389,
+        "reviewRequired": false,
+        "selectionReason": "legacy_short_sequence_continuation",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9950544188791937,
+            0.09933128142227059,
+            572.4724570264651
+          ],
+          [
+            -0.09933128142227059,
+            -0.9950544188791937,
+            162.85761668683406
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.6034968714499973,
+        "overlapRatio": 0.7364406347262615,
+        "intensityNcc": 0.09832639192712828,
+        "gradientNcc": 0.19055874816184334,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.11491341484917535,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.6034968714499973,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            0.08715574274765817,
+            -36.913901108638086
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917454,
+            13.83711042777601
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.597784876071664,
+        "overlapRatio": 0.7540950145430423,
+        "intensityNcc": 0.11892286890062435,
+        "gradientNcc": 0.0982265414319552,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.009789157993018383,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.597784876071664,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            0.08715574274765817,
+            46.753005277384744
+          ],
+          [
+            -0.08715574274765817,
+            0.9961946980917454,
+            36.262450088269425
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5667632074988206,
+        "overlapRatio": 0.6539776496402511,
+        "intensityNcc": 0.21614236735142522,
+        "gradientNcc": -0.0065392548773134124,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.009789157993018383,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.5667632074988206,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9999252280106501,
+            -0.012228588955769774,
+            125.92136428501915
+          ],
+          [
+            0.012228588955769774,
+            0.9999252280106501,
+            -8.117076916066354
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5553393300855192,
+        "overlapRatio": 0.5701018038935525,
+        "intensityNcc": 0.26947002808154674,
+        "gradientNcc": -0.009850238111132984,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.1863510560400692,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5553393300855192,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            1.0,
+            0.0,
+            144.75340140144596
+          ],
+          [
+            0.0,
+            1.0,
+            -4.801944850681341
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5480210337216382,
+        "overlapRatio": 0.5476603561769658,
+        "intensityNcc": 0.3093331967385372,
+        "gradientNcc": 0.014454931349676887,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.04641049710811411,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5480210337216382,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9999252280106501,
+            0.012228588955769662,
+            477.25232304593703
+          ],
+          [
+            -0.012228588955769662,
+            -0.9999252280106501,
+            144.57881922900373
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.5461475466067603,
+        "overlapRatio": 0.6378782466704087,
+        "intensityNcc": 0.10761158124518927,
+        "gradientNcc": 0.032865428319829575,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.018286423598133813,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.5461475466067603,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9950544188791937,
+            0.09933128142227059,
+            570.0718495956326
+          ],
+          [
+            -0.09933128142227059,
+            -0.9950544188791937,
+            133.66284925230627
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4912741207640089,
+        "overlapRatio": 0.6351644426300614,
+        "intensityNcc": -0.19170859985608704,
+        "gradientNcc": -0.024756243522692747,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.11491341484917535,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.4912741207640089,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -1.0,
+            -1.2246467991473532e-16,
+            492.7107792782948
+          ],
+          [
+            1.2246467991473532e-16,
+            -1.0,
+            147.31733436995665
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4871123623022532,
+        "overlapRatio": 0.598841659437669,
+        "intensityNcc": -0.09379112952355291,
+        "gradientNcc": -0.03565064969821511,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.013512368535799254,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.4871123623022532,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9971860023855853,
+            -0.0749671704565088,
+            671.3996011191916
+          ],
+          [
+            0.0749671704565088,
+            -0.9971860023855853,
+            129.00778413559456
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4797578750127127,
+        "overlapRatio": 0.5294597973921253,
+        "intensityNcc": -0.017648980115707896,
+        "gradientNcc": -0.010192861126652568,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.04598757561996313,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.4797578750127127,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            -0.08715574274765817,
+            -128.61115352654483
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917454,
+            0.962788939193533
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4796680503709618,
+        "overlapRatio": 0.5205255772419951,
+        "intensityNcc": 0.04658318358841054,
+        "gradientNcc": -0.06516642026910247,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.024781732127499678,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.4796680503709618,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9950544188791934,
+            -0.0993312814222708,
+            -119.74994504266641
+          ],
+          [
+            0.0993312814222708,
+            0.9950544188791934,
+            1.4025775122217703
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.4626882632120519,
+        "overlapRatio": 0.48475026160639084,
+        "intensityNcc": 0.032974439116610924,
+        "gradientNcc": -0.07452235239366589,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.027704263485671725,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 0.4626882632120519,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            -0.0871557427476582,
+            672.9042199989035
+          ],
+          [
+            0.0871557427476582,
+            -0.9961946980917454,
+            128.0571757491968
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.45322800505954514,
+        "overlapRatio": 0.4915038016022861,
+        "intensityNcc": -0.07841699676118012,
+        "gradientNcc": -0.02689672308106426,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0543548695965886,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.45322800505954514,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9999252280106501,
+            0.012228588955769662,
+            678.5420578750254
+          ],
+          [
+            -0.012228588955769662,
+            -0.9999252280106501,
+            102.91577161081516
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.44340277317137017,
+        "overlapRatio": 0.5491146604072051,
+        "intensityNcc": -0.23026795262560168,
+        "gradientNcc": -0.049097517266475335,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.018286423598133813,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.44340277317137017,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -1.0,
+            -1.2246467991473532e-16,
+            664.5969130293973
+          ],
+          [
+            1.2246467991473532e-16,
+            -1.0,
+            93.22112716850488
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.401516194777744,
+        "overlapRatio": 0.49050875133949073,
+        "intensityNcc": -0.32435491707882574,
+        "gradientNcc": -0.06493245657073861,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.013512368535799254,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.401516194777744,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9961946980917454,
+            -0.08715574274765817,
+            159.4145659700551
+          ],
+          [
+            0.08715574274765817,
+            0.9961946980917454,
+            -50.14702798853806
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.39274347621413597,
+        "overlapRatio": 0.33303564593911866,
+        "intensityNcc": -0.07304766115800164,
+        "gradientNcc": -0.006614902342888379,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.024781732127499678,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.39274347621413597,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9950544188791934,
+            -0.0993312814222708,
+            152.66717688210736
+          ],
+          [
+            0.0993312814222708,
+            0.9950544188791934,
+            -57.38458191290053
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.36890767880521413,
+        "overlapRatio": 0.2989590774568834,
+        "intensityNcc": -0.12246352430639916,
+        "gradientNcc": -0.026533362532497013,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": -0.027704263485671725,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.36890767880521413,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9971860023855853,
+            -0.0749671704565088,
+            493.3215470094867
+          ],
+          [
+            0.0749671704565088,
+            -0.9971860023855853,
+            68.49266979399344
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.3575506558789904,
+        "overlapRatio": 0.4213830058688441,
+        "intensityNcc": -0.42656641804181744,
+        "gradientNcc": -0.0855218564084101,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.04598757561996313,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.3575506558789904,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            -0.0871557427476582,
+            492.71821429388825
+          ],
+          [
+            0.0871557427476582,
+            -0.9961946980917454,
+            62.38172527321924
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.34283395258884675,
+        "overlapRatio": 0.3841875653749011,
+        "intensityNcc": -0.431738520422036,
+        "gradientNcc": -0.08705680753444497,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0543548695965886,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.34283395258884675,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            0.0871557427476582,
+            549.6706697823475
+          ],
+          [
+            -0.0871557427476582,
+            -0.9961946980917454,
+            229.1959937594169
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.247554586608266,
+        "overlapRatio": 0.06379666726210223,
+        "intensityNcc": -0.28058119149839417,
+        "gradientNcc": -0.06306205186624673,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0020445450833795494,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "down",
+        "selectionConfidence": 0.247554586608266,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            -0.9961946980917454,
+            0.0871557427476582,
+            594.9874562356806
+          ],
+          [
+            -0.0871557427476582,
+            -0.9961946980917454,
+            60.52670682838903
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 0.2242769793886542,
+        "overlapRatio": 0.012449614776264096,
+        "intensityNcc": -0.20530094254766587,
+        "gradientNcc": -0.23622377272749065,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0020445450833795494,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "right",
+        "selectionConfidence": 0.2242769793886542,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9971860023855853,
+            0.07496717045650854,
+            236.7800893306427
+          ],
+          [
+            -0.07496717045650854,
+            0.9971860023855853,
+            -155.16257952001754
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 3.7793366752043674e-05,
+        "overlapRatio": 0.0,
+        "intensityNcc": -1.0,
+        "gradientNcc": -1.0,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0006298894458673946,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "up",
+        "selectionConfidence": 3.7793366752043674e-05,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      },
+      {
+        "firstIndex": 5,
+        "secondIndex": 6,
+        "secondToFirst": [
+          [
+            0.9971860023855853,
+            0.07496717045650854,
+            -226.03969899778258
+          ],
+          [
+            -0.07496717045650854,
+            0.9971860023855853,
+            198.20058712889102
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "score": 3.7793366752043674e-05,
+        "overlapRatio": 0.0,
+        "intensityNcc": -1.0,
+        "gradientNcc": -1.0,
+        "method": "phase_correlation_rotation_search",
+        "inlierCount": 0,
+        "matchCount": 0,
+        "phaseResponse": 0.0006298894458673946,
+        "boundaryNcc": 0.0,
+        "boundaryGradientNcc": 0.0,
+        "boundaryOccupancyNcc": 0.0,
+        "boundaryReliability": 0.0,
+        "direction": "left",
+        "selectionConfidence": 3.7793366752043674e-05,
+        "reviewRequired": true,
+        "selectionReason": "phase_candidate_unconfirmed",
+        "cyclePathLength": 0,
+        "cycleTranslationResidualPx": 0.0,
+        "cycleRotationResidualDeg": 0.0,
+        "cycleConsistent": null
+      }
+    ]
+  },
+  "sequenceResolution": [],
+  "sequenceBreaks": [],
+  "extendedSiftAnchors": [],
+  "cycleConsistency": [],
+  "forestSelection": {
+    "mode": "registration_evidence_priority",
+    "plausibleCandidateCount": 4,
+    "candidateMethodCounts": {
+      "sift_ransac_fixed_scale": 1,
+      "phase_correlation_rotation_search": 2,
+      "legacy_frame_continuation_right_to_left": 1
+    },
+    "selectedMethodCounts": {
+      "sift_ransac_fixed_scale": 1,
+      "phase_correlation_rotation_search": 2,
+      "legacy_frame_continuation_right_to_left": 1
+    },
+    "strongCandidateCount": 2,
+    "weakCandidateCount": 2,
+    "strongSelectedCount": 2,
+    "weakSelectedCount": 2,
+    "weakSelectedDominates": false
+  },
+  "poseGraph": [
+    {
+      "fragmentIndices": [
+        0,
+        1
+      ],
+      "constraintCount": 0,
+      "optimized": false,
+      "reason": "component_below_long_sequence_threshold",
+      "scannerFragmentCount": 2,
+      "minimumScannerFragmentCount": 8
+    },
+    {
+      "fragmentIndices": [
+        2
+      ],
+      "constraintCount": 0,
+      "optimized": false,
+      "reason": "component_below_long_sequence_threshold",
+      "scannerFragmentCount": 0,
+      "minimumScannerFragmentCount": 8
+    },
+    {
+      "fragmentIndices": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "constraintCount": 0,
+      "optimized": false,
+      "reason": "component_below_long_sequence_threshold",
+      "scannerFragmentCount": 4,
+      "minimumScannerFragmentCount": 8
+    }
+  ],
+  "sourceConsensus": [],
+  "attemptedPairCount": 0,
+  "candidatePairDiagnostics": [],
+  "strictRegistrationCount": 0,
+  "siftAcceptedCount": 0,
+  "phaseAcceptedCount": 0,
+  "rejectedPairCount": 0,
+  "sourceConsensusAcceptedEdgeCount": 0,
+  "sourceConsensusAcceptedFramePairCount": 0,
+  "resultComponentCount": 3,
+  "multiSourceComponentCount": 0,
+  "partialCaptureComponentCount": 0,
+  "unconsolidatedPartialCaptureComponentCount": 0,
+  "componentSourceImageCounts": [],
+  "phaseEnabled": null,
+  "phaseSkippedBecauseFragmentCountExceeds": null,
+  "mixedBodyPreclassification": null,
+  "mixedRegistrationRuns": [],
+  "excludedFromInitialRegistration": [],
+  "sourceFramePlacements": [],
+  "nToOneReferenceSlotReuseEnabled": false,
+  "unassignedParkingMode": null,
+  "renderingPolicy": null
+}
