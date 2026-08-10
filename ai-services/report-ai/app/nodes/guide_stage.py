@@ -34,11 +34,16 @@ def make_guide_stage_node(stage_key: str):
 
     def node(state: State) -> dict[str, Any]:
         guide_result = state.get("guide_result") or {}
-        if stage_key not in guide_result:
-            # 이 유물의 flow에 포함되지 않은 단계 — 섹션 자체를 만들지 않는다.
+        stage_result = guide_result.get(stage_key)
+
+        # 이 유물의 flow에 포함되지 않은 단계 — 섹션 자체를 만들지 않는다.
+        # 보존가이드 쪽 stage_guard()는 flow에서 뺀 단계도 키 자체는 남기고
+        # {"status": "skipped"}로 채워서 내려주므로(app/state.py 참고),
+        # "키가 없을 때"뿐 아니라 "status가 skipped일 때"도 함께 걸러야
+        # 안 한 작업을 LLM이 지어내는 걸 막을 수 있다.
+        if not stage_result or stage_result.get("status") == "skipped":
             return {}
 
-        stage_result = guide_result[stage_key] or {}
         data_context = json.dumps(stage_result, ensure_ascii=False, indent=2)
 
         section = build_section_via_llm(
