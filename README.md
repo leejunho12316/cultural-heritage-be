@@ -58,13 +58,8 @@
 | ---------------------- | ------------------------------- | ---- |
 | `conservation-backend` | Spring. 모든 요청의 관문        | 8080 |
 | `xray-ai`              | 결합 엔진, YOLO 탐지, 문안 생성 | 8001 |
-| `vca-ai`               | `vca_v2` real/dry-run 어댑터    | 8002 |
 
 프론트엔드는 Spring 만 호출한다. AI 서비스를 직접 부르지 않는다.
-`vca-ai`의 8002는 로컬 진단/디버깅용으로 host에 열려 있을 뿐이고,
-실제 요청 경로는 Docker 내부 네트워크로 Spring이 `vca-ai:8000`을 호출하는
-것이다. VCA 엔진 소스는 `ai-services/vca-ai/engine`에 포함되어 있어 별도
-`../vca_v2` 체크아웃 없이 Docker 이미지 안의 `/vca_v2`에서 실행된다.
 
 > `docker compose up` 은 `postgres` 와 `conservation-guide-ai` 도
 > 함께 띄운다. X-RAY 와는 무관하지만 Spring 이 DB 에 의존하므로
@@ -82,15 +77,15 @@
 `vca_v2`(SAM2/Qwen2.5-VL/RAG) 파이프라인으로 자동화한다. 도자기·백자
 재질 유물은 별도 AI로 조사서 초안까지 이어서 만든다.
 
-| 서비스                 | 역할                                          | 포트 |
-| ---------------------- | --------------------------------------------- | ---- |
-| `conservation-backend` | Spring. 모든 요청의 관문                      | 8080 |
-| `vca-ai`               | `vca_v2` 파이프라인 어댑터(FastAPI)           | 8002 |
-| `pottery-inspection-ai`| 도자기 재질 유물 후속 검사(완전성/유약/시대/문양) | 8003 |
+| 서비스                  | 역할                                              | 포트 |
+| ----------------------- | ------------------------------------------------- | ---- |
+| `conservation-backend`  | Spring. 모든 요청의 관문                          | 8080 |
+| `vca-ai`                | `vca_v2` 파이프라인 어댑터(FastAPI)               | 8002 |
+| `pottery-inspection-ai` | 도자기 재질 유물 후속 검사(완전성/유약/시대/문양) | 8003 |
 
 실제 요청 경로는 Spring이 Docker 내부 네트워크로 `vca-ai:8000`/
 `pottery-inspection-ai:8000`을 호출하는 것이다. 위 8002/8003 host port는
-로컬 진단/디버깅(`curl localhost:8002/health` 등)용으로만 열려 있다.
+디버깅용으로만 열려 있다.
 
 ### 분석 흐름
 
@@ -99,8 +94,8 @@
    visual_cue_generation → rag → prompt_generating → mask_refining →
    anomaly_grouping → report_generating`)이 순서대로 실행된다.
 2. run이 처음 `COMPLETED`로 전환되는 순간, 재질 문자열에 "도자"/
-   "pottery"/"ceramic"이 포함되면 **도자기 후속 검사가 서버에서 자동
-   트리거**된다 - FE 버튼 클릭이 필요 없다. 실패해도 VCA 리포트
+   "pottery"/"ceramic"이 포함되면 도자기 후속 검사가 서버에서 자동
+   트리거된다 - FE 버튼 클릭이 필요 없다. 실패해도 VCA 리포트
    자체는 그대로 조회 가능하고, `POST .../pottery-inspection`으로
    수동 재시도할 수 있다.
 3. 실패한 run은 `POST /api/vca/{artifactId}/runs`에
@@ -108,12 +103,11 @@
    실패 지점부터 이어서 실행한다(직전 실패 run과 정확히 같은 이미지
    집합일 때만 - 아티팩트 상세 응답의 `resumableRunId`가 null이
    아니면 이어가기가 가능하다는 뜻).
-4. `POST .../report/pdf`로 리포트 PDF를 만든다. object
-   storage(S3/MinIO)가 설정된 실제 환경에서는 Apache PDFBox로 진짜
-   PDF(표지+대표사진 → 특이점 전체 오버레이+요약 → 특이점별 상세
-   페이지 → 도자기 검사 결과가 있으면 그 페이지까지)를 동기
-   렌더링해 저장한다. object storage가 없는 데모 모드는 예전처럼
-   즉시-COMPLETED로 전환되는 스텁 그대로다.
+4. `POST .../report/pdf`로 리포트 PDF를 만든다. object storage가
+   설정된 환경에서는 Apache PDFBox로 진짜 PDF(표지+대표사진 →
+   특이점 전체 오버레이+요약 → 특이점별 상세 페이지 → 도자기 검사
+   결과가 있으면 그 페이지까지)를 동기 렌더링해 저장한다. object
+   storage가 없는 데모 모드는 즉시-COMPLETED로 전환되는 스텁이다.
 
 ### 도자기 검사 결과 저장
 
@@ -123,6 +117,15 @@
 워크플로우 상태는 `assessment_run.pottery_inspection_status_json`에
 그대로 남아있다 - run 자신의 `status`/`failure_reason`과 같은
 성격의 process metadata라 결과 테이블과 분리해서 유지한다.
+
+### RAG 문서 corpus
+
+VCA는 이상 유형 판정 근거로 문헌 PDF corpus를 검색한다. `vca-ai`
+컨테이너는 `VCA_RAG_CORPUS_ARCHIVE_URL`에 지정된 아카이브를 최초
+기동 시 자동으로 받아 채우고, 이미 채워져 있으면 다시 받지 않는다
+(갱신은 캐시를 지우고 재기동하는 명시적 동작으로만 한다). 개별
+문서를 추가/삭제하려면 `GET`/`POST`/`DELETE /api/vca/corpus/pdfs`를
+쓴다.
 
 ---
 
@@ -166,21 +169,19 @@ curl http://localhost:8080/api/xray/health
 ```env
 OPENAI_API_KEY=...
 POSTGRES_PASSWORD=...
-VCA_ACCESS_TOKEN=로컬-VCA-토큰
-VCA_RUN_MODE=dry-run
+
+AWS_REGION=ap-northeast-2
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_S3_BUCKET=AWS-버킷-이름...
+
+VCA_ACCESS_TOKEN=...
+VCA_RUN_MODE=real
 VCA_DEVICE=auto
-VCA_MAX_IMAGES=1
 VCA_MODEL_CACHE_ROOT=/opt/vca-models/models
 VCA_BOOTSTRAP_MODELS=true
 VCA_S3_OBJECT_PREFIX=vca/images
-
-AWS_REGION=ap-northeast-2
-AWS_ACCESS_KEY_ID=minioadmin
-AWS_SECRET_ACCESS_KEY=<로컬 MinIO 비밀키 - 직접 정해서 채우세요>
-AWS_S3_BUCKET=conservation-local
-AWS_S3_ENDPOINT=http://minio:9000
-AWS_S3_PRESIGN_ENDPOINT=http://localhost:9000
-AWS_S3_PATH_STYLE_ACCESS_ENABLED=true
+VCA_RAG_CORPUS_ARCHIVE_URL=...
 ```
 
 `OPENAI_API_KEY` 가 없으면 상태조사 문안 생성만 조용히 실패한다.
@@ -191,30 +192,13 @@ AWS_S3_PATH_STYLE_ACCESS_ENABLED=true
 
 `VCA_ACCESS_TOKEN` 이 없으면 `docker compose config` 단계에서 실패한다.
 Spring의 `/api/vca/**`는 `X-VCA-Access-Token` 헤더가 일치해야 접근할 수
-있으며, 브라우저가 직접 열어야 하는 VCA media gateway URL만 제한적으로
-`vca_access_token` query parameter를 허용한다.
-
-`VCA_RUN_MODE=dry-run`은 GPU와 모델 없이 FE → Spring → `vca-ai` → `vca_v2`
-배선을 검증하는 로컬 smoke 모드다. 실제 모델 결과를 검증하려면
-`VCA_RUN_MODE=real`로 바꾸고 모델 캐시를 준비한다. `VCA_DEVICE=auto`는
-CUDA, Apple MPS, CPU 순서로 선택하며 GPU가 없으면 CPU로 실행한다.
-명시적으로 CPU 실험을 하려면 `VCA_DEVICE=cpu`를 사용한다.
-
-VCA 이미지 업로드는 Spring이 S3-compatible object storage에 저장한다.
-로컬 기본값은 Docker MinIO다. 실제 S3로 바꿀 때는 아래 값만 교체한다.
-
-| 환경변수 | 로컬 MinIO 값 | 실제 S3 전환 시 |
-| --- | --- | --- |
-| `AWS_S3_BUCKET` | `conservation-local` | 실제 버킷명 |
-| `AWS_S3_ENDPOINT` | `http://minio:9000` | 빈 값 또는 내부 S3-compatible endpoint |
-| `AWS_S3_PRESIGN_ENDPOINT` | `http://localhost:9000` | 브라우저가 접근할 endpoint |
-| `AWS_S3_PATH_STYLE_ACCESS_ENABLED` | `true` | AWS S3는 보통 `false` |
-| `VCA_S3_OBJECT_PREFIX` | `vca/images` | 원하는 object key prefix |
-
-`VCA_BOOTSTRAP_MODELS=true`를 켜면 `vca-ai` 컨테이너 시작 시
-이미지 안의 `/vca_v2` 엔진에서 `vision` 의존성을 설치하고 Hugging Face
-모델을 `VCA_MODEL_CACHE_ROOT` 아래 named volume으로 내려받는다. 첫 실행은
-오래 걸리지만 이후에는 Docker volume 캐시를 재사용한다.
+있다. `VCA_RUN_MODE=dry-run`은 GPU/모델 없이 FE → Spring → `vca-ai` →
+`vca_v2` 배선만 검증하는 smoke 모드이고, `real`은 실제 모델을 돌린다.
+AWS_S3_* 는 X-RAY와 VCA가 함께 쓰는 object storage 설정이다.
+`VCA_BOOTSTRAP_MODELS=true`면 `vca-ai` 컨테이너가 시작할 때 Hugging
+Face 모델을 `VCA_MODEL_CACHE_ROOT` 아래로 받는다(named volume에
+캐시되므로 첫 실행만 오래 걸린다). `VCA_RAG_CORPUS_ARCHIVE_URL`은
+아래 "RAG 문서 corpus" 참고.
 
 #### AWS 콘솔에서 발급받는 방법
 
@@ -251,73 +235,12 @@ Spring 과 AI 서비스가 작업 파일을 주고받는 폴더다. Docker 가 �
 mkdir -p shared/vca/input-store shared/vca/engine-output shared/vca/document-corpus
 ```
 
-VCA 로컬 통합은 다음 경로를 사용한다.
-
-- Spring run input root: `/shared/vca/input-store`
-- VCA image object storage: `s3://${AWS_S3_BUCKET}/${VCA_S3_OBJECT_PREFIX}/...`
-- Spring 이 `vca-ai`에 전달하는 input root: `/vca_v2/output/input`
-- Spring intermediate result root: `/shared/vca/engine-output`
-- `vca-ai` engine root: `/vca_v2`
-- `vca-ai` input root: `/vca_v2/output/input` → `./shared/vca/input-store`
-- `vca-ai` writable dry-run output: `/vca_v2/output` → `./shared/vca/engine-output`
-- `vca-ai` RAG document corpus: `/opt/vca-data/document` → `./shared/vca/document-corpus`
-- `uv` project/cache paths: `/opt/vca-uv-env`, `/opt/vca-uv-cache`
-- model cache path: `/opt/vca-models/models`
-
-VCA 엔진 소스는 `vca-ai` 이미지에 포함된다. VCA 이미지는 S3/MinIO에 먼저
-저장되고, run 생성 시 Spring이 선택된 object를 `./shared/vca/input-store`에
-materialize한다. dry-run과 real run 모두 입력 이미지가 컨테이너의
-workspace(`/vca_v2`) 안에 있어야 하므로 이 폴더를 `vca-ai` 내부에서
-`/vca_v2/output/input`으로도 마운트한다. dry-run receipt와 stage output은
-`./shared/vca/engine-output`에 쓰므로 새 실행 전 같은 `projectName`의 기존
-중간 결과는 지워지고, 완료 후 Spring의
-`GET /api/vca/{artifactId}/runs/{assessmentRunId}/intermediate-results`에서
-상대 경로와 작은 텍스트 preview만 조회한다.
-
-Real mode의 RAG 단계는 `./shared/vca/document-corpus`에 들어 있는 문서 corpus를
-읽는다. 스크립트는 폴더를 만들지만 문서 내용은 자동 생성하지 않는다. 비어
-있으면 RAG 단계가 실패할 수 있으므로 실제 분석 전 corpus 파일을 준비한다.
-
-#### BYOD RAG corpus 준비
-
-RAG 문서는 GitHub에 커밋하지 않는다. Google Drive 등으로 받은 PDF는 FE의
-육안 조사 화면에서 `RAG 문서 corpus` 카드로 업로드한다. 브라우저는 Spring의
-`/api/vca/corpus/pdfs` API만 호출하고, Spring은 파일을
-`shared/vca/document-corpus` 루트에 저장한다. 현재 VCA RAG loader는 이 폴더
-바로 아래의 PDF만 읽으므로 하위 폴더 구조는 지원하지 않는다.
-
-API로 직접 확인할 때는 `/api/vca/**`와 같은 access token을 사용한다.
-
-```bash
-curl -H "X-VCA-Access-Token: $VCA_ACCESS_TOKEN" \
-  http://localhost:8080/api/vca/corpus/pdfs
-
-curl -H "X-VCA-Access-Token: $VCA_ACCESS_TOKEN" \
-  -F "file=@/path/to/document.pdf;type=application/pdf" \
-  http://localhost:8080/api/vca/corpus/pdfs
-```
-
-`scripts/prepare-rag-corpus.ps1`는 대량 파일을 로컬에서 미리 복사해야 하는
-경우의 보조 도구일 뿐, 일반 실행 흐름에는 필요하지 않다.
-
-이 방식은 BYOD(Bring Your Own Documents) 모델이다. 코드와 모델 부트스트랩은
-repo/컨테이너가 관리하고, 저작권이나 용량 이슈가 있는 RAG 문서는 사용자가
-별도 저장소에서 가져와 로컬에 배치한다.
-
-### Windows 실제 환경 실행
-
-PowerShell에서 BE/FE 개인 repo를 받고 DB, MinIO, AI services, Spring,
-React를 한 번에 띄우려면 다음 스크립트를 사용한다.
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\scripts\launch-real-vca-env.ps1
-```
-
-스크립트는 `POSTGRES_PASSWORD=postgres`, `VCA_RUN_MODE=real`,
-`VCA_BOOTSTRAP_MODELS=true`로 `.env`를 만들고, `docker compose up --build -d`와
-`npm run dev`를 실행한다. `OPENAI_API_KEY`가 필요하면 실행 전에 PowerShell에서
-`$env:OPENAI_API_KEY="..."`를 설정한다.
+X-RAY는 `shared/` 바로 아래를 쓰고, VCA는 `shared/vca/` 아래를 쓴다 -
+`conservation-backend`(run 입력 이미지 준비)와 `vca-ai`(엔진 입출력)가
+같은 호스트 디렉터리를 각자의 컨테이너 경로로 마운트해서 공유한다.
+`conservation-backend`에 이 마운트가 빠지면 이미지가 컨테이너 자체
+파일시스템에만 써지고 사라져서 `vca-ai`가 매번 "입력 폴더 없음"으로
+분석을 거절한다.
 
 ### `ai-services/xray-ai/models/*.pt`
 
@@ -399,7 +322,7 @@ GET    /api/vca/{artifactId}                                아티팩트 상세(
 GET    /api/vca/system-info                                  동작 환경 정보(엔진/모델 버전 등)
 
 POST   /api/vca/{artifactId}/images/presign                  업로드용 presigned URL 발급
-POST   /api/vca/{artifactId}/images                          이미지 직접 업로드(로컬 모드)
+POST   /api/vca/{artifactId}/images                          이미지 직접 업로드
 POST   /api/vca/{artifactId}/images/{imageId}/complete       presigned 업로드 완료 통지
 DELETE /api/vca/{artifactId}/images/{imageId}                이미지 삭제(참조 중인 run 있으면 차단)
 GET    /api/vca/{artifactId}/files/sha256/{sha256}           이미지 파일 게이트웨이(303 리다이렉트)
@@ -420,9 +343,9 @@ DELETE /api/vca/corpus/pdfs/{fileName}                        RAG 문서 corpus 
 ```
 
 `vca_v2` 엔진 소스는 `ai-services/vca-ai/engine`에 벤더링돼 있어
-별도 `../vca_v2` 체크아웃 없이 Docker 이미지 안의 `/vca_v2`에서
-실행된다. **엔진 코드는 이 저장소에서 직접 수정하지 않는다** - 원본
-`vca_v2` 저장소에서 고친 뒤 다시 벤더링한다.
+Docker 이미지 안의 `/vca_v2`에서 실행된다. **엔진 코드는 이 저장소에서
+직접 수정하지 않는다** - 원본 `vca_v2` 저장소에서 고친 뒤 다시
+벤더링한다.
 
 ---
 
