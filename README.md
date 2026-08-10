@@ -176,7 +176,7 @@ VCA_S3_OBJECT_PREFIX=vca/images
 
 AWS_REGION=ap-northeast-2
 AWS_ACCESS_KEY_ID=minioadmin
-AWS_SECRET_ACCESS_KEY=minioadmin-vca-20260805
+AWS_SECRET_ACCESS_KEY=<로컬 MinIO 비밀키 - 직접 정해서 채우세요>
 AWS_S3_BUCKET=conservation-local
 AWS_S3_ENDPOINT=http://minio:9000
 AWS_S3_PRESIGN_ENDPOINT=http://localhost:9000
