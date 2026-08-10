@@ -3,6 +3,7 @@ package com.aivle.conservation_backend.report_ai.controller;
 import com.aivle.conservation_backend.report_ai.client.ReportAiClient;
 import com.aivle.conservation_backend.report_ai.dto.DocxRequestDto;
 import com.aivle.conservation_backend.report_ai.dto.GenerateReportRequestDto;
+import com.aivle.conservation_backend.report_ai.service.PotterySourceAdapter;
 import com.aivle.conservation_backend.report_ai.service.XraySourceAdapter;
 
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class ReportAiController {
 
     private final ReportAiClient reportAiClient;
     private final XraySourceAdapter xraySourceAdapter;
+    private final PotterySourceAdapter potterySourceAdapter;
 
     /**
      * X-ray가 RDS에 저장해둔 결과(XrayJob/XrayDefect)를 report-ai 입력
@@ -60,6 +62,25 @@ public class ReportAiController {
                 .orElseGet(() -> ResponseEntity.ok(Map.of(
                         "xray_report_text", "",
                         "xray_regions", List.of()
+                )));
+    }
+
+    /**
+     * 육안조사가 RDS에 저장해둔 결과(AssessmentRun -&gt; InspectionResultPottery)를
+     * report-ai 입력 형태(pottery_inspection)로 변환해서 보여준다.
+     *
+     * xraySource()와 동일하게 generate()의 동작은 바꾸지 않는 별도
+     * 조회용 엔드포인트다. 이 응답을 그대로
+     * GenerateReportRequestDto.potteryInspection에 넣으면 된다.
+     */
+    @GetMapping("/{artifactId}/pottery-source")
+    public ResponseEntity<Map<String, Object>> potterySource(@PathVariable String artifactId) {
+        return potterySourceAdapter.resolve(artifactId)
+                .map(source -> ResponseEntity.ok(source.asMap()))
+                .orElseGet(() -> ResponseEntity.ok(Map.of(
+                        "inspection_text", "",
+                        "human_review_recommended", false,
+                        "detail", Map.of()
                 )));
     }
 

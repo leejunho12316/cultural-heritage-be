@@ -100,13 +100,31 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 python build_index.py
 ```
 
+## 파트별 결과 조회 (Spring 어댑터)
+
+X-ray/육안조사는 각자의 스키마로 RDS에 저장하는데, report-ai가 기대하는
+요청 형태(필드명, 대소문자)와는 다릅니다. `cultural-heritage-be`의
+`report_ai.service` 패키지에 이 변환만 담당하는 어댑터를 두고, 조회용
+GET 엔드포인트로 결과를 미리 확인할 수 있게 했습니다 (둘 다
+`/reports/generate` 자체의 동작은 바꾸지 않습니다 — 호출자가 이 응답을
+그대로 `GenerateReportRequestDto`에 채워 넣는 용도).
+
+| 엔드포인트 | 어댑터 | 변환 내용 |
+|---|---|---|
+| `GET /api/reports/{artifactId}/xray-source` | `XraySourceAdapter` | `XrayJob`/`XrayDefect`(리뷰 결정 `DAMAGE`/`NORMAL` 대문자 enum) → `xray_report_text`/`xray_regions`(review_decision 소문자 문자열). `DAMAGE`로 확정된 결함만 포함. |
+| `GET /api/reports/{artifactId}/pottery-source` | `PotterySourceAdapter` | `AssessmentRun`(최신 run) → `InspectionResultPottery` → `pottery_inspection`(`inspection_text`/`human_review_recommended`/`detail`). run은 있지만 아직 결과가 없으면 빈 값. |
+
+보존가이드는 아직 이 조회에 대응하는 "완료 결과" 저장 테이블이 없어서
+같은 패턴의 어댑터를 만들 수 없습니다 (아래 한계 참고).
+
 ## 알려진 한계 / 다음 단계
 
-- **아직 어떤 파트도 report-ai를 실제로 호출하지 않습니다** — 보존가이드/
-  X-ray/육안조사 각 파트의 결과를 모아서 요청 바디를 채워주는 조율
-  계층이 아직 없습니다.
-- X-ray는 최근 `XrayDefect`(리뷰 결정 `DAMAGE`/`NORMAL`) 테이블이
-  생겼지만, report-ai가 기대하는 `xray_regions` 형태(`region_code`/
-  `position`/`review_decision` 소문자)와는 필드명·대소문자가 다릅니다 —
-  실제 연동 시 변환 어댑터가 필요합니다.
-- 육안조사(pottery-inspection-ai)는 아직 결과를 DB에 저장하지 않습니다.
+- **아직 어떤 파트도 report-ai를 실제로 호출하지 않습니다** — 위 두
+  어댑터로 X-ray/육안조사 결과는 report-ai 입력 형태로 조회할 수 있지만,
+  보존가이드 결과까지 다 모아서 `/reports/generate`를 자동으로 호출해
+  주는 조율 계층은 아직 없습니다 (지금은 호출자가 세 조각을 직접 모아서
+  요청 바디를 채워야 합니다).
+- 보존가이드는 Postgres에 LangGraph 체크포인트(대화 재개용)는 쓰지만,
+  report-ai가 바로 조회할 수 있는 "완료 결과" 테이블이 아직 없습니다 —
+  `XraySourceAdapter`/`PotterySourceAdapter`와 대칭되는 어댑터를 만들
+  수 없는 이유입니다.
