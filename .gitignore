@@ -5,6 +5,8 @@
 HELP.md
 .gradle/
 build/
+/shared/
+/outputs/
 
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
