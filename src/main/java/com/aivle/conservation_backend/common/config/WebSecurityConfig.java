@@ -57,6 +57,12 @@ public class WebSecurityConfig {
                                 "/api/notices/**"
                         ).hasRole("ADMIN")
 
+                        // 회원 탈퇴는 로그인 필요
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/users/me"
+                        ).authenticated()
+
                         // 내 게시물 조회: 로그인 필수
                         .requestMatchers(
                                 HttpMethod.GET,
