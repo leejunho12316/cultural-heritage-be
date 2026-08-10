@@ -23,9 +23,14 @@ def _run_background_launch_inline(monkeypatch: pytest.MonkeyPatch) -> None:
     """
 
     def launch_inline(
-        run: object, input_directory: object, settings: object
+        run: object,
+        input_directory: object,
+        settings: object,
+        resume_from_stage: object,
     ) -> None:
-        assessment_runs._run_vca_and_record_failure(run, input_directory, settings)
+        assessment_runs._run_vca_and_record_failure(
+            run, input_directory, settings, resume_from_stage
+        )
 
     monkeypatch.setattr(assessment_runs, "_launch_background", launch_inline)
 
@@ -130,6 +135,142 @@ def test_assessment_run_when_optional_engine_settings_are_configured(
     assert "--model-cache-root" in captured_command
     assert captured_command[captured_command.index("--model-cache-root") + 1] == "/opt/vca-models/models"
     assert "--dry-run" not in captured_command
+
+
+def _write_prior_startup_receipt(
+    engine_root: Path, prior_project_name: str, stage_statuses: dict[str, str]
+) -> None:
+    receipt_dir = engine_root / "output" / "result" / prior_project_name / "receipts"
+    receipt_dir.mkdir(parents=True)
+    stages = [
+        {"name": name, "status": status} for name, status in stage_statuses.items()
+    ]
+    (receipt_dir / "startup.json").write_text(
+        json.dumps({"schema": "vca-startup-receipt-v1", "stages": stages}),
+        encoding="utf-8",
+    )
+
+
+def _write_prior_stage_output(
+    engine_root: Path, prior_project_name: str, stage_name: str
+) -> None:
+    stage_dir = engine_root / "output" / stage_name / prior_project_name
+    stage_dir.mkdir(parents=True)
+    (stage_dir / "marker.txt").write_text(stage_name, encoding="utf-8")
+
+
+def test_assessment_run_resumes_from_prior_failed_run_when_stages_completed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a prior run that completed preprocessing and rough_masking, then
+    # failed at visual_cue_generation.
+    shared_root = tmp_path / "shared" / "vca"
+    input_folder = create_input_folder(shared_root)
+    engine_root = tmp_path / "vca_v2"
+    prior_project_name = "artifact-123-run-122"
+    _write_prior_startup_receipt(
+        engine_root,
+        prior_project_name,
+        {
+            "preprocessing": "completed",
+            "rough_masking": "completed",
+            "visual_cue_generation": "failed",
+        },
+    )
+    _write_prior_stage_output(engine_root, prior_project_name, "preprocessing")
+    _write_prior_stage_output(engine_root, prior_project_name, "rough_masking")
+    captured_command: list[str] = []
+
+    def fake_run(
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
+    ) -> subprocess.CompletedProcess[str]:
+        _ = cwd, timeout, run_id
+        captured_command.extend(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+
+    # When: Spring creates the next run for the same artifact, pointing back
+    # at the prior failed run's project name.
+    new_project_name = "artifact-123-run-123"
+    response = client.post(
+        "/internal/vca/assessment-runs",
+        json={
+            "assessmentId": "artifact-123",
+            "projectName": new_project_name,
+            "inputImageFolder": str(input_folder),
+            "resumeFromProjectName": prior_project_name,
+        },
+    )
+
+    # Then: the completed stages are copied into the new project and vca_v2
+    # is told to resume from the stage that actually failed.
+    assert response.status_code == 202
+    assert "--resume-from-stage" in captured_command
+    assert (
+        captured_command[captured_command.index("--resume-from-stage") + 1]
+        == "visual_cue_generation"
+    )
+    new_output_root = engine_root / "output"
+    assert (
+        new_output_root / "preprocessing" / new_project_name / "marker.txt"
+    ).read_text(encoding="utf-8") == "preprocessing"
+    assert (
+        new_output_root / "rough_masking" / new_project_name / "marker.txt"
+    ).read_text(encoding="utf-8") == "rough_masking"
+    assert (
+        new_output_root
+        / "result"
+        / new_project_name
+        / "receipts"
+        / "startup.json"
+    ).is_file()
+
+
+def test_assessment_run_falls_back_to_full_run_when_resume_source_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: Spring points at a resume source that has no startup.json at all
+    # (eg. its output was cleaned up, or the id is stale).
+    shared_root = tmp_path / "shared" / "vca"
+    input_folder = create_input_folder(shared_root)
+    engine_root = tmp_path / "vca_v2"
+    project_name = "artifact-123-run-123"
+    stale_output = engine_root / "output" / "result" / project_name
+    stale_output.mkdir(parents=True)
+    (stale_output / "startup.json").write_text("stale", encoding="utf-8")
+    captured_command: list[str] = []
+
+    def fake_run(
+        command: list[str], *, cwd: Path, timeout: int, run_id: str
+    ) -> subprocess.CompletedProcess[str]:
+        _ = cwd, timeout, run_id
+        captured_command.extend(command)
+        assert not stale_output.exists()
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
+    monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
+    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+
+    # When: Spring still asks to resume from a nonexistent prior project.
+    response = client.post(
+        "/internal/vca/assessment-runs",
+        json={
+            "assessmentId": "artifact-123",
+            "projectName": project_name,
+            "inputImageFolder": str(input_folder),
+            "resumeFromProjectName": "artifact-123-run-does-not-exist",
+        },
+    )
+
+    # Then: the run still starts, but as a normal full run.
+    assert response.status_code == 202
+    assert "--resume-from-stage" not in captured_command
 
 
 def test_assessment_run_when_local_unverified_model_hashes_are_allowed(

@@ -13,6 +13,10 @@ import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentFinding;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentReport;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentRun;
 import com.aivle.conservation_backend.vca.gateway.VcaAiGateway;
+import com.aivle.conservation_backend.vca.gateway.VcaAiSystemInfo;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +28,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -41,6 +47,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.imageio.ImageIO;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -103,10 +110,16 @@ class VcaControllerTest {
     private static final class StaticVcaAiGateway implements VcaAiGateway {
 
         @Override
+        public VcaAiSystemInfo getSystemInfo() {
+            return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+        }
+
+        @Override
         public VcaAiAssessmentRun createAssessmentRun(
                 String assessmentId,
                 String projectName,
-                String inputImageFolder
+                String inputImageFolder,
+                String resumeFromProjectName
         ) {
             return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
         }
@@ -119,7 +132,7 @@ class VcaControllerTest {
         @Override
         public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
             return new VcaAiAssessmentRun(
-                    runId, runId.replace("vca-ai-", ""), "FAILED", null, List.of(), "cancelled by user"
+                    runId, runId.replace("vca-ai-", ""), "FAILED", null, null, List.of(), "cancelled by user"
             );
         }
 
@@ -234,6 +247,17 @@ class VcaControllerTest {
         public void delete(String objectKey) {
             try {
                 Files.deleteIfExists(root.resolve(objectKey));
+            } catch (java.io.IOException exception) {
+                throw new IllegalStateException(exception);
+            }
+        }
+
+        @Override
+        public void storeBytes(String objectKey, byte[] bytes, String contentType) {
+            try {
+                Path objectPath = root.resolve(objectKey);
+                Files.createDirectories(objectPath.getParent());
+                Files.write(objectPath, bytes);
             } catch (java.io.IOException exception) {
                 throw new IllegalStateException(exception);
             }
@@ -437,6 +461,109 @@ class VcaControllerTest {
                         "databaseId",
                         "configPath"
                 );
+    }
+
+    private static byte[] realJpegBytes() throws Exception {
+        BufferedImage image = new BufferedImage(64, 48, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                image.setRGB(x, y, (x * 4) << 16 | (y * 4) << 8);
+            }
+        }
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        assertThat(ImageIO.write(image, "jpg", buffer)).isTrue();
+        return buffer.toByteArray();
+    }
+
+    @Test
+    void rendersRealReportPdfWhenObjectStorageIsConfigured() throws Exception {
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        FakeVcaImageStorage imageStorage = new FakeVcaImageStorage(tempDirectory.resolve("objects"));
+        MockMvc pdfMvc = mvc(new VcaService(true, new StaticVcaAiGateway(), sharedStorage, imageStorage));
+
+        pdfMvc.perform(multipart("/api/vca/pdf-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", realJpegBytes())))
+                .andExpect(status().isCreated());
+        MvcResult runResult = pdfMvc.perform(post("/api/vca/pdf-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String runId = JsonPath.read(runResult.getResponse().getContentAsString(), "$.assessmentRunId");
+
+        // When: a PDF job is created for the completed run.
+        MvcResult pdfResult = pdfMvc.perform(post(
+                        "/api/vca/pdf-artifact/runs/{runId}/report/pdf", runId
+                ))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andReturn();
+        String jobId = JsonPath.read(pdfResult.getResponse().getContentAsString(), "$.jobId");
+
+        // Then: the job is COMPLETED immediately (rendered synchronously) and the
+        // download endpoint redirects to a real object-storage URL backed by an
+        // actual file - not the old "/downloads/{jobId}.pdf" stub that nothing served.
+        MvcResult downloadResult = pdfMvc.perform(get(
+                        "/api/vca/pdf-artifact/report-pdf-jobs/{jobId}/download", jobId
+                ))
+                .andExpect(status().isSeeOther())
+                .andReturn();
+        String location = downloadResult.getResponse().getHeader("Location");
+        assertThat(location).startsWith("http://localhost:9000/conservation-local/report-pdfs/" + jobId);
+
+        Path pdfFile = tempDirectory.resolve("objects").resolve("report-pdfs/" + jobId + ".pdf");
+        assertThat(Files.exists(pdfFile)).isTrue();
+        byte[] pdfBytes = Files.readAllBytes(pdfFile);
+        assertThat(pdfBytes.length).isGreaterThan(1_000);
+        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+            // Cover page + at least one overview/stats page + one page per finding
+            // (StaticVcaAiGateway returns exactly one finding).
+            assertThat(document.getNumberOfPages()).isGreaterThanOrEqualTo(3);
+        }
+    }
+
+    @Test
+    void includesPotteryInspectionSectionInReportPdfWhenPresent() throws Exception {
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        FakeVcaImageStorage imageStorage = new FakeVcaImageStorage(tempDirectory.resolve("objects"));
+        FakePotteryInspectionAiClient potteryClient = new FakePotteryInspectionAiClient();
+        MockMvc pdfMvc = mvc(new VcaService(true, new StaticVcaAiGateway(), sharedStorage, imageStorage, potteryClient));
+
+        pdfMvc.perform(multipart("/api/vca/pottery-pdf-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", realJpegBytes())))
+                .andExpect(status().isCreated());
+        MvcResult runResult = pdfMvc.perform(post("/api/vca/pottery-pdf-artifact/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"도자기"}
+                                """))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String runId = JsonPath.read(runResult.getResponse().getContentAsString(), "$.assessmentRunId");
+
+        // Polling the report once triggers the auto pottery inspection (same
+        // transition-based trigger as runsPotteryInspectionFromReportOnlyForPotteryMaterial).
+        pdfMvc.perform(get("/api/vca/pottery-pdf-artifact/runs/{runId}/report", runId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.potteryInspection.moduleVersion").value("pottery-test-v1"));
+
+        MvcResult pdfResult = pdfMvc.perform(post(
+                        "/api/vca/pottery-pdf-artifact/runs/{runId}/report/pdf", runId
+                ))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andReturn();
+        String jobId = JsonPath.read(pdfResult.getResponse().getContentAsString(), "$.jobId");
+
+        Path pdfFile = tempDirectory.resolve("objects").resolve("report-pdfs/" + jobId + ".pdf");
+        byte[] pdfBytes = Files.readAllBytes(pdfFile);
+        String text;
+        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+            text = new PDFTextStripper().getText(document);
+        }
+        assertThat(text).contains("도자기 검사");
+        assertThat(text).contains("pottery-test-v1");
+        assertThat(text).contains("도자기 문양 요약");
+        assertThat(text).contains("도자기 문양 검사 결과입니다.");
+        assertThat(text).contains("cloud");
     }
 
     @Test
@@ -652,10 +779,16 @@ class VcaControllerTest {
     void cancelsRunThroughGatewayAndAppliesReturnedStatus() throws Exception {
         VcaAiGateway gateway = new VcaAiGateway() {
             @Override
+            public VcaAiSystemInfo getSystemInfo() {
+                return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+            }
+
+            @Override
             public VcaAiAssessmentRun createAssessmentRun(
                     String assessmentId,
                     String projectName,
-                    String inputImageFolder
+                    String inputImageFolder,
+                    String resumeFromProjectName
             ) {
                 return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
             }
@@ -668,7 +801,7 @@ class VcaControllerTest {
             @Override
             public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
                 return new VcaAiAssessmentRun(
-                        runId, runId.replace("vca-ai-", ""), "FAILED", null, List.of(), "cancelled by user"
+                        runId, runId.replace("vca-ai-", ""), "FAILED", null, null, List.of(), "cancelled by user"
                 );
             }
 
@@ -769,10 +902,16 @@ class VcaControllerTest {
         AtomicReference<String> inputImageFolder = new AtomicReference<>();
         VcaAiGateway gateway = new VcaAiGateway() {
             @Override
+            public VcaAiSystemInfo getSystemInfo() {
+                return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+            }
+
+            @Override
             public VcaAiAssessmentRun createAssessmentRun(
                     String requestedAssessmentId,
                     String requestedProjectName,
-                    String requestedInputImageFolder
+                    String requestedInputImageFolder,
+                    String requestedResumeFromProjectName
             ) {
                 assessmentId.set(requestedAssessmentId);
                 projectName.set(requestedProjectName);
@@ -792,7 +931,7 @@ class VcaControllerTest {
             @Override
             public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
                 return new VcaAiAssessmentRun(
-                        runId, runId.replace("vca-ai-", ""), "FAILED", null, List.of(), "cancelled by user"
+                        runId, runId.replace("vca-ai-", ""), "FAILED", null, null, List.of(), "cancelled by user"
                 );
             }
 
@@ -880,6 +1019,98 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.ragArtifacts.visualConceptCards[0].conceptFamily").isEmpty());
     }
 
+    @Test
+    void resumesFromPriorFailedRunWhenImagesAreUnchanged() throws Exception {
+        AtomicInteger createCallCount = new AtomicInteger();
+        AtomicReference<String> firstResumeFromProjectName = new AtomicReference<>();
+        AtomicReference<String> secondResumeFromProjectName = new AtomicReference<>();
+        VcaAiGateway gateway = new VcaAiGateway() {
+            @Override
+            public VcaAiSystemInfo getSystemInfo() {
+                return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+            }
+
+            @Override
+            public VcaAiAssessmentRun createAssessmentRun(
+                    String assessmentId,
+                    String projectName,
+                    String inputImageFolder,
+                    String resumeFromProjectName
+            ) {
+                if (createCallCount.getAndIncrement() == 0) {
+                    firstResumeFromProjectName.set(resumeFromProjectName);
+                } else {
+                    secondResumeFromProjectName.set(resumeFromProjectName);
+                }
+                return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+                return new VcaAiAssessmentRun(runId, runId.replace("vca-ai-", ""), "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+                return new VcaAiAssessmentRun(
+                        runId, runId.replace("vca-ai-", ""), "FAILED", null, null, List.of(), "simulated failure"
+                );
+            }
+
+            @Override
+            public VcaAiAssessmentReport getAssessmentReport(String runId) {
+                throw new AssertionError("Report must not be fetched in this test.");
+            }
+        };
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+
+        gatewayMvc.perform(multipart("/api/vca/resume-gateway-artifact/images").file(
+                        new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
+                .andExpect(status().isCreated());
+
+        MvcResult firstRunResult = gatewayMvc.perform(post("/api/vca/resume-gateway-artifact/runs"))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String firstRunId = JsonPath.read(
+                firstRunResult.getResponse().getContentAsString(), "$.assessmentRunId"
+        );
+
+        // Then: a first run has no prior attempt to resume from.
+        assertThat(firstResumeFromProjectName.get()).isNull();
+
+        gatewayMvc.perform(post(
+                        "/api/vca/resume-gateway-artifact/runs/{assessmentRunId}/cancel", firstRunId
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"));
+
+        // And: the artifact now advertises a resumable run so FE can offer
+        // both "이어서 분석 시작" and "새로 분석 시작".
+        gatewayMvc.perform(get("/api/vca/resume-gateway-artifact"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resumableRunId").value(firstRunId));
+
+        // When: the same artifact is re-run with the exact same uploaded images,
+        // explicitly choosing "이어서 분석 시작" (resume=true).
+        MvcResult secondRunResult = gatewayMvc.perform(post("/api/vca/resume-gateway-artifact/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resume":true}
+                                """))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String secondRunId = JsonPath.read(
+                secondRunResult.getResponse().getContentAsString(), "$.assessmentRunId"
+        );
+
+        // Then: vca-ai is told to resume from the failed run's project name,
+        // and the new run still gets its own distinct id (audit trail intact).
+        assertThat(secondResumeFromProjectName.get())
+                .isEqualTo("resume-gateway-artifact-" + firstRunId);
+        assertThat(secondRunId).isNotEqualTo(firstRunId);
+    }
+
     private static VcaAiAssessmentReport.RagArtifacts sampleRagArtifacts() {
         return new VcaAiAssessmentReport.RagArtifacts(
                 "rag_candidate_evidence_v1",
@@ -953,22 +1184,13 @@ class VcaControllerTest {
                 .andReturn();
         String potteryRunId = JsonPath.read(potteryRun.getResponse().getContentAsString(), "$.assessmentRunId");
 
+        // Then: the very first report poll already carries the pottery result -
+        // the transition to a COMPLETED VCA report auto-triggers pottery
+        // inspection server-side, with no separate manual call required.
         gatewayMvc.perform(get(
                         "/api/vca/pottery-artifact/runs/{assessmentRunId}/report",
                         potteryRunId
                 ))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
-                .andExpect(jsonPath("$.potteryInspection").isEmpty())
-                .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(true))
-                .andExpect(jsonPath("$.potteryInspectionStatus.status").value("NOT_STARTED"));
-        assertThat(potteryClient.calls.get()).isZero();
-
-        gatewayMvc.perform(post("/api/vca/pottery-artifact/runs/{assessmentRunId}/pottery-inspection", potteryRunId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"material":"도자기"}
-                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
                 .andExpect(jsonPath("$.potteryInspection.moduleVersion").value("pottery-test-v1"))
@@ -979,6 +1201,20 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(true));
         assertThat(potteryClient.calls.get()).isEqualTo(1);
         assertThat(potteryClient.inspectedFileName).isEqualTo("front.jpg");
+
+        // When: the manual endpoint is still used to explicitly re-run it (eg. as a retry).
+        gatewayMvc.perform(post("/api/vca/pottery-artifact/runs/{assessmentRunId}/pottery-inspection", potteryRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"도자기"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
+                .andExpect(jsonPath("$.potteryInspection.moduleVersion").value("pottery-test-v1"))
+                .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(true))
+                .andExpect(jsonPath("$.potteryInspectionStatus.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(true));
+        assertThat(potteryClient.calls.get()).isEqualTo(2);
 
         gatewayMvc.perform(multipart("/api/vca/bronze-artifact/images").file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
@@ -1010,7 +1246,7 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.potteryInspection").isEmpty())
                 .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(false))
                 .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(false));
-        assertThat(potteryClient.calls.get()).isEqualTo(1);
+        assertThat(potteryClient.calls.get()).isEqualTo(2);
     }
 
     @Test
@@ -1061,10 +1297,16 @@ class VcaControllerTest {
     void createsPdfAfterSyncingAiStatusWithoutPriorReportOrArtifactPoll() throws Exception {
         VcaAiGateway gateway = new VcaAiGateway() {
             @Override
+            public VcaAiSystemInfo getSystemInfo() {
+                return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+            }
+
+            @Override
             public VcaAiAssessmentRun createAssessmentRun(
                     String assessmentId,
                     String projectName,
-                    String inputImageFolder
+                    String inputImageFolder,
+                    String resumeFromProjectName
             ) {
                 return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
             }
@@ -1117,10 +1359,16 @@ class VcaControllerTest {
         CountDownLatch releaseGateway = new CountDownLatch(1);
         VcaAiGateway gateway = new VcaAiGateway() {
             @Override
+            public VcaAiSystemInfo getSystemInfo() {
+                return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+            }
+
+            @Override
             public VcaAiAssessmentRun createAssessmentRun(
                     String assessmentId,
                     String projectName,
-                    String inputImageFolder
+                    String inputImageFolder,
+                    String resumeFromProjectName
             ) {
                 gatewayEntered.countDown();
                 try {
@@ -1207,8 +1455,14 @@ class VcaControllerTest {
         String expectedSha256 = sha256(JPEG_BYTES);
         VcaAiGateway gateway = new VcaAiGateway() {
             @Override
+            public VcaAiSystemInfo getSystemInfo() {
+                return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+            }
+
+            @Override
             public VcaAiAssessmentRun createAssessmentRun(
-                    String assessmentId, String projectName, String inputImageFolder
+                    String assessmentId, String projectName, String inputImageFolder,
+                    String resumeFromProjectName
             ) {
                 return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
             }
@@ -1349,8 +1603,14 @@ class VcaControllerTest {
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         VcaAiGateway crashingGateway = new VcaAiGateway() {
             @Override
+            public VcaAiSystemInfo getSystemInfo() {
+                return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+            }
+
+            @Override
             public VcaAiAssessmentRun createAssessmentRun(
-                    String assessmentId, String projectName, String inputImageFolder
+                    String assessmentId, String projectName, String inputImageFolder,
+                    String resumeFromProjectName
             ) {
                 throw new OutOfMemoryError("simulated process crash");
             }

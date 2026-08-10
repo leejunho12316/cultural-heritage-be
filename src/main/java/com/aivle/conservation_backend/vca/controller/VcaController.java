@@ -12,6 +12,7 @@ import com.aivle.conservation_backend.vca.dto.PresignImageRequest;
 import com.aivle.conservation_backend.vca.dto.PresignImageResponse;
 import com.aivle.conservation_backend.vca.dto.ReportResponse;
 import com.aivle.conservation_backend.vca.dto.RunResponse;
+import com.aivle.conservation_backend.vca.dto.SystemInfoResponse;
 import com.aivle.conservation_backend.vca.dto.VcaCorpusPdfCollectionResponse;
 import com.aivle.conservation_backend.vca.dto.VcaCorpusPdfResponse;
 import com.aivle.conservation_backend.vca.exception.VcaApiException;
@@ -70,6 +71,13 @@ public class VcaController {
     public ResponseEntity<Void> deleteCorpusPdf(@PathVariable String fileName) {
         vcaService.deleteCorpusPdf(fileName);
         return ResponseEntity.noContent().build();
+    }
+
+    // 조사 보고서 하단 "시스템 환경 정보" 표기용 - 특정 run이 아니라 vca-ai
+    // 엔진이 지금 도는 환경을 설명하는 전역 정보라 artifactId 없이 조회한다.
+    @GetMapping("/system-info")
+    public SystemInfoResponse getSystemInfo() {
+        return vcaService.getSystemInfo();
     }
 
     // 아티팩트 상세(업로드 이미지, run 이력 포함). artifactId가 없으면 VcaService가 자동 생성한다.
@@ -169,7 +177,9 @@ public class VcaController {
         return vcaService.cancelRun(artifactId, assessmentRunId);
     }
 
-    // 리포트 PDF 생성 job을 큐에 등록(실제 렌더링은 아직 구현되지 않은 데모 스텁 - getPdfJob 참고).
+    // 리포트 PDF 생성 job을 등록. object storage(S3/MinIO)가 설정된 실제 환경에서는
+    // PDFBox로 진짜 PDF를 동기 렌더링해 즉시 COMPLETED로 반환한다. object storage가
+    // 없는 데모 모드만 예전처럼 QUEUED로 남기는 스텁 동작을 유지한다 - getPdfJob 참고.
     @PostMapping("/{artifactId}/runs/{assessmentRunId}/report/pdf")
     public ResponseEntity<PdfJobResponse> createPdfJob(
             @PathVariable String artifactId,
@@ -190,7 +200,9 @@ public class VcaController {
         return vcaService.runPotteryInspection(artifactId, assessmentRunId, request);
     }
 
-    // PDF job 상태 폴링. 데모 구현이라 QUEUED/RUNNING 상태로 조회되면 그 즉시 COMPLETED로 전환된다.
+    // PDF job 상태 폴링. 실제 렌더링은 createPdfJob에서 이미 동기로 끝나 저장된 상태를
+    // 그대로 돌려준다. object storage 없는 데모 모드 job만 QUEUED/RUNNING으로 조회되면
+    // 그 즉시 COMPLETED로 전환되는 예전 폴링 스텁 동작을 유지한다.
     @GetMapping("/{artifactId}/report-pdf-jobs/{jobId}")
     public PdfJobResponse getPdfJob(
             @PathVariable String artifactId,

@@ -42,7 +42,7 @@ class RestClientVcaAiGatewayTest {
                 .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
 
         assertBadGateway(
-                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input"),
+                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", null),
                 "VCA_AI_INVALID_RESPONSE"
         );
     }
@@ -84,7 +84,7 @@ class RestClientVcaAiGatewayTest {
                 ));
 
         assertBadGateway(
-                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input"),
+                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", null),
                 "VCA_AI_INVALID_RESPONSE"
         );
     }
@@ -96,7 +96,7 @@ class RestClientVcaAiGatewayTest {
                 .andRespond(withServerError());
 
         assertBadGateway(
-                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input"),
+                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", null),
                 "VCA_AI_REQUEST_FAILED"
         );
     }

@@ -65,8 +65,15 @@ class AssessmentStage:
 
 
 @dataclass(frozen=True, slots=True)
+class AssessmentStageProgress:
+    completed: int
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
 class AssessmentProgress:
     status: str
     current_stage: str | None
     stages: tuple[AssessmentStage, ...]
     failure_reason: str | None = None
+    current_stage_progress: AssessmentStageProgress | None = None

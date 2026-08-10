@@ -10,6 +10,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 @Component
@@ -28,7 +29,8 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
     public VcaAiAssessmentRun createAssessmentRun(
             String assessmentId,
             String projectName,
-            String inputImageFolder
+            String inputImageFolder,
+            String resumeFromProjectName
     ) {
         AssessmentRunResponse response = request(() -> restClient.post()
                 .uri("/internal/vca/assessment-runs")
@@ -37,7 +39,8 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
                 .body(new CreateAssessmentRunRequest(
                         assessmentId,
                         projectName,
-                        inputImageFolder
+                        inputImageFolder,
+                        resumeFromProjectName
                 ))
                 .retrieve()
                 .body(AssessmentRunResponse.class));
@@ -91,6 +94,7 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
                 response.assessmentId(),
                 response.status(),
                 response.currentStage(),
+                response.currentStageProgress(),
                 response.stages() == null ? List.of() : response.stages(),
                 response.failureReason()
         );
@@ -123,6 +127,33 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
                         .map(finding -> toFinding(finding, "get assessment report"))
                         .toList(),
                 response.ragArtifacts()
+        );
+    }
+
+    // 리포트 하단 "시스템 환경 정보" 조회. VcaService.getSystemInfo에서 사용.
+    // health와 마찬가지로 /internal/vca 접두어 없이 vca-ai 최상위 경로다.
+    @Override
+    public VcaAiSystemInfo getSystemInfo() {
+        SystemInfoResponse response = request(() -> restClient.get()
+                .uri("/system-info")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(SystemInfoResponse.class));
+
+        requireResponse(response, "get system info");
+
+        List<VcaAiSystemInfo.Model> models = response.models() == null
+                ? List.of()
+                : response.models().stream()
+                        .filter(model -> model != null)
+                        .map(model -> new VcaAiSystemInfo.Model(model.key(), model.repoId(), model.revision()))
+                        .toList();
+        return new VcaAiSystemInfo(
+                response.os(),
+                response.pythonVersion(),
+                response.device(),
+                response.libraries() == null ? Map.of() : response.libraries(),
+                models
         );
     }
 
@@ -264,7 +295,8 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
     private record CreateAssessmentRunRequest(
             String assessmentId,
             String projectName,
-            String inputImageFolder
+            String inputImageFolder,
+            String resumeFromProjectName
     ) {
     }
 
@@ -273,6 +305,7 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
             String assessmentId,
             String status,
             String currentStage,
+            VcaAiAssessmentStageProgress currentStageProgress,
             List<VcaAiAssessmentStage> stages,
             String failureReason
     ) {
@@ -313,6 +346,22 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
             Double yMin,
             Double xMax,
             Double yMax
+    ) {
+    }
+
+    private record SystemInfoResponse(
+            String os,
+            String pythonVersion,
+            String device,
+            Map<String, String> libraries,
+            List<SystemInfoModelPayload> models
+    ) {
+    }
+
+    private record SystemInfoModelPayload(
+            String key,
+            String repoId,
+            String revision
     ) {
     }
 

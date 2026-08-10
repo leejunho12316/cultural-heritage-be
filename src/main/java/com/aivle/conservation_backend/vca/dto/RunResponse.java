@@ -12,6 +12,7 @@ public record RunResponse(
         Instant completedAt,
         String reportUrl,
         String currentStage,
+        Integer progressPercent,
         List<Stage> stages,
         String failureReason
 ) {

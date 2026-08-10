@@ -180,6 +180,27 @@ class VcaS3ImageStorage implements VcaImageStorage {
         return URI.create(s3Presigner.presignGetObject(presignRequest).url().toString());
     }
 
+    @Override
+    public void storeBytes(String objectKey, byte[] bytes, String contentType) {
+        try {
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(objectKey)
+                            .contentType(contentType)
+                            .contentLength((long) bytes.length)
+                            .build(),
+                    RequestBody.fromBytes(bytes)
+            );
+        } catch (S3Exception exception) {
+            throw new VcaApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "UPLOAD_STORAGE_FAILED",
+                    "Failed to store the generated file in object storage."
+            );
+        }
+    }
+
     // run 실행 전, S3에 있는 업로드 이미지들을 엔진 컨테이너가 마운트해 읽을 로컬 입력 디렉터리로 내려받는다.
     @Override
     public VcaSharedStorage.RunInputDirectory materializeRunInput(

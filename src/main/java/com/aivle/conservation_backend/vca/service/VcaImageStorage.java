@@ -28,6 +28,10 @@ interface VcaImageStorage {
 
     URI presignedDownload(String objectKey);
 
+    // 이미지 업로드(storeUpload)와 달리 매직 바이트 검증을 하지 않는 범용 저장 - 리포트 PDF처럼
+    // 이미지가 아닌 산출물을 같은 버킷에 쓸 때 쓴다(VcaService.createPdfJob).
+    void storeBytes(String objectKey, byte[] bytes, String contentType);
+
     // assessment run 실행을 위해 업로드된 이미지들을 엔진이 읽을 입력 디렉터리로 구체화.
     VcaSharedStorage.RunInputDirectory materializeRunInput(
             String assessmentRunId,

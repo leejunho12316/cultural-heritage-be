@@ -23,9 +23,14 @@ def _run_background_launch_inline(monkeypatch: pytest.MonkeyPatch) -> None:
     """
 
     def launch_inline(
-        run: object, input_directory: object, settings: object
+        run: object,
+        input_directory: object,
+        settings: object,
+        resume_from_stage: object,
     ) -> None:
-        assessment_runs._run_vca_and_record_failure(run, input_directory, settings)
+        assessment_runs._run_vca_and_record_failure(
+            run, input_directory, settings, resume_from_stage
+        )
 
     monkeypatch.setattr(assessment_runs, "_launch_background", launch_inline)
 

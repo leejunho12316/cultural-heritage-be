@@ -20,6 +20,7 @@ from app.services.assessment_models import (
     AssessmentRun,
     AssessmentRunId,
     AssessmentStage,
+    AssessmentStageProgress,
     InputImageFolder,
     MaxImages,
     ProjectName,
@@ -112,12 +113,22 @@ def create_assessment_run(
     assessment_id: AssessmentId,
     project_name: ProjectName,
     input_image_folder: InputImageFolder,
+    *,
+    resume_from_project_name: ProjectName | None = None,
 ) -> AssessmentRun:
     """run을 등록하고 파이프라인을 백그라운드로 실행한다.
 
     subprocess가 시작되는 즉시 반환하며, 호출자는 수십 분 걸리는 실제
     실행이 끝날 때까지 기다리지 않고 get_assessment_progress()로 단계별
     상태를 폴링한다.
+
+    resume_from_project_name은 Spring이 같은 artifact의 가장 최근 FAILED
+    run(이미지 구성이 이번 run과 정확히 같음을 이미 확인한 뒤)을 넘겨줄 때만
+    채워진다. 그 run의 완료된 스테이지 산출물을 이 run의 project_name
+    아래로 미리 복사해두고 vca_v2를 --resume-from-stage와 함께 실행해
+    이미 끝난 스테이지를 다시 돌리지 않는다. 전제가 하나라도 안 맞으면
+    (리시트 없음/파싱 실패/산출물 유실/복사 실패 등) 조용히 평소처럼
+    처음부터 전체 실행으로 폴백한다 - 이어가기는 순수 최적화일 뿐이다.
     """
     settings = runtime_settings_from_env()
     validate_project_name(project_name)
@@ -131,8 +142,12 @@ def create_assessment_run(
         assessment_id=assessment_id,
         project_name=project_name,
     )
-    _clear_project_output(assessment_id, project_name, settings)
-    _launch_background(run, input_directory, settings)
+    resume_from_stage = _prepare_resume(
+        project_name, resume_from_project_name, settings
+    )
+    if resume_from_stage is None:
+        _clear_project_output(assessment_id, project_name, settings)
+    _launch_background(run, input_directory, settings, resume_from_stage)
     return run
 
 
@@ -140,6 +155,7 @@ def _launch_background(
     run: AssessmentRun,
     input_directory: Path,
     settings: VcaRuntimeSettings,
+    resume_from_stage: str | None,
 ) -> None:
     """실제 파이프라인 작업을 요청 스레드가 아닌 별도 스레드에서 시작한다.
 
@@ -148,7 +164,7 @@ def _launch_background(
     """
     thread = threading.Thread(
         target=_run_vca_and_record_failure,
-        args=(run, input_directory, settings),
+        args=(run, input_directory, settings, resume_from_stage),
         daemon=True,
     )
     thread.start()
@@ -160,9 +176,10 @@ def _run_vca_and_record_failure(
     run: AssessmentRun,
     input_directory: Path,
     settings: VcaRuntimeSettings,
+    resume_from_stage: str | None,
 ) -> None:
     try:
-        _run_vca(run, input_directory, settings)
+        _run_vca(run, input_directory, settings, resume_from_stage)
     except (VcaRunFailedError, VcaRuntimeSettingsError) as error:
         # 파이프라인이 자체 progress.json을 쓸 만큼도 진행되지 못했거나
         # (또는 `uv` 실행 파일 부재처럼 파이프라인 외부 원인으로) 실패한
@@ -259,6 +276,9 @@ def get_assessment_progress(run: AssessmentRun) -> AssessmentProgress:
         current_stage=_optional_string_field(payload.get("current_stage")),
         stages=_stages_from_payload(payload.get("stages")),
         failure_reason=_optional_string_field(payload.get("adapter_failure_reason")),
+        current_stage_progress=_stage_progress_from_payload(
+            payload.get("current_stage_progress")
+        ),
     )
 
 
@@ -311,6 +331,19 @@ def _stages_from_payload(value: object) -> tuple[AssessmentStage, ...]:
             )
         )
     return tuple(stages)
+
+
+# progress.json의 current_stage_progress를 AssessmentStageProgress로
+# 변환한다. 값이 없거나(계측 안 되는 스테이지) 예상한 형태가 아니면 None을
+# 돌려준다 - FE가 이 필드로 현재 스테이지의 0~100%를 그린다.
+def _stage_progress_from_payload(value: object) -> AssessmentStageProgress | None:
+    if not isinstance(value, dict):
+        return None
+    completed = value.get("completed")
+    total = value.get("total")
+    if not isinstance(completed, int) or not isinstance(total, int):
+        return None
+    return AssessmentStageProgress(completed=completed, total=total)
 
 
 def _string_field(value: object, default: str) -> str:
@@ -457,6 +490,114 @@ def _max_images_from_env() -> MaxImages | None:
     raise VcaRuntimeSettingsError("VCA_MAX_IMAGES must be all or a positive integer")
 
 
+@dataclass(frozen=True, slots=True)
+class _ResumePlan:
+    resume_from_stage: str
+    completed_stage_names: tuple[str, ...]
+
+
+_RESUMABLE_STAGE_NAMES: Final = _ENGINE_OUTPUT_STAGES[:-1]  # "result"는 스테이지가 아님
+
+
+# create_assessment_run()에서 resume_from_project_name이 있을 때만 호출된다.
+# 이전 실패 run의 startup.json을 읽어 이어가기 계획을 세우고, 계획대로
+# 산출물을 복사한 뒤 실제로 넘길 --resume-from-stage 값을 돌려준다. 전제가
+# 하나라도 안 맞으면 None을 돌려줘 호출자가 조용히 전체 재실행으로
+# 폴백하게 한다.
+def _prepare_resume(
+    project_name: ProjectName,
+    resume_from_project_name: ProjectName | None,
+    settings: VcaRuntimeSettings,
+) -> str | None:
+    if resume_from_project_name is None:
+        return None
+    plan = _resume_plan(resume_from_project_name, settings)
+    if plan is None:
+        return None
+    if not _seed_resume_output(project_name, resume_from_project_name, plan, settings):
+        return None
+    return plan.resume_from_stage
+
+
+# _prepare_resume에서 호출된다. 이전 run의 startup.json에서 앞에서부터
+# 연속으로 completed인 스테이지들을 찾고, 그 산출물 디렉터리가 실제로
+# 디스크에 있는지까지 확인한다. 어느 하나라도 어긋나면(리시트 없음/파싱
+# 실패/처음부터 실패/산출물 유실/전 스테이지 완료돼 이어갈 게 없음) None.
+def _resume_plan(
+    resume_from_project_name: ProjectName, settings: VcaRuntimeSettings
+) -> _ResumePlan | None:
+    receipt_path = (
+        settings.engine_root
+        / "output"
+        / "result"
+        / str(resume_from_project_name)
+        / "receipts"
+        / "startup.json"
+    )
+    payload = _read_progress_payload(receipt_path)
+    if payload is None:
+        return None
+    raw_stages = payload.get("stages")
+    if not isinstance(raw_stages, list):
+        return None
+    status_by_name: dict[str, str] = {}
+    for item in raw_stages:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        status = item.get("status")
+        if isinstance(name, str) and isinstance(status, str):
+            status_by_name[name] = status
+    output_root = settings.engine_root / "output"
+    completed: list[str] = []
+    for stage_name in _RESUMABLE_STAGE_NAMES:
+        if status_by_name.get(stage_name) != "completed":
+            if not completed:
+                return None
+            if not all(
+                (output_root / name / str(resume_from_project_name)).is_dir()
+                for name in completed
+            ):
+                return None
+            return _ResumePlan(
+                resume_from_stage=stage_name, completed_stage_names=tuple(completed)
+            )
+        completed.append(stage_name)
+    return None  # every stage already completed - nothing failed, nothing to resume
+
+
+# _prepare_resume에서 호출된다. 완료된 스테이지들의 산출물 디렉터리와
+# startup.json이 담긴 receipts 디렉터리를 이전 run의 project_name에서 이번
+# run의 project_name으로 복사한다. 복사 도중 하나라도 실패하면 절반만
+# 복사된 상태가 이후 정상 실행과 섞이지 않도록 지운 뒤 실패를 알린다.
+def _seed_resume_output(
+    project_name: ProjectName,
+    resume_from_project_name: ProjectName,
+    plan: _ResumePlan,
+    settings: VcaRuntimeSettings,
+) -> bool:
+    output_root = settings.engine_root / "output"
+    copied_destinations: list[Path] = []
+    try:
+        for stage_name in plan.completed_stage_names:
+            source = output_root / stage_name / str(resume_from_project_name)
+            destination = output_root / stage_name / str(project_name)
+            shutil.copytree(source, destination)
+            copied_destinations.append(destination)
+        receipts_source = (
+            output_root / "result" / str(resume_from_project_name) / "receipts"
+        )
+        receipts_destination = output_root / "result" / str(project_name) / "receipts"
+        receipts_destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(receipts_source, receipts_destination)
+        copied_destinations.append(receipts_destination)
+    except OSError:
+        for destination in copied_destinations:
+            shutil.rmtree(destination, ignore_errors=True)
+        return False
+    return True
+
+
 # 재실행 전에 이전 run이 각 스테이지에 남긴 산출물 디렉터리를 삭제한다.
 # create_assessment_run()에서 파이프라인을 다시 시작하기 직전에 호출된다.
 def _clear_project_output(
@@ -477,6 +618,19 @@ def _clear_project_output(
             ) from error
 
 
+# CalledProcessError의 stdout/stderr를 합쳐 실패 사유를 만든다. vca_v2는
+# 어느 스테이지가 왜 실패했는지를 stdout에 찍고(modules.orchestration.
+# stage_progress), 실제 크래시(파이썬 트레이스백)나 uv/torch 경고는
+# stderr에 남는다. 어느 한쪽만 보면 stderr의 사소한 경고 한두 줄이 stdout의
+# 진짜 원인을 가리거나, 반대로 stdout만 봐서 stderr의 트레이스백을 놓칠 수
+# 있으므로 둘 다 있으면 둘 다 담는다.
+def _failure_reason(error: subprocess.CalledProcessError) -> str:
+    stdout = error.stdout.strip()
+    stderr = error.stderr.strip()
+    parts = [part for part in (stdout, stderr) if part]
+    return "\n".join(parts) if parts else "run exited non-zero"
+
+
 # vca_v2 엔진을 subprocess로 실행할 커맨드를 구성하고 실행한 뒤, 실패
 # 유형(비정상 종료/타임아웃/취소/uv 부재)을 VcaRunFailedError로 통일해
 # 던진다.
@@ -484,6 +638,7 @@ def _run_vca(
     run: AssessmentRun,
     input_directory: Path,
     settings: VcaRuntimeSettings,
+    resume_from_stage: str | None,
 ) -> None:
     command = [
         "uv",
@@ -508,6 +663,8 @@ def _run_vca(
         command.extend(("--model-cache-root", str(settings.model_cache_root)))
     if settings.allow_unverified_model_hashes:
         command.append("--allow-unverified-model-hashes-local-only")
+    if resume_from_stage is not None:
+        command.extend(("--resume-from-stage", resume_from_stage))
     run_id = str(run.run_id)
     try:
         _run_command(
@@ -517,8 +674,7 @@ def _run_vca(
         if _was_cancelled(run_id):
             raise VcaRunFailedError(run.assessment_id, _CANCELLED_BY_USER_REASON) from error
         raise VcaRunFailedError(
-            run.assessment_id,
-            error.stderr.strip() or error.stdout.strip() or "run exited non-zero",
+            run.assessment_id, _failure_reason(error)
         ) from error
     except subprocess.TimeoutExpired as error:
         raise VcaRunFailedError(

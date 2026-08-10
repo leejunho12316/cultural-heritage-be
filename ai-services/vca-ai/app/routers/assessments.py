@@ -7,6 +7,7 @@ from app.schemas import (
     AssessmentFindingCitationResponse,
     AssessmentFindingResponse,
     AssessmentReportResponse,
+    AssessmentStageProgressResponse,
     AssessmentStageResponse,
     RagArtifactsResponse,
     RagEvidenceRowResponse,
@@ -55,6 +56,11 @@ def create_run(request: AssessmentRunCreateRequest) -> AssessmentRunResponse:
             AssessmentId(request.assessmentId),
             ProjectName(request.projectName),
             InputImageFolder(request.inputImageFolder),
+            resume_from_project_name=(
+                None
+                if request.resumeFromProjectName is None
+                else ProjectName(request.resumeFromProjectName)
+            ),
         )
     except (InvalidInputImageFolderError, InvalidProjectNameError) as error:
         raise HTTPException(
@@ -128,6 +134,14 @@ def _run_response(
         assessmentId=run.assessment_id,
         status=_status_literal(progress.status),
         currentStage=progress.current_stage,
+        currentStageProgress=(
+            AssessmentStageProgressResponse(
+                completed=progress.current_stage_progress.completed,
+                total=progress.current_stage_progress.total,
+            )
+            if progress.current_stage_progress is not None
+            else None
+        ),
         failureReason=progress.failure_reason,
         stages=tuple(
             AssessmentStageResponse(

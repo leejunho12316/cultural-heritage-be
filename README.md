@@ -71,6 +71,59 @@ VCA 엔진 소스는 `ai-services/vca-ai/engine`에 포함되어 있어 별도
 
 ---
 
+---
+
+## VCA 분석 파트 README
+
+---
+
+유물 사진의 육안 상태조사(균열·오염·변색 등 시각적 이상 탐지)를
+`vca_v2`(SAM2/Qwen2.5-VL/RAG) 파이프라인으로 자동화한다. 도자기·백자
+재질 유물은 별도 AI로 조사서 초안까지 이어서 만든다.
+
+| 서비스                 | 역할                                          | 포트 |
+| ---------------------- | --------------------------------------------- | ---- |
+| `conservation-backend` | Spring. 모든 요청의 관문                      | 8080 |
+| `vca-ai`               | `vca_v2` 파이프라인 어댑터(FastAPI)           | 내부 |
+| `pottery-inspection-ai`| 도자기 재질 유물 후속 검사(완전성/유약/시대/문양) | 내부 |
+
+`vca-ai`/`pottery-inspection-ai` 모두 host port를 열지 않고 Docker
+내부 네트워크에서만 Spring이 호출한다.
+
+### 분석 흐름
+
+1. 이미지 업로드 후 `POST /api/vca/{artifactId}/runs`로 run을 생성하면
+   vca_v2 8단계 파이프라인(`preprocessing → rough_masking →
+   visual_cue_generation → rag → prompt_generating → mask_refining →
+   anomaly_grouping → report_generating`)이 순서대로 실행된다.
+2. run이 처음 `COMPLETED`로 전환되는 순간, 재질 문자열에 "도자"/
+   "pottery"/"ceramic"이 포함되면 **도자기 후속 검사가 서버에서 자동
+   트리거**된다 - FE 버튼 클릭이 필요 없다. 실패해도 VCA 리포트
+   자체는 그대로 조회 가능하고, `POST .../pottery-inspection`으로
+   수동 재시도할 수 있다.
+3. 실패한 run은 `POST /api/vca/{artifactId}/runs`에
+   `{"resume": true}`를 보내면 이미 끝난 스테이지는 다시 돌지 않고
+   실패 지점부터 이어서 실행한다(직전 실패 run과 정확히 같은 이미지
+   집합일 때만 - 아티팩트 상세 응답의 `resumableRunId`가 null이
+   아니면 이어가기가 가능하다는 뜻).
+4. `POST .../report/pdf`로 리포트 PDF를 만든다. object
+   storage(S3/MinIO)가 설정된 실제 환경에서는 Apache PDFBox로 진짜
+   PDF(표지+대표사진 → 특이점 전체 오버레이+요약 → 특이점별 상세
+   페이지 → 도자기 검사 결과가 있으면 그 페이지까지)를 동기
+   렌더링해 저장한다. object storage가 없는 데모 모드는 예전처럼
+   즉시-COMPLETED로 전환되는 스텁 그대로다.
+
+### 도자기 검사 결과 저장
+
+도자기 검사 결과는 `assessment_run` 테이블이 아니라 별도 테이블
+`inspection_result_pottery`(run 1개당 결과 최대 1건,
+`assessment_run_id` UNIQUE)에 저장한다. 진행/실패/재시도 같은
+워크플로우 상태는 `assessment_run.pottery_inspection_status_json`에
+그대로 남아있다 - run 자신의 `status`/`failure_reason`과 같은
+성격의 process metadata라 결과 테이블과 분리해서 유지한다.
+
+---
+
 ## 실행
 
 ```bash
@@ -330,6 +383,44 @@ Spring 이 업로드를 `shared/jobs/{jobId}/` 에 저장하고, xray-ai 에는
 
 **엔진 코드는 이 저장소에서 수정하지 않는다.** 변경이 필요하면
 원본 담당자에게 요청한다.
+
+---
+
+## VCA API
+
+모든 경로는 `/api/vca` 아래이고 `X-VCA-Access-Token` 헤더가 필요하다
+(이미지/PDF 다운로드 두 GET 경로만 `?vca_access_token=` 쿼리로도 허용).
+
+```
+GET    /api/vca                                            아티팩트 목록
+GET    /api/vca/{artifactId}                                아티팩트 상세(runs, resumableRunId 포함)
+GET    /api/vca/system-info                                  동작 환경 정보(엔진/모델 버전 등)
+
+POST   /api/vca/{artifactId}/images/presign                  업로드용 presigned URL 발급
+POST   /api/vca/{artifactId}/images                          이미지 직접 업로드(로컬 모드)
+POST   /api/vca/{artifactId}/images/{imageId}/complete       presigned 업로드 완료 통지
+DELETE /api/vca/{artifactId}/images/{imageId}                이미지 삭제(참조 중인 run 있으면 차단)
+GET    /api/vca/{artifactId}/files/sha256/{sha256}           이미지 파일 게이트웨이(303 리다이렉트)
+
+POST   /api/vca/{artifactId}/runs                            분석 run 생성(body: material, resume)
+POST   /api/vca/{artifactId}/runs/{assessmentRunId}/cancel   run 취소
+GET    /api/vca/{artifactId}/runs/{assessmentRunId}/report               리포트 조회
+GET    /api/vca/{artifactId}/runs/{assessmentRunId}/intermediate-results 중간 산출물 미리보기
+
+POST   /api/vca/{artifactId}/runs/{assessmentRunId}/pottery-inspection   도자기 검사 수동 재시도
+POST   /api/vca/{artifactId}/runs/{assessmentRunId}/report/pdf           리포트 PDF 생성
+GET    /api/vca/{artifactId}/report-pdf-jobs/{jobId}                     PDF job 상태 조회
+GET    /api/vca/{artifactId}/report-pdf-jobs/{jobId}/download            PDF 다운로드(303 리다이렉트)
+
+GET    /api/vca/corpus/pdfs                                  RAG 문서 corpus 목록
+POST   /api/vca/corpus/pdfs                                  RAG 문서 corpus 업로드
+DELETE /api/vca/corpus/pdfs/{fileName}                        RAG 문서 corpus 삭제
+```
+
+`vca_v2` 엔진 소스는 `ai-services/vca-ai/engine`에 벤더링돼 있어
+별도 `../vca_v2` 체크아웃 없이 Docker 이미지 안의 `/vca_v2`에서
+실행된다. **엔진 코드는 이 저장소에서 직접 수정하지 않는다** - 원본
+`vca_v2` 저장소에서 고친 뒤 다시 벤더링한다.
 
 ---
 

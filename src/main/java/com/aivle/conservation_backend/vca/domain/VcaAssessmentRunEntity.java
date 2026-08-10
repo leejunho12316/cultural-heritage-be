@@ -102,10 +102,10 @@ public class VcaAssessmentRunEntity {
     @Column(name = "uploaded_image_ids_json", columnDefinition = "jsonb")
     private List<String> uploadedImageIds;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "pottery_inspection_json", columnDefinition = "jsonb")
-    private ReportResponse.PotteryInspection potteryInspection;
-
+    // 도자기 검사 "결과"는 더 이상 여기 없다 - inspection_result_pottery 테이블로
+    // 옮겼다(assessment_run_id 1:1). 이 컬럼은 워크플로우 상태(진행/실패/재시도)만
+    // 담당한다 - run 자신의 status/failure_reason과 같은 성격의 process metadata라
+    // 결과와 분리해서 여기 남겨뒀다.
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "pottery_inspection_status_json", columnDefinition = "jsonb")
     private ReportResponse.PotteryInspectionStatus potteryInspectionStatus;

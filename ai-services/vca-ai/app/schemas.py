@@ -11,6 +11,24 @@ class HealthResponse(BaseModel):
     mode: Literal["deterministic"]
 
 
+class SystemInfoModelResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    repoId: str
+    revision: str
+
+
+class SystemInfoResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    os: str
+    pythonVersion: str
+    device: str
+    libraries: dict[str, str]
+    models: tuple[SystemInfoModelResponse, ...] = ()
+
+
 class AssessmentRunCreateRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -25,6 +43,12 @@ class AssessmentRunCreateRequest(BaseModel):
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$",
     )
     inputImageFolder: str = Field(min_length=1, max_length=4096)
+    resumeFromProjectName: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=160,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$",
+    )
 
 
 class AssessmentStageResponse(BaseModel):
@@ -36,6 +60,13 @@ class AssessmentStageResponse(BaseModel):
     reason: str | None = None
 
 
+class AssessmentStageProgressResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    completed: int
+    total: int
+
+
 class AssessmentRunResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -43,6 +74,7 @@ class AssessmentRunResponse(BaseModel):
     assessmentId: str
     status: Literal["RUNNING", "COMPLETED", "FAILED"]
     currentStage: str | None = None
+    currentStageProgress: AssessmentStageProgressResponse | None = None
     stages: tuple[AssessmentStageResponse, ...] = ()
     failureReason: str | None = None
 
