@@ -100,7 +100,13 @@ def _get_bonding_method(relic_info: dict, confirmed_adhesive: dict) -> dict:
 - 1단계 = 작업자가 별도로 판단하거나 실수하면 손상으로 이어지는 지점 1개.
 - 순서만 이어지고 판단이 필요 없는 동작들(예: 붓으로 이물질 제거 → 마른 천으로 닦기)은 하나의 단계로 합치세요.
 - "보호구 착용" 같은 일반 안전수칙은 넣지 말고, 이 접착제·이 유물 특유의 위험(가사시간, 경화 중 이동 금지, 과다도포로 인한 변색 등)만 caution에 담으세요.
-- 결과적으로 5단계 안팎이 되는 게 정상입니다. 단계 수를 맞추려고 억지로 쪼개거나 합치지 마세요 — 위 기준을 따른 자연스러운 결과여야 합니다.
+- 정확히 5단계가 되도록 작성하세요. 위 기준을 적용했을 때 5개보다 적으면 판단이 필요한
+  하위 지점을 더 세분화하고, 5개보다 많으면 인접한 저위험 동작끼리 합쳐서 정확히 5개를
+  채우세요.
+
+label, caution, overall_caution은 자연스러운 한국어 문장으로 풀어서 작성하고,
+·, /, (), {{}} 같은 기호는 최대한 쓰지 마세요.
+예를 들어 "아세톤/에탄올" 대신 "아세톤이나 에탄올", "(농도 20%)" 대신 "농도는 20퍼센트로" 처럼 표현하세요.
 
 유물 정보: {relic_info}
 확정된 접착제: {confirmed_adhesive}"""
@@ -118,13 +124,18 @@ def _get_bonding_method(relic_info: dict, confirmed_adhesive: dict) -> dict:
 # - 축 정렬(axis_alignment): PotSAC의 회전축 추정 개념 — 비틀림/기울어짐 없이 맞춰졌는지
 # - 파단면 매칭(fracture_match_quality): Structure-from-Sherds의 오정합(false-positive match) 방지 개념
 #   — 간극·단차 없이, 억지로 끼워 맞춘 흔적 없이 파단면끼리 맞물렸는지
-def _get_temp_bonding_analysis(before_photo_urls: list, after_photo_urls: list) -> dict:
+def _get_temp_bonding_analysis(
+    relic_info: dict,
+    confirmed_adhesive: dict,
+    before_photo_urls: list,
+    after_photo_urls: list,
+) -> dict:
 
     structured_vlm = vision_llm.with_structured_output(BondingTempAnalysis)
 
     content = [{
         "type": "text",
-        "text": """당신은 문화재 보존처리 전문가입니다.
+        "text": f"""당신은 문화재 보존처리 전문가입니다.
         임시접합(가조립) 전/후 사진을 비교해서 접합 상태를 평가해주세요.
 
         가장 먼저 확인할 것: 사진이 실제로 도자기 파편/접합부를 판단할 수 있는 사진인지 확인하세요.
@@ -136,7 +147,12 @@ def _get_temp_bonding_analysis(before_photo_urls: list, after_photo_urls: list) 
         1. 축 정렬(axis_alignment): 기물이 원래 형태의 회전축을 기준으로 비틀리거나 기울어지지 않고 정렬되었는지.
         2. 파단면 매칭(fracture_match_quality): 파편의 파단면(깨진 단면)끼리 간극이나 단차 없이 맞물렸는지, 억지로 끼워 맞춘 흔적(오정합)은 없는지.
 
-        문제가 있다면 어느 부분을 어떻게 다시 맞춰야 하는지 구체적으로 제안해주세요."""
+        문제가 있다면 어느 부분을 어떻게 다시 맞춰야 하는지 구체적으로 제안해주세요.
+
+        참고로 이 유물과 이번에 확정된 접착제 정보는 다음과 같습니다(재질별 파편 두께/무게
+        차이로 인한 정렬 난이도, 접착제의 가사시간에 따른 재조정 여지 등을 판단할 때 참고하세요).
+        유물 정보: {relic_info}
+        확정된 접착제: {confirmed_adhesive}"""
     }]
     for url in before_photo_urls:
         content.append({"type": "text", "text": "[임시접합 전 사진]"})
@@ -211,9 +227,13 @@ def bonding_temp_node(state: State):
 # (3-2) 임시접합 사진 검증 : VLM 호출 1회.
 @stage_guard("bonding")
 def bonding_temp_analysis_node(state: State):
+  relic_info = state.get("relic_info", {})
+  confirmed_adhesive = state["results"]["bonding"]["confirmed_adhesive"]
   temp_bonding = state["results"]["bonding"]["temp_bonding"]
 
   ai_temp_analysis = _get_temp_bonding_analysis(
+      relic_info,
+      confirmed_adhesive,
       temp_bonding.get("before_photo_urls", []),
       temp_bonding.get("after_photo_urls", []),
   )
