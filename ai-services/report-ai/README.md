@@ -47,7 +47,94 @@ ai-services/report-ai/
 `templates/report_templates.json`(사람이 직접 검토해서 만든 구조)만
 커밋됩니다.
 
-## 엔드포인트
+## DB 구조 (ERD)
+
+report-ai 자신은 DB를 전혀 조회하지 않지만, 입력으로 받는 데이터가 각
+파트에서 실제로 어떤 테이블에 저장돼 있는지 알아야 어댑터/요청을 만들 수
+있습니다. `cultural-heritage-be` 쪽 관련 테이블만 추린 ERD입니다.
+
+```mermaid
+erDiagram
+    ASSESSMENT_RUN ||--o| ASSESSMENT_REPORT : "1:1 (assessment_run_id 공유 PK)"
+    ASSESSMENT_RUN ||--o{ INSPECTION_RESULT_POTTERY : "assessment_run_id FK"
+    ASSESSMENT_RUN ||--o{ REPORT_PDF_JOB : "assessment_run_id FK"
+    XRAY_JOB ||--o{ XRAY_DEFECT : "xray_job_id FK"
+
+    ASSESSMENT_RUN {
+        uuid id PK
+        uuid artifact_id "FK 아님, ARTIFACT 통합 전"
+        int run_number "artifact_id+run_number UNIQUE"
+        string status "queued/running/completed/failed"
+        string material
+        jsonb stages_json
+        jsonb uploaded_image_ids_json
+    }
+    ASSESSMENT_REPORT {
+        uuid assessment_run_id PK_FK
+        jsonb report_json "report-ai 산출물 저장처"
+        string status
+        string overall_condition
+        string risk_level
+        timestamp generated_at
+    }
+    INSPECTION_RESULT_POTTERY {
+        uuid id PK
+        uuid assessment_run_id FK
+        text inspection_text
+        bool human_review_recommended
+        jsonb detail
+    }
+    UPLOADED_IMAGE {
+        uuid id PK
+        uuid artifact_id "FK 아님"
+        string object_key
+        string status "PENDING/UPLOADED"
+    }
+    REPORT_PDF_JOB {
+        uuid id PK
+        uuid assessment_run_id FK
+        string status "QUEUED/RUNNING/COMPLETED/FAILED"
+        string pdf_object_key
+    }
+    XRAY_JOB {
+        uuid id PK
+        uuid artifact_id "FK 아님, UNIQUE (유물당 1건)"
+        string status
+        text report_text
+    }
+    XRAY_DEFECT {
+        bigint id PK
+        uuid xray_job_id FK
+        string origin_type
+        jsonb geometry "bbox 좌표만, 캔버스 크기 없음"
+        string review_decision "DAMAGE/NORMAL"
+    }
+    TASKS {
+        string task_id PK "artifact_id와 같은 값이라 추정 - 미확인"
+        jsonb relic_info
+        jsonb results "완료 결과, stage별 status 포함"
+        string total_state
+    }
+```
+
+**주의 — `artifact_id`는 대부분 실제 FK가 아닙니다.** `ARTIFACT` 테이블
+통합 전이라 각 테이블이 `artifact_id`(UUID) 컬럼만 들고 있고, DB 레벨
+제약은 없습니다 (`ASSESSMENT_RUN`/`XRAY_JOB`/`UPLOADED_IMAGE`가 각자
+독립적으로 `artifact_id`를 저장). `TASKS`(보존가이드)는 그마저도 없고
+`task_id`가 `artifact_id`와 같은 값이라는 컨벤션에 기대는 것으로
+보이는데, 이 레포 코드만으로는 확정할 수 없습니다 (프론트엔드 확인
+필요).
+
+| 테이블 | 소유 파트 | report-ai 연동 |
+|---|---|---|
+| `xray_job` / `xray_defect` | X-ray | ✅ [[XraySourceAdapter]] |
+| `assessment_run` / `inspection_result_pottery` | 육안조사 | ✅ [[PotterySourceAdapter]] |
+| `assessment_report` | 보고서(공용) | report-ai가 만드는 `report_json`의 **저장처** — 아직 실제 저장 로직은 없음(호출자가 만들어 받기만 함) |
+| `uploaded_image` | 공용(사진) | 미연동 — `.docx` 사진은 아직 호출자가 base64로 직접 인코딩해서 넘김 |
+| `report_pdf_job` | 보고서(공용) | 이름이 "PDF"라 Word로 확정된 것과 불일치 — 팀 확인 필요 |
+| `tasks` | 보존가이드 | ❌ 미연동 — `task_id`/`artifact_id` 매핑 확인 전까지 어댑터 보류 |
+
+## 엔드포인트 (FastAPI, report-ai 자체)
 
 | 경로 | 설명 |
 |---|---|
@@ -61,6 +148,51 @@ ai-services/report-ai/
 `ASSESSMENT_REPORT`에 저장해두고, 다운로드할 때마다 `/reports/docx`로
 변환만 반복 요청하는 흐름을 권장합니다 (`/reports/generate/docx`를 매번
 호출하면 LLM 비용이 중복 발생합니다).
+
+## Spring API 명세 (`/api/reports/*`, 팀이 실제로 호출하는 창구)
+
+FE/BE 팀원은 report-ai를 직접 호출하지 않고 이 Spring 엔드포인트를
+씁니다. `cultural-heritage-be`의 `report_ai` 패키지(Client/Controller/
+DTO/Adapter)가 위 FastAPI 엔드포인트를 감싼 것입니다.
+
+### 1. 보고서 생성 (`report_json`만)
+
+| 항목 | 내용 |
+|---|---|
+| Method / URL | `POST /api/reports/generate` |
+| 설명 | 보존가이드·X-ray·육안조사 결과를 받아 LangGraph로 `report_json` 생성 (LLM 호출 발생) |
+| Request Body | `{ "artifact_id": string, "relic_info": object, "guide_result": object, "xray_report_text": string, "xray_regions": [ { "region_code": string, "position": string, "review_decision": "damage"\|"normal", "user_note": string } ], "pottery_inspection": { "inspection_text": string, "human_review_recommended": boolean, "detail": object }, "photos": { "<section_key>": [ { "caption": string, "image_base64": string } ] } }` |
+| Response | `report_json` 객체 자체: `{ "report_type": "ceramic_treatment_report", "artifact_id": string, "sections": [ { "key", "title", "fields" } \| { "key", "title", "body" } ] }` |
+| 비고 | `section_key` = `header/pre_investigation/disassembly/cleaning/reinforcement/bonding/restoration/conclusion`. 매번 호출하면 LLM 비용 중복 — 한 번 생성 후 저장해서 재사용 권장 |
+
+### 2. 보고서 생성 + `.docx` 변환 (한 번에)
+
+| 항목 | 내용 |
+|---|---|
+| Method / URL | `POST /api/reports/generate/docx` |
+| 설명 | 1번과 동일한 파이프라인 실행 후 바로 `.docx`로 변환 (데모/직접 테스트용) |
+| Request Body | 1번과 동일 |
+| Response | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` 바이너리, `Content-Disposition: attachment; filename="report_{artifactId}.docx"` |
+| 비고 | 운영에서 매번 호출 금지 (LLM 비용 중복) — 1번 + 3번 조합 권장 |
+
+### 3. 저장된 `report_json` → `.docx` 변환만
+
+| 항목 | 내용 |
+|---|---|
+| Method / URL | `POST /api/reports/docx` |
+| 설명 | 이미 만들어진 `report_json`을 `.docx`로 변환 (LLM 재호출 없음) |
+| Request Body | `{ "artifact_id": string, "report_json": object, "photos": { "<section_key>": [ { "caption": string, "image_base64": string } ] } }` |
+| Response | 2번과 동일한 `.docx` 바이너리 |
+| 비고 | 운영 다운로드 흐름은 이 엔드포인트 반복 호출이 정석 |
+
+### 4. X-ray 결과 조회 (report-ai 입력 형태 변환)
+
+| 항목 | 내용 |
+|---|---|
+| Method / URL | `GET /api/reports/{artifactId}/xray-source` |
+| 설명 | `xray_job`/`xray_defect`(DAMAGE만)를 report-ai 입력 형태로 변환 |
+| Response | `{ "xray_report_text": string, "xray_regions": [ { "region_code", "position", "review_decision": "damage", "user_note": "" } ] }` |
+| 비고 | job 없음/`artifactId`가 UUID 아님 → 빈 값 반환(에러 아님). 응답을 그대로 1/2번의 `xray_report_text`/`xray_regions`에 채우면 됨. 담당 어댑터: `XraySourceAdapter` |
 
 ## 사진 배치 방식
 
@@ -99,32 +231,3 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```bash
 python build_index.py
 ```
-
-## 파트별 결과 조회 (Spring 어댑터)
-
-X-ray/육안조사는 각자의 스키마로 RDS에 저장하는데, report-ai가 기대하는
-요청 형태(필드명, 대소문자)와는 다릅니다. `cultural-heritage-be`의
-`report_ai.service` 패키지에 이 변환만 담당하는 어댑터를 두고, 조회용
-GET 엔드포인트로 결과를 미리 확인할 수 있게 했습니다 (둘 다
-`/reports/generate` 자체의 동작은 바꾸지 않습니다 — 호출자가 이 응답을
-그대로 `GenerateReportRequestDto`에 채워 넣는 용도).
-
-| 엔드포인트 | 어댑터 | 변환 내용 |
-|---|---|---|
-| `GET /api/reports/{artifactId}/xray-source` | `XraySourceAdapter` | `XrayJob`/`XrayDefect`(리뷰 결정 `DAMAGE`/`NORMAL` 대문자 enum) → `xray_report_text`/`xray_regions`(review_decision 소문자 문자열). `DAMAGE`로 확정된 결함만 포함. |
-| `GET /api/reports/{artifactId}/pottery-source` | `PotterySourceAdapter` | `AssessmentRun`(최신 run) → `InspectionResultPottery` → `pottery_inspection`(`inspection_text`/`human_review_recommended`/`detail`). run은 있지만 아직 결과가 없으면 빈 값. |
-
-보존가이드는 아직 이 조회에 대응하는 "완료 결과" 저장 테이블이 없어서
-같은 패턴의 어댑터를 만들 수 없습니다 (아래 한계 참고).
-
-## 알려진 한계 / 다음 단계
-
-- **아직 어떤 파트도 report-ai를 실제로 호출하지 않습니다** — 위 두
-  어댑터로 X-ray/육안조사 결과는 report-ai 입력 형태로 조회할 수 있지만,
-  보존가이드 결과까지 다 모아서 `/reports/generate`를 자동으로 호출해
-  주는 조율 계층은 아직 없습니다 (지금은 호출자가 세 조각을 직접 모아서
-  요청 바디를 채워야 합니다).
-- 보존가이드는 Postgres에 LangGraph 체크포인트(대화 재개용)는 쓰지만,
-  report-ai가 바로 조회할 수 있는 "완료 결과" 테이블이 아직 없습니다 —
-  `XraySourceAdapter`/`PotterySourceAdapter`와 대칭되는 어댑터를 만들
-  수 없는 이유입니다.
