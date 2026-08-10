@@ -65,6 +65,23 @@ services:
       start_period: 120s
       retries: 3
 
+
+  report-ai:
+    build: ./ai-services/report-ai
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./ai-services/report-ai/app/documents:/code/app/documents:ro
+      - ./ai-services/report-ai/app/index:/code/app/index
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
   pottery-inspection-ai:
     build: ./ai-services/pottery-inspection-ai
     environment:
@@ -78,11 +95,13 @@ services:
       - ./ai-services/pottery-inspection-ai/ai_hub:/srv/ai_hub
       - pottery_hf_cache:/root/.cache/huggingface
 
+
   conservation-backend:
     build: .
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
       POTTERY_INSPECTION_AI_BASE_URL: http://pottery-inspection-ai:8000
+      REPORT_AI_BASE_URL: http://report-ai:8000
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -104,6 +123,8 @@ services:
       xray-ai:
         condition: service_started
       pottery-inspection-ai:
+        condition: service_started
+      report-ai:
         condition: service_started
     ports:
       - "8080:8080"
