@@ -179,6 +179,14 @@ spec:
             # 볼륨으로 바꿔야 함) 아직 안 정했다 - 일단 false로 두고 미룬다.
             - name: VCA_BOOTSTRAP_MODELS
               value: "false"
+            # vca-entrypoint.sh가 models/rag/ 캐시가 없을 때만 이 아카이브를
+            # 받아 채운다. vca-model-cache가 emptyDir(파드 재시작 시 초기화)
+            # 이라 위 VCA_BOOTSTRAP_MODELS와 같은 이유로 매 재시작마다 다시
+            # 받게 된다 - 영속 볼륨 전환 여부는 같이 미정.
+            # 예시 값(현재 로컬 docker-compose .env에서 쓰는 것과 동일):
+            # https://drive.google.com/file/d/1nkYrHJq8NKfGHVPp8xI40YdjkcwC3htM/view?usp=sharing
+            - name: VCA_RAG_CORPUS_ARCHIVE_URL
+              value: ""
             - name: UV_PROJECT_ENVIRONMENT
               value: "/opt/vca-uv-env"
             - name: UV_CACHE_DIR
