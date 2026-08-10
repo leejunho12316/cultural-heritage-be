@@ -129,15 +129,19 @@ public class XrayJob {
         return job;
     }
 
-    /** 같은 artifact의 FAILED/PREPARED 작업을 새 Presigned URL로 재사용한다. */
+    /**
+     * 같은 artifact의 기존 작업을 새 X-ray 분석용으로 초기화한다.
+     *
+     * <p>실행 중 상태(STITCHING/DETECTING) 차단은 service에서 담당하고,
+     * 여기서는 재실행 가능한 작업의 workflow 결과 필드를 초기화한다.</p>
+     */
     public void prepareAgain(int expectedColorCount, int expectedXrayCount) {
-        if (status == XrayJobStatus.COMPLETED) {
-            throw new IllegalStateException("Completed X-ray job cannot be prepared again.");
-        }
         this.status = XrayJobStatus.PREPARED;
         this.expectedColorCount = expectedColorCount;
         this.expectedXrayCount = expectedXrayCount;
         this.errorMessage = null;
+        this.reportText = null;
+        this.completedAt = null;
         touch();
     }
 
