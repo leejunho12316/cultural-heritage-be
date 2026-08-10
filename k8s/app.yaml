@@ -1,4 +1,4 @@
-# 계정ID: 815373273907, 리전: ap-northeast-2
+# 계정ID: 428270342381, 리전: ap-northeast-2
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: conservation-guide-ai
-          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/conservation-guide-ai:latest
+          image: 428270342381.dkr.ecr.ap-northeast-2.amazonaws.com/conservation-guide-ai:latest
           ports:
             - containerPort: 8000
           envFrom:
@@ -50,7 +50,7 @@ spec:
     spec:
       containers:
         - name: xray-ai
-          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/xray-ai:latest
+          image: 428270342381.dkr.ecr.ap-northeast-2.amazonaws.com/xray-ai:latest
           ports:
             - containerPort: 8000
           env:
@@ -61,7 +61,7 @@ spec:
             - name: XRAY_NMS_IOU
               value: "0.5"
             - name: XRAY_STITCH_JOBS_ROOT
-              value: "/shared/jobs"
+              value: "/tmp/xray_jobs"
             - name: XRAY_STITCH_ENGINE_DIR
               value: "/code"
             - name: XRAY_STITCH_SINGLE_SCRIPT
@@ -75,17 +75,10 @@ spec:
             - name: XRAY_STITCH_MAPPING_PATH
               value: "/code/mappings/mapping.color_front.json"
             - name: XRAY_STITCH_CACHE_DIR
-              value: "/shared/cache"
+              value: "/tmp/xray_cache"
           envFrom:
             - secretRef:
                 name: app-secrets
-          volumeMounts:
-            - name: shared-storage
-              mountPath: /shared
-      volumes:
-        - name: shared-storage
-          persistentVolumeClaim:
-            claimName: shared-efs-pvc
 ---
 apiVersion: v1
 kind: Service
@@ -115,7 +108,7 @@ spec:
     spec:
       containers:
         - name: pottery-inspection-ai
-          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/pottery-inspection-ai:latest
+          image: 428270342381.dkr.ecr.ap-northeast-2.amazonaws.com/pottery-inspection-ai:latest
           ports:
             - containerPort: 8000
           envFrom:
@@ -156,24 +149,22 @@ spec:
     spec:
       containers:
         - name: conservation-backend
-          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/conservation-backend:latest
+          image: 428270342381.dkr.ecr.ap-northeast-2.amazonaws.com/conservation-backend:latest
           ports:
             - containerPort: 8080
           env:
             - name: CONSERVATION_GUIDE_AI_BASE_URL
               value: "http://conservation-guide-ai:8000"
+            - name: POTTERY_INSPECTION_AI_BASE_URL
+              value: "http://pottery-inspection-ai:8000"
             - name: XRAY_AI_BASE_URL
               value: "http://xray-ai:8000"
             - name: XRAY_AI_TIMEOUT_SECONDS
               value: "300"
             - name: XRAY_AI_CONFIG_NAME
               value: "config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json"
-            - name: XRAY_STORAGE_LOCAL_ROOT
-              value: "/shared/jobs"
-            - name: XRAY_STORAGE_CONTAINER_ROOT
-              value: "/shared/jobs"
-            - name: POTTERY_INSPECTION_AI_BASE_URL
-              value: "http://pottery-inspection-ai:8000"
+            - name: XRAY_STITCH_CALLBACK_URL
+              value: "http://conservation-backend:8080/api/xray/stitch/callback"
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -182,13 +173,8 @@ spec:
           envFrom:
             - secretRef:
                 name: app-secrets
-          volumeMounts:
-            - name: shared-storage
-              mountPath: /shared
-      volumes:
-        - name: shared-storage
-          persistentVolumeClaim:
-            claimName: shared-efs-pvc
+      # shared-storage(EFS) 볼륨 없음 — X-ray 산출물은 S3에 저장되고
+      # 이 Pod의 로컬 디스크는 쓰지 않는다.
 ---
 apiVersion: v1
 kind: Service
@@ -200,4 +186,25 @@ spec:
   ports:
     - port: 8080
       targetPort: 8080
-  type: LoadBalancer
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: conservation-backend
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: conservation-backend
+                port:
+                  number: 8080
