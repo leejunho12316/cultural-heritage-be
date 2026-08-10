@@ -31,7 +31,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InspectionResultPotteryEntity {
+public class InspectionResultPottery {
 
     @Id
     @Column(name = "id")

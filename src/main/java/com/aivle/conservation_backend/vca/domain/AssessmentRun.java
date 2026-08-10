@@ -33,7 +33,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class VcaAssessmentRunEntity {
+public class AssessmentRun {
 
     @Id
     @Column(name = "id")

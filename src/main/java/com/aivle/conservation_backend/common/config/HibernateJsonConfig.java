@@ -9,7 +9,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Hibernate's {@code @JdbcTypeCode(SqlTypes.JSON)} columns (e.g.
- * {@code VcaAssessmentRunEntity.report_json}) are read/written by Hibernate's
+ * {@code AssessmentRun.report_json}) are read/written by Hibernate's
  * own built-in Jackson format mapper, which by default builds its own bare
  * {@code ObjectMapper}/{@code JsonMapper} rather than reusing Spring's
  * autoconfigured one - so it has no java.time (Instant, etc.) support unless

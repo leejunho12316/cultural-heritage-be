@@ -22,7 +22,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class VcaReportPdfJobEntity {
+public class ReportPdfJob {
 
     @Id
     @Column(name = "id")

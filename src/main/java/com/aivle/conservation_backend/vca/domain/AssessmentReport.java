@@ -25,7 +25,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class VcaAssessmentReportEntity {
+public class AssessmentReport {
 
     @Id
     @Column(name = "assessment_run_id")

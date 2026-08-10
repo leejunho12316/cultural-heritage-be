@@ -2,12 +2,12 @@ package com.aivle.conservation_backend.vca.service;
 
 import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
-import com.aivle.conservation_backend.vca.domain.InspectionResultPotteryEntity;
+import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.vca.domain.VcaArtifactEntity;
-import com.aivle.conservation_backend.vca.domain.VcaAssessmentReportEntity;
-import com.aivle.conservation_backend.vca.domain.VcaAssessmentRunEntity;
-import com.aivle.conservation_backend.vca.domain.VcaReportPdfJobEntity;
-import com.aivle.conservation_backend.vca.domain.VcaUploadedImageEntity;
+import com.aivle.conservation_backend.vca.domain.AssessmentReport;
+import com.aivle.conservation_backend.vca.domain.AssessmentRun;
+import com.aivle.conservation_backend.vca.domain.ReportPdfJob;
+import com.aivle.conservation_backend.vca.domain.UploadedImage;
 import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse;
 import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse.ArtifactSummary;
 import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
@@ -26,11 +26,11 @@ import com.aivle.conservation_backend.vca.dto.VcaCorpusPdfCollectionResponse;
 import com.aivle.conservation_backend.vca.dto.VcaCorpusPdfResponse;
 import com.aivle.conservation_backend.vca.exception.VcaApiException;
 import com.aivle.conservation_backend.vca.repository.VcaArtifactStore;
-import com.aivle.conservation_backend.vca.repository.VcaAssessmentReportStore;
-import com.aivle.conservation_backend.vca.repository.VcaAssessmentRunStore;
-import com.aivle.conservation_backend.vca.repository.VcaInspectionResultPotteryStore;
-import com.aivle.conservation_backend.vca.repository.VcaReportPdfJobStore;
-import com.aivle.conservation_backend.vca.repository.VcaUploadedImageStore;
+import com.aivle.conservation_backend.vca.repository.AssessmentReportStore;
+import com.aivle.conservation_backend.vca.repository.AssessmentRunStore;
+import com.aivle.conservation_backend.vca.repository.InspectionResultPotteryStore;
+import com.aivle.conservation_backend.vca.repository.ReportPdfJobStore;
+import com.aivle.conservation_backend.vca.repository.UploadedImageStore;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,11 +88,11 @@ public class VcaService {
     private static final String POTTERY_STATUS_FAILED = "FAILED";
 
     private final VcaArtifactStore artifactStore;
-    private final VcaUploadedImageStore imageStore;
-    private final VcaAssessmentRunStore runStore;
-    private final VcaAssessmentReportStore reportStore;
-    private final VcaReportPdfJobStore pdfJobStore;
-    private final VcaInspectionResultPotteryStore potteryResultStore;
+    private final UploadedImageStore imageStore;
+    private final AssessmentRunStore runStore;
+    private final AssessmentReportStore reportStore;
+    private final ReportPdfJobStore pdfJobStore;
+    private final InspectionResultPotteryStore potteryResultStore;
     // 의존성 없는 순수 렌더러라 다른 협력 빈들과 달리 생성자 주입 없이 바로
     // 만든다 - 테스트용 생성자 오버로드 체인(VcaControllerTest 등)을 전부
     // 건드리지 않아도 되기 때문이다.
@@ -117,11 +117,11 @@ public class VcaService {
             PotteryInspectionAiClient potteryInspectionAiClient,
             VcaCorpusStorage corpusStorage,
             VcaArtifactStore artifactStore,
-            VcaUploadedImageStore imageStore,
-            VcaAssessmentRunStore runStore,
-            VcaAssessmentReportStore reportStore,
-            VcaReportPdfJobStore pdfJobStore,
-            VcaInspectionResultPotteryStore potteryResultStore
+            UploadedImageStore imageStore,
+            AssessmentRunStore runStore,
+            AssessmentReportStore reportStore,
+            ReportPdfJobStore pdfJobStore,
+            InspectionResultPotteryStore potteryResultStore
     ) {
         this(
                 localDirectCompleteEnabled,
@@ -279,11 +279,11 @@ public class VcaService {
                 potteryInspectionAiClient,
                 corpusStorage,
                 new InMemoryVcaArtifactStore(),
-                new InMemoryVcaUploadedImageStore(),
-                new InMemoryVcaAssessmentRunStore(),
-                new InMemoryVcaAssessmentReportStore(),
-                new InMemoryVcaReportPdfJobStore(),
-                new InMemoryVcaInspectionResultPotteryStore()
+                new InMemoryUploadedImageStore(),
+                new InMemoryAssessmentRunStore(),
+                new InMemoryAssessmentReportStore(),
+                new InMemoryReportPdfJobStore(),
+                new InMemoryInspectionResultPotteryStore()
         );
     }
 
@@ -296,11 +296,11 @@ public class VcaService {
             Optional<PotteryInspectionAiClient> potteryInspectionAiClient,
             Optional<VcaCorpusStorage> corpusStorage,
             VcaArtifactStore artifactStore,
-            VcaUploadedImageStore imageStore,
-            VcaAssessmentRunStore runStore,
-            VcaAssessmentReportStore reportStore,
-            VcaReportPdfJobStore pdfJobStore,
-            VcaInspectionResultPotteryStore potteryResultStore
+            UploadedImageStore imageStore,
+            AssessmentRunStore runStore,
+            AssessmentReportStore reportStore,
+            ReportPdfJobStore pdfJobStore,
+            InspectionResultPotteryStore potteryResultStore
     ) {
         this.localDirectCompleteEnabled = localDirectCompleteEnabled;
         this.vcaAiGateway = vcaAiGateway;
@@ -377,7 +377,7 @@ public class VcaService {
             );
         }
         int displayOrder = imageStore.findByArtifactId(artifact.getId()).size();
-        VcaUploadedImageEntity image = VcaUploadedImageEntity.builder()
+        UploadedImage image = UploadedImage.builder()
                 .id(imageId)
                 .artifactId(artifact.getId())
                 .filename(request.fileName())
@@ -414,11 +414,11 @@ public class VcaService {
         UUID imageId = UUID.randomUUID();
         Instant now = Instant.now();
         int displayOrder = imageStore.findByArtifactId(artifact.getId()).size();
-        VcaUploadedImageEntity image;
+        UploadedImage image;
         if (imageStorage.isPresent()) {
             VcaImageStorage.StoredImage storedImage = imageStorage.get()
                     .storeUpload(artifactId, imageId.toString(), file);
-            image = VcaUploadedImageEntity.builder()
+            image = UploadedImage.builder()
                     .id(imageId)
                     .artifactId(artifact.getId())
                     .filename(storedImage.fileName())
@@ -434,7 +434,7 @@ public class VcaService {
                     .build();
         } else {
             VcaSharedStorage.StoredImage storedImage = requireSharedStorage().storeUpload(imageId.toString(), file);
-            image = VcaUploadedImageEntity.builder()
+            image = UploadedImage.builder()
                     .id(imageId)
                     .artifactId(artifact.getId())
                     .filename(storedImage.fileName())
@@ -465,7 +465,7 @@ public class VcaService {
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
         UUID id = validateUuid(imageId, "imageId");
-        VcaUploadedImageEntity image = requireImage(artifact, id);
+        UploadedImage image = requireImage(artifact, id);
         String suppliedSha256 = request.sha256().toLowerCase(Locale.ROOT);
         if (!image.getContentSha256().equals(suppliedSha256)) {
             throw new VcaApiException(
@@ -499,7 +499,7 @@ public class VcaService {
     public synchronized void deleteImage(String artifactId, String imageId) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
         UUID id = validateUuid(imageId, "imageId");
-        VcaUploadedImageEntity removed = imageStore.findById(id)
+        UploadedImage removed = imageStore.findById(id)
                 .filter(candidate -> candidate.getArtifactId().equals(artifact.getId()))
                 .orElseThrow(() -> new VcaApiException(
                         HttpStatus.NOT_FOUND,
@@ -567,7 +567,7 @@ public class VcaService {
     // createRun의 첫 단계 - 아직 vca-ai에는 아무 것도 요청하지 않은 상태.
     private synchronized RunReservation reserveRun(String artifactId, boolean resumeRequested) {
         VcaArtifactEntity artifact = getOrCreateArtifact(artifactId);
-        List<VcaAssessmentRunEntity> existingRuns = runStore.findByArtifactId(artifact.getId());
+        List<AssessmentRun> existingRuns = runStore.findByArtifactId(artifact.getId());
         boolean activeRunExists = existingRuns.stream()
                 .anyMatch(run -> "QUEUED".equals(run.getStatus()) || "RUNNING".equals(run.getStatus()));
         if (activeRunExists) {
@@ -577,7 +577,7 @@ public class VcaService {
                     "An assessment run is already queued or running for this artifact."
             );
         }
-        List<VcaUploadedImageEntity> uploadedImages = imageStore.findByArtifactId(artifact.getId()).stream()
+        List<UploadedImage> uploadedImages = imageStore.findByArtifactId(artifact.getId()).stream()
                 .filter(image -> "UPLOADED".equals(image.getStatus()))
                 .toList();
         if (uploadedImages.isEmpty()) {
@@ -589,14 +589,14 @@ public class VcaService {
         }
         String resumeFromProjectName = null;
         if (resumeRequested) {
-            VcaAssessmentRunEntity resumable = resumableFailedRun(existingRuns, uploadedImages);
+            AssessmentRun resumable = resumableFailedRun(existingRuns, uploadedImages);
             resumeFromProjectName = resumable == null ? null : resumable.getLegacyProjectName();
         }
 
         Instant now = Instant.now();
         UUID assessmentRunId = UUID.randomUUID();
         int runNumber = existingRuns.size() + 1;
-        VcaAssessmentRunEntity run = VcaAssessmentRunEntity.builder()
+        AssessmentRun run = AssessmentRun.builder()
                 .id(assessmentRunId)
                 .artifactId(artifact.getId())
                 .runNumber(runNumber)
@@ -635,12 +635,12 @@ public class VcaService {
     // 이어가기 적용)과 toDetail(FE에 "이어서 시작" 버튼을 보여줄지 여부)이 공유한다.
     // 조건이 하나라도 안 맞으면(가장 최근 run이 없음/실패 아님/이미지 구성이 다름)
     // null을 돌려준다.
-    private VcaAssessmentRunEntity resumableFailedRun(
-            List<VcaAssessmentRunEntity> existingRuns,
-            List<VcaUploadedImageEntity> uploadedImages
+    private AssessmentRun resumableFailedRun(
+            List<AssessmentRun> existingRuns,
+            List<UploadedImage> uploadedImages
     ) {
-        VcaAssessmentRunEntity mostRecentRun = existingRuns.stream()
-                .max(Comparator.comparingInt(VcaAssessmentRunEntity::getRunNumber))
+        AssessmentRun mostRecentRun = existingRuns.stream()
+                .max(Comparator.comparingInt(AssessmentRun::getRunNumber))
                 .orElse(null);
         if (mostRecentRun == null || !"FAILED".equals(mostRecentRun.getStatus())) {
             return null;
@@ -664,7 +664,7 @@ public class VcaService {
             String material
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, reservation.run().getId().toString());
+        AssessmentRun run = requireRun(artifact, reservation.run().getId().toString());
         ReportResponse report = null;
         if (vcaAiGateway.isEmpty()) {
             List<ReportResponse.Image> reportImages = reservation.uploadedImages().stream()
@@ -700,7 +700,7 @@ public class VcaService {
     // FE "분석 중지" 버튼에서 호출. 진행 중인 run만 실제로 취소하고, 이미 끝난 run은 아래에서 no-op 처리.
     public synchronized RunResponse cancelRun(String artifactId, String assessmentRunId) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, assessmentRunId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
         if (!"QUEUED".equals(run.getStatus()) && !"RUNNING".equals(run.getStatus())) {
             // 이미 종료된 상태(또는 중복/뒤늦은 중지 클릭)라면 에러가 아니라
             // 현재 상태를 그대로 보여주는 no-op으로 처리한다.
@@ -734,11 +734,11 @@ public class VcaService {
     @EventListener(ApplicationReadyEvent.class)
     public synchronized void reconcileStuckRunsOnStartup() {
         Instant now = Instant.now();
-        List<VcaAssessmentRunEntity> stuckRuns = runStore.findAll().stream()
+        List<AssessmentRun> stuckRuns = runStore.findAll().stream()
                 .filter(run -> ("QUEUED".equals(run.getStatus()) || "RUNNING".equals(run.getStatus()))
                         && run.getAiRunId() == null)
                 .toList();
-        for (VcaAssessmentRunEntity run : stuckRuns) {
+        for (AssessmentRun run : stuckRuns) {
             run.setStatus("FAILED");
             run.setFailureReason("서버 재시작으로 run 예약이 완료되지 못해 자동 종료되었습니다.");
             run.setCompletedAt(now);
@@ -785,7 +785,7 @@ public class VcaService {
             PotteryInspectionRequest request
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, assessmentRunId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
         // 이 동기화가 방금 COMPLETED로 전환시킨 거라면, 그 안에서 이미 도자기
         // 검사를 자동으로 실행해뒀다(syncRunWithAi 참고) - 아래에서 또
         // 중복 실행하지 않도록 alreadyHandled로 표시해 돌려준다.
@@ -800,7 +800,7 @@ public class VcaService {
         ensureReportReady(artifact, run);
         String material = potteryMaterial(request, run);
         boolean applicable = isPotteryMaterial(material) && potteryInspectionAiClient.isPresent();
-        VcaUploadedImageEntity primaryImage = requireImage(artifact, UUID.fromString(run.getUploadedImageIds().get(0)));
+        UploadedImage primaryImage = requireImage(artifact, UUID.fromString(run.getUploadedImageIds().get(0)));
         runStore.save(run);
         return new PotteryInspectionTarget(applicable, primaryImage, alreadyHandled);
     }
@@ -812,7 +812,7 @@ public class VcaService {
             String assessmentRunId
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, assessmentRunId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
         run.setPotteryInspectionStatus(new ReportResponse.PotteryInspectionStatus(
                 false,
                 POTTERY_STATUS_NOT_STARTED,
@@ -835,7 +835,7 @@ public class VcaService {
             ReportResponse.PotteryInspection potteryInspection
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, assessmentRunId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
         savePotteryResult(run.getId(), potteryInspection);
         run.setPotteryInspectionStatus(new ReportResponse.PotteryInspectionStatus(
                 true,
@@ -859,7 +859,7 @@ public class VcaService {
             RuntimeException exception
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, assessmentRunId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
         run.setPotteryInspectionStatus(new ReportResponse.PotteryInspectionStatus(
                 true,
                 POTTERY_STATUS_FAILED,
@@ -893,7 +893,7 @@ public class VcaService {
             String assessmentRunId
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, assessmentRunId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
         syncRunWithAi(artifact, run);
         if (vcaAiGateway.isPresent()) {
             if (!"COMPLETED".equals(run.getStatus())) {
@@ -956,7 +956,7 @@ public class VcaService {
             String assessmentRunId
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, assessmentRunId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
         String runProjectName = projectName(artifactId, run.getId().toString());
         return intermediateResultStorage
                 .map(storage -> storage.read(artifactId, run.getId().toString(), runProjectName))
@@ -973,7 +973,7 @@ public class VcaService {
     public synchronized URI getFileDownloadLocation(String artifactId, String sha256) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
         String normalizedSha256 = validateSha256(sha256);
-        VcaUploadedImageEntity image = imageStore.findByArtifactId(artifact.getId()).stream()
+        UploadedImage image = imageStore.findByArtifactId(artifact.getId()).stream()
                 .filter(candidate -> normalizedSha256.equals(candidate.getContentSha256())
                         && "UPLOADED".equals(candidate.getStatus()))
                 .findFirst()
@@ -1003,7 +1003,7 @@ public class VcaService {
             String assessmentRunId
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaAssessmentRunEntity run = requireRun(artifact, assessmentRunId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
         syncRunWithAi(artifact, run);
         if (!"COMPLETED".equals(run.getStatus())) {
             throw new VcaApiException(
@@ -1012,12 +1012,12 @@ public class VcaService {
                     "The assessment report must be completed before creating a PDF."
             );
         }
-        Optional<VcaReportPdfJobEntity> existing = pdfJobStore.findByAssessmentRunId(run.getId());
+        Optional<ReportPdfJob> existing = pdfJobStore.findByAssessmentRunId(run.getId());
         if (existing.isPresent()) {
             return toPdfJob(artifact, existing.get());
         }
 
-        VcaReportPdfJobEntity job = VcaReportPdfJobEntity.builder()
+        ReportPdfJob job = ReportPdfJob.builder()
                 .id(UUID.randomUUID())
                 .assessmentRunId(run.getId())
                 .status(imageStorage.isPresent() ? "RUNNING" : "QUEUED")
@@ -1036,7 +1036,7 @@ public class VcaService {
     // job을 COMPLETED(pdfObjectKey 채움)로 만든다. 렌더링/저장 중 무엇이든
     // 실패하면 FAILED로 남기고 로그에 원인을 남긴다 - job 엔티티(팀 공유 ERD)에
     // 실패 사유 컬럼이 없어 응답에는 상태만 실린다.
-    private void renderAndStorePdf(VcaArtifactEntity artifact, VcaAssessmentRunEntity run, VcaReportPdfJobEntity job) {
+    private void renderAndStorePdf(VcaArtifactEntity artifact, AssessmentRun run, ReportPdfJob job) {
         try {
             ensureReportReady(artifact, run);
             ReportResponse report = findReport(run.getId());
@@ -1081,7 +1081,7 @@ public class VcaService {
     // 데모 모드 job(QUEUED로 남겨둔 것)만 예전처럼 폴링 시점에 COMPLETED로 전환한다.
     public synchronized PdfJobResponse getPdfJob(String artifactId, String jobId) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaReportPdfJobEntity job = requirePdfJob(artifact, jobId);
+        ReportPdfJob job = requirePdfJob(artifact, jobId);
         if (imageStorage.isEmpty() && ("QUEUED".equals(job.getStatus()) || "RUNNING".equals(job.getStatus()))) {
             job.setStatus("COMPLETED");
             job.setCompletedAt(Instant.now());
@@ -1096,7 +1096,7 @@ public class VcaService {
     // 스텁 job) 예전처럼 서명된 로컬 URL만 흉내낸다.
     public synchronized URI getPdfDownloadLocation(String artifactId, String jobId) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        VcaReportPdfJobEntity job = requirePdfJob(artifact, jobId);
+        ReportPdfJob job = requirePdfJob(artifact, jobId);
         if (!"COMPLETED".equals(job.getStatus())) {
             throw new VcaApiException(
                     HttpStatus.CONFLICT,
@@ -1116,9 +1116,9 @@ public class VcaService {
     // 엔티티 -> ArtifactSummary(목록 카드용 DTO) 변환. getArtifacts에서 사용. runs는
     // 호출자가 advanceDemoRuns로 이미 조회/갱신해둔 목록을 그대로 받는다 - 같은
     // 아티팩트의 run을 두 번 조회하지 않기 위함이다.
-    private ArtifactSummary toSummary(VcaArtifactEntity artifact, List<VcaAssessmentRunEntity> runs) {
-        VcaAssessmentRunEntity latestRun = runs.stream()
-                .max(Comparator.comparing(VcaAssessmentRunEntity::getStartedAt))
+    private ArtifactSummary toSummary(VcaArtifactEntity artifact, List<AssessmentRun> runs) {
+        AssessmentRun latestRun = runs.stream()
+                .max(Comparator.comparing(AssessmentRun::getStartedAt))
                 .orElse(null);
         return new ArtifactSummary(
                 artifact.getArtifactCode(),
@@ -1132,22 +1132,22 @@ public class VcaService {
 
     // 엔티티 -> ArtifactDetailResponse 변환. artifactStatus로 종합 상태를 계산해 함께 담는다.
     // runs는 toSummary와 같은 이유로 호출자가 넘겨준다.
-    private ArtifactDetailResponse toDetail(VcaArtifactEntity artifact, List<VcaAssessmentRunEntity> runs) {
-        List<VcaUploadedImageEntity> images = imageStore.findByArtifactId(artifact.getId());
-        List<VcaUploadedImageEntity> uploadedImages = images.stream()
+    private ArtifactDetailResponse toDetail(VcaArtifactEntity artifact, List<AssessmentRun> runs) {
+        List<UploadedImage> images = imageStore.findByArtifactId(artifact.getId());
+        List<UploadedImage> uploadedImages = images.stream()
                 .filter(image -> "UPLOADED".equals(image.getStatus()))
                 .toList();
-        VcaAssessmentRunEntity resumable = resumableFailedRun(runs, uploadedImages);
+        AssessmentRun resumable = resumableFailedRun(runs, uploadedImages);
         return new ArtifactDetailResponse(
                 artifact.getArtifactCode(),
                 artifact.getTitle(),
                 artifactStatus(runs, images),
                 uploadedImages.stream()
-                        .sorted(Comparator.comparingInt(VcaUploadedImageEntity::getDisplayOrder))
+                        .sorted(Comparator.comparingInt(UploadedImage::getDisplayOrder))
                         .map(image -> toImage(artifact, image))
                         .toList(),
                 runs.stream()
-                        .sorted(Comparator.comparing(VcaAssessmentRunEntity::getStartedAt))
+                        .sorted(Comparator.comparing(AssessmentRun::getStartedAt))
                         .map(run -> toRun(artifact, run))
                         .toList(),
                 resumable == null ? null : resumable.getId().toString(),
@@ -1157,7 +1157,7 @@ public class VcaService {
     }
 
     // 엔티티 -> ImageResponse 변환. UPLOADED 상태일 때만 downloadUrl을 채운다.
-    private ImageResponse toImage(VcaArtifactEntity artifact, VcaUploadedImageEntity image) {
+    private ImageResponse toImage(VcaArtifactEntity artifact, UploadedImage image) {
         String downloadUrl = "UPLOADED".equals(image.getStatus())
                 ? fileGatewayUrl(artifact.getArtifactCode(), image.getContentSha256())
                 : null;
@@ -1174,7 +1174,7 @@ public class VcaService {
     }
 
     // 엔티티 -> RunResponse 변환. reportUrl은 항상 이 run의 report 엔드포인트로 고정 구성된다.
-    private RunResponse toRun(VcaArtifactEntity artifact, VcaAssessmentRunEntity run) {
+    private RunResponse toRun(VcaArtifactEntity artifact, AssessmentRun run) {
         return new RunResponse(
                 run.getId().toString(),
                 artifact.getArtifactCode(),
@@ -1192,7 +1192,7 @@ public class VcaService {
     }
 
     // 엔티티 -> PdfJobResponse 변환. COMPLETED일 때만 downloadUrl을 채운다.
-    private PdfJobResponse toPdfJob(VcaArtifactEntity artifact, VcaReportPdfJobEntity job) {
+    private PdfJobResponse toPdfJob(VcaArtifactEntity artifact, ReportPdfJob job) {
         String downloadUrl = "COMPLETED".equals(job.getStatus())
                 ? "/api/vca/" + artifact.getArtifactCode() + "/report-pdf-jobs/"
                         + job.getId() + "/download"
@@ -1212,11 +1212,11 @@ public class VcaService {
     // 조회한 run 목록을 그대로 반환해(엔티티는 이 메서드 안에서 이미 최신 상태로
     // mutate됨) 호출자가 toSummary/toDetail에 넘길 때 같은 아티팩트의 run을
     // 다시 조회하지 않게 한다.
-    private List<VcaAssessmentRunEntity> advanceDemoRuns(VcaArtifactEntity artifact) {
+    private List<AssessmentRun> advanceDemoRuns(VcaArtifactEntity artifact) {
         Instant now = Instant.now();
         boolean artifactTouched = false;
-        List<VcaAssessmentRunEntity> runs = runStore.findByArtifactId(artifact.getId());
-        for (VcaAssessmentRunEntity run : runs) {
+        List<AssessmentRun> runs = runStore.findByArtifactId(artifact.getId());
+        for (AssessmentRun run : runs) {
             if ("COMPLETED".equals(run.getStatus()) || "FAILED".equals(run.getStatus())) {
                 continue;
             }
@@ -1255,7 +1255,7 @@ public class VcaService {
     private VcaAiAssessmentRun createAiAssessmentRun(
             String artifactId,
             String assessmentRunId,
-            List<VcaUploadedImageEntity> uploadedImages,
+            List<UploadedImage> uploadedImages,
             String resumeFromProjectName
     ) {
         if (vcaAiGateway.isEmpty()) {
@@ -1317,7 +1317,7 @@ public class VcaService {
     // 반환값은 "이 호출 안에서 도자기 검사를 자동으로 이미 실행했는가"이다 -
     // preparePotteryInspection이 이 값을 보고, 방금 자동으로 막 끝낸 검사를
     // 수동 트리거 경로가 곧바로 또 한 번 중복 실행하지 않게 막는다.
-    private boolean syncRunWithAi(VcaArtifactEntity artifact, VcaAssessmentRunEntity run) {
+    private boolean syncRunWithAi(VcaArtifactEntity artifact, AssessmentRun run) {
         if (vcaAiGateway.isEmpty() || run.getAiRunId() == null) {
             return false;
         }
@@ -1345,7 +1345,7 @@ public class VcaService {
     // 이 메서드도 run당 정확히 한 번만 실행된다.
     private void autoTriggerPotteryInspectionIfApplicable(
             VcaArtifactEntity artifact,
-            VcaAssessmentRunEntity run
+            AssessmentRun run
     ) {
         if (!isPotteryMaterial(run.getMaterial()) || potteryInspectionAiClient.isEmpty()) {
             return;
@@ -1356,7 +1356,7 @@ public class VcaService {
         String artifactId = artifact.getArtifactCode();
         String assessmentRunId = run.getId().toString();
         ensureReportReady(artifact, run);
-        VcaUploadedImageEntity primaryImage = requireImage(artifact, UUID.fromString(run.getUploadedImageIds().get(0)));
+        UploadedImage primaryImage = requireImage(artifact, UUID.fromString(run.getUploadedImageIds().get(0)));
         try {
             ReportResponse.PotteryInspection potteryInspection = inspectPottery(primaryImage);
             completePotteryInspection(artifactId, assessmentRunId, potteryInspection);
@@ -1367,7 +1367,7 @@ public class VcaService {
 
     // vca-ai 응답을 run 엔티티 필드에 반영하는 공통 매핑 로직(syncRunWithAi/completeRunReservation/
     // cancelRun에서 재사용). COMPLETED로 처음 전환되는 순간에만 completedAt을 채운다.
-    private static void applyAiStatus(VcaAssessmentRunEntity run, VcaAiAssessmentRun aiStatus) {
+    private static void applyAiStatus(AssessmentRun run, VcaAiAssessmentRun aiStatus) {
         run.setStatus(aiStatus.status());
         run.setCurrentStage(aiStatus.currentStage());
         run.setStages(toRunStages(aiStatus.stages()));
@@ -1413,12 +1413,12 @@ public class VcaService {
     // Spring이 관리하는 imageStore에서 다시 구성하고, recommendation도 findings로부터 파생시킨다.
     private ReportResponse toReport(
             VcaArtifactEntity artifact,
-            VcaAssessmentRunEntity run,
+            AssessmentRun run,
             VcaAiAssessmentReport aiReport
     ) {
         List<ReportResponse.Image> reportImages = imageStore.findByArtifactId(artifact.getId()).stream()
                 .filter(image -> "UPLOADED".equals(image.getStatus()))
-                .sorted(Comparator.comparingInt(VcaUploadedImageEntity::getDisplayOrder))
+                .sorted(Comparator.comparingInt(UploadedImage::getDisplayOrder))
                 .map(image -> new ReportResponse.Image(
                         image.getId().toString(),
                         image.getFilename(),
@@ -1529,7 +1529,7 @@ public class VcaService {
     }
 
     // 도자기 검사 AI(별도 서비스, pottery_inspection_ai)를 대표 이미지 1장으로 호출.
-    private ReportResponse.PotteryInspection inspectPottery(VcaUploadedImageEntity primaryImage) {
+    private ReportResponse.PotteryInspection inspectPottery(UploadedImage primaryImage) {
         PotteryInspectionResponseDto response = potteryInspectionAiClient.get().inspect(
                 toMultipartFile(primaryImage),
                 POTTERY_INSPECTION_CALLS,
@@ -1552,13 +1552,13 @@ public class VcaService {
 
     // 저장된 이미지 바이트(S3 또는 로컬)를 도자기 검사 클라이언트가 요구하는 MultipartFile
     // 형태로 재구성한다(StoredImageMultipartFile 어댑터 사용).
-    private MultipartFile toMultipartFile(VcaUploadedImageEntity image) {
+    private MultipartFile toMultipartFile(UploadedImage image) {
         return new StoredImageMultipartFile(image.getFilename(), image.getMediaType(), imageBytes(image));
     }
 
     // 저장된 이미지의 원본 바이트를 읽는다(S3 objectKey 또는 로컬 폴백 경로).
     // toMultipartFile(도자기 검사)과 renderAndStorePdf(리포트 PDF)가 공유한다.
-    private byte[] imageBytes(VcaUploadedImageEntity image) {
+    private byte[] imageBytes(UploadedImage image) {
         try {
             if (image.getObjectKey() != null && imageStorage.isPresent()) {
                 return imageStorage.get().read(image.getObjectKey(), image.getFilename(), image.getMediaType()).bytes();
@@ -1594,7 +1594,7 @@ public class VcaService {
 
     // 요청 본문에 material이 지정되어 있으면 run에 저장된 기존 값을 덮어쓴다(부수효과 있음).
     // 지정하지 않으면 run 생성 시 저장했던 material을 그대로 사용.
-    private static String potteryMaterial(PotteryInspectionRequest request, VcaAssessmentRunEntity run) {
+    private static String potteryMaterial(PotteryInspectionRequest request, AssessmentRun run) {
         if (request != null && request.material() != null && !request.material().isBlank()) {
             run.setMaterial(request.material());
         }
@@ -1617,7 +1617,7 @@ public class VcaService {
 
     // 리포트가 아직 저장되지 않았다면(reportStore에 없다면) 그 시점에 한 번 만들어 저장한다.
     // preparePotteryInspection에서 도자기 검사 전에 리포트 존재를 보장하기 위해 호출됨(멱등).
-    private void ensureReportReady(VcaArtifactEntity artifact, VcaAssessmentRunEntity run) {
+    private void ensureReportReady(VcaArtifactEntity artifact, AssessmentRun run) {
         if (reportStore.findById(run.getId()).isPresent()) {
             return;
         }
@@ -1648,7 +1648,7 @@ public class VcaService {
     // 저장된 리포트에 run이 들고 있는 최신 도자기 검사 결과/상태를 덮어씌워 반환.
     private ReportResponse withPotteryInspectionState(
             ReportResponse report,
-            VcaAssessmentRunEntity run
+            AssessmentRun run
     ) {
         return new ReportResponse(
                 report.assessmentRunId(),
@@ -1676,7 +1676,7 @@ public class VcaService {
     // 도자기 검사 결과를 저장(신규 생성 또는 재시도 시 같은 run의 기존 row 덮어쓰기).
     private void savePotteryResult(UUID assessmentRunId, ReportResponse.PotteryInspection potteryInspection) {
         UUID id = potteryResultStore.findByAssessmentRunId(assessmentRunId)
-                .map(InspectionResultPotteryEntity::getId)
+                .map(InspectionResultPottery::getId)
                 .orElseGet(UUID::randomUUID);
         Map<String, Object> storedDetail = new LinkedHashMap<>();
         if (potteryInspection.detail() != null) {
@@ -1684,7 +1684,7 @@ public class VcaService {
         }
         storedDetail.put(DETAIL_MODULE_VERSION_KEY, potteryInspection.moduleVersion());
         storedDetail.put(DETAIL_SUMMARY_KEY, potteryInspection.summary());
-        potteryResultStore.save(InspectionResultPotteryEntity.builder()
+        potteryResultStore.save(InspectionResultPottery.builder()
                 .id(id)
                 .assessmentRunId(assessmentRunId)
                 .inspectionText(potteryInspection.inspectionText())
@@ -1714,12 +1714,12 @@ public class VcaService {
 
     // 리포트를 저장/갱신. 기존 리포트가 있으면 최초 createdAt은 보존하고 updatedAt만 새로 찍는다
     // (재저장 시 생성 시각이 덮어써지지 않도록 하는 부분이 핵심).
-    private void saveReport(VcaAssessmentRunEntity run, ReportResponse report) {
+    private void saveReport(AssessmentRun run, ReportResponse report) {
         Instant now = Instant.now();
         Instant createdAt = reportStore.findById(run.getId())
-                .map(VcaAssessmentReportEntity::getCreatedAt)
+                .map(AssessmentReport::getCreatedAt)
                 .orElse(now);
-        reportStore.save(VcaAssessmentReportEntity.builder()
+        reportStore.save(AssessmentReport.builder()
                 .assessmentRunId(run.getId())
                 .reportJson(report)
                 .status(report.status())
@@ -1733,7 +1733,7 @@ public class VcaService {
 
     private ReportResponse findReport(UUID assessmentRunId) {
         return reportStore.findById(assessmentRunId)
-                .map(VcaAssessmentReportEntity::getReportJson)
+                .map(AssessmentReport::getReportJson)
                 .orElse(null);
     }
 
@@ -1748,7 +1748,7 @@ public class VcaService {
         Map<String, String> imageIdBySha256 = imageStore.findByArtifactId(artifact.getId()).stream()
                 .filter(image -> image.getContentSha256() != null)
                 .collect(Collectors.toMap(
-                        VcaUploadedImageEntity::getContentSha256,
+                        UploadedImage::getContentSha256,
                         image -> image.getId().toString(),
                         (first, second) -> first
                 ));
@@ -1822,7 +1822,7 @@ public class VcaService {
 
     // 아티팩트 종합 상태 계산. ANALYZING > ASSESSED > READY > DRAFT 순으로 우선순위를 두고
     // 가장 먼저 해당하는 조건으로 판정한다(여러 run이 섞여 있어도 이 순서로 단순화).
-    private String artifactStatus(List<VcaAssessmentRunEntity> runs, List<VcaUploadedImageEntity> images) {
+    private String artifactStatus(List<AssessmentRun> runs, List<UploadedImage> images) {
         if (runs.stream().anyMatch(run ->
                 "QUEUED".equals(run.getStatus()) || "RUNNING".equals(run.getStatus()))) {
             return "ANALYZING";
@@ -1866,7 +1866,7 @@ public class VcaService {
                 });
     }
 
-    private VcaUploadedImageEntity requireImage(VcaArtifactEntity artifact, UUID imageId) {
+    private UploadedImage requireImage(VcaArtifactEntity artifact, UUID imageId) {
         return imageStore.findById(imageId)
                 .filter(image -> image.getArtifactId().equals(artifact.getId()))
                 .orElseThrow(() -> new VcaApiException(
@@ -1876,7 +1876,7 @@ public class VcaService {
                 ));
     }
 
-    private VcaAssessmentRunEntity requireRun(VcaArtifactEntity artifact, String assessmentRunId) {
+    private AssessmentRun requireRun(VcaArtifactEntity artifact, String assessmentRunId) {
         UUID id = validateUuid(assessmentRunId, "assessmentRunId");
         return runStore.findById(id)
                 .filter(run -> run.getArtifactId().equals(artifact.getId()))
@@ -1887,14 +1887,14 @@ public class VcaService {
                 ));
     }
 
-    private VcaReportPdfJobEntity requirePdfJob(VcaArtifactEntity artifact, String jobId) {
+    private ReportPdfJob requirePdfJob(VcaArtifactEntity artifact, String jobId) {
         UUID id = validateUuid(jobId, "jobId");
-        VcaReportPdfJobEntity job = pdfJobStore.findById(id).orElseThrow(() -> new VcaApiException(
+        ReportPdfJob job = pdfJobStore.findById(id).orElseThrow(() -> new VcaApiException(
                 HttpStatus.NOT_FOUND,
                 "PDF_JOB_NOT_FOUND",
                 "The requested VCA report PDF job was not found."
         ));
-        VcaAssessmentRunEntity run = runStore.findById(job.getAssessmentRunId()).orElseThrow(() -> new VcaApiException(
+        AssessmentRun run = runStore.findById(job.getAssessmentRunId()).orElseThrow(() -> new VcaApiException(
                 HttpStatus.NOT_FOUND,
                 "PDF_JOB_NOT_FOUND",
                 "The requested VCA report PDF job was not found."
@@ -1962,7 +1962,7 @@ public class VcaService {
     private String firstUploadedImageUrl(VcaArtifactEntity artifact) {
         return imageStore.findByArtifactId(artifact.getId()).stream()
                 .filter(image -> "UPLOADED".equals(image.getStatus()))
-                .sorted(Comparator.comparingInt(VcaUploadedImageEntity::getDisplayOrder))
+                .sorted(Comparator.comparingInt(UploadedImage::getDisplayOrder))
                 .findFirst()
                 .map(image -> fileGatewayUrl(artifact.getArtifactCode(), image.getContentSha256()))
                 .orElse(null);
@@ -1985,15 +1985,15 @@ public class VcaService {
     }
 
     private record RunReservation(
-            VcaAssessmentRunEntity run,
-            List<VcaUploadedImageEntity> uploadedImages,
+            AssessmentRun run,
+            List<UploadedImage> uploadedImages,
             String resumeFromProjectName
     ) {
     }
 
     private record PotteryInspectionTarget(
             boolean applicable,
-            VcaUploadedImageEntity primaryImage,
+            UploadedImage primaryImage,
             boolean alreadyHandled
     ) {
     }
@@ -2076,22 +2076,22 @@ public class VcaService {
         }
     }
 
-    private static final class InMemoryVcaUploadedImageStore implements VcaUploadedImageStore {
-        private final Map<UUID, VcaUploadedImageEntity> byId = new LinkedHashMap<>();
+    private static final class InMemoryUploadedImageStore implements UploadedImageStore {
+        private final Map<UUID, UploadedImage> byId = new LinkedHashMap<>();
 
         @Override
-        public synchronized VcaUploadedImageEntity save(VcaUploadedImageEntity entity) {
+        public synchronized UploadedImage save(UploadedImage entity) {
             byId.put(entity.getId(), entity);
             return entity;
         }
 
         @Override
-        public synchronized Optional<VcaUploadedImageEntity> findById(UUID id) {
+        public synchronized Optional<UploadedImage> findById(UUID id) {
             return Optional.ofNullable(byId.get(id));
         }
 
         @Override
-        public synchronized List<VcaUploadedImageEntity> findByArtifactId(UUID artifactId) {
+        public synchronized List<UploadedImage> findByArtifactId(UUID artifactId) {
             return byId.values().stream()
                     .filter(entity -> entity.getArtifactId().equals(artifactId))
                     .toList();
@@ -2103,11 +2103,11 @@ public class VcaService {
         }
     }
 
-    private static final class InMemoryVcaAssessmentRunStore implements VcaAssessmentRunStore {
-        private final Map<UUID, VcaAssessmentRunEntity> byId = new LinkedHashMap<>();
+    private static final class InMemoryAssessmentRunStore implements AssessmentRunStore {
+        private final Map<UUID, AssessmentRun> byId = new LinkedHashMap<>();
 
         @Override
-        public synchronized VcaAssessmentRunEntity save(VcaAssessmentRunEntity entity) {
+        public synchronized AssessmentRun save(AssessmentRun entity) {
             // Mirrors the real (artifact_id, run_number) DB unique constraint
             // so tests can exercise the race-losing path the same way
             // production does under DataIntegrityViolationException.
@@ -2125,17 +2125,17 @@ public class VcaService {
         }
 
         @Override
-        public synchronized Optional<VcaAssessmentRunEntity> findById(UUID id) {
+        public synchronized Optional<AssessmentRun> findById(UUID id) {
             return Optional.ofNullable(byId.get(id));
         }
 
         @Override
-        public synchronized List<VcaAssessmentRunEntity> findAll() {
+        public synchronized List<AssessmentRun> findAll() {
             return List.copyOf(byId.values());
         }
 
         @Override
-        public synchronized List<VcaAssessmentRunEntity> findByArtifactId(UUID artifactId) {
+        public synchronized List<AssessmentRun> findByArtifactId(UUID artifactId) {
             return byId.values().stream()
                     .filter(entity -> entity.getArtifactId().equals(artifactId))
                     .toList();
@@ -2154,52 +2154,52 @@ public class VcaService {
         }
     }
 
-    private static final class InMemoryVcaAssessmentReportStore implements VcaAssessmentReportStore {
-        private final Map<UUID, VcaAssessmentReportEntity> byId = new LinkedHashMap<>();
+    private static final class InMemoryAssessmentReportStore implements AssessmentReportStore {
+        private final Map<UUID, AssessmentReport> byId = new LinkedHashMap<>();
 
         @Override
-        public synchronized VcaAssessmentReportEntity save(VcaAssessmentReportEntity entity) {
+        public synchronized AssessmentReport save(AssessmentReport entity) {
             byId.put(entity.getAssessmentRunId(), entity);
             return entity;
         }
 
         @Override
-        public synchronized Optional<VcaAssessmentReportEntity> findById(UUID assessmentRunId) {
+        public synchronized Optional<AssessmentReport> findById(UUID assessmentRunId) {
             return Optional.ofNullable(byId.get(assessmentRunId));
         }
     }
 
-    private static final class InMemoryVcaInspectionResultPotteryStore implements VcaInspectionResultPotteryStore {
-        private final Map<UUID, InspectionResultPotteryEntity> byAssessmentRunId = new LinkedHashMap<>();
+    private static final class InMemoryInspectionResultPotteryStore implements InspectionResultPotteryStore {
+        private final Map<UUID, InspectionResultPottery> byAssessmentRunId = new LinkedHashMap<>();
 
         @Override
-        public synchronized InspectionResultPotteryEntity save(InspectionResultPotteryEntity entity) {
+        public synchronized InspectionResultPottery save(InspectionResultPottery entity) {
             byAssessmentRunId.put(entity.getAssessmentRunId(), entity);
             return entity;
         }
 
         @Override
-        public synchronized Optional<InspectionResultPotteryEntity> findByAssessmentRunId(UUID assessmentRunId) {
+        public synchronized Optional<InspectionResultPottery> findByAssessmentRunId(UUID assessmentRunId) {
             return Optional.ofNullable(byAssessmentRunId.get(assessmentRunId));
         }
     }
 
-    private static final class InMemoryVcaReportPdfJobStore implements VcaReportPdfJobStore {
-        private final Map<UUID, VcaReportPdfJobEntity> byId = new LinkedHashMap<>();
+    private static final class InMemoryReportPdfJobStore implements ReportPdfJobStore {
+        private final Map<UUID, ReportPdfJob> byId = new LinkedHashMap<>();
 
         @Override
-        public synchronized VcaReportPdfJobEntity save(VcaReportPdfJobEntity entity) {
+        public synchronized ReportPdfJob save(ReportPdfJob entity) {
             byId.put(entity.getId(), entity);
             return entity;
         }
 
         @Override
-        public synchronized Optional<VcaReportPdfJobEntity> findById(UUID id) {
+        public synchronized Optional<ReportPdfJob> findById(UUID id) {
             return Optional.ofNullable(byId.get(id));
         }
 
         @Override
-        public synchronized Optional<VcaReportPdfJobEntity> findByAssessmentRunId(UUID assessmentRunId) {
+        public synchronized Optional<ReportPdfJob> findByAssessmentRunId(UUID assessmentRunId) {
             return byId.values().stream()
                     .filter(entity -> entity.getAssessmentRunId().equals(assessmentRunId))
                     .findFirst();

@@ -27,7 +27,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class VcaUploadedImageEntity {
+public class UploadedImage {
 
     @Id
     @Column(name = "id")
