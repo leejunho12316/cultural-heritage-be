@@ -26,7 +26,6 @@ build/
 
 .env
 .env.*
-!.env.example
 
 /.env
 /.env.k8s

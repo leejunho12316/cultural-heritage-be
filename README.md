@@ -42,7 +42,7 @@
 | ---------- | ------------- |
 | PostgreSQL | `postgres:16` |
 
-`postgres`(LangGraph 체크포인터 + 앱 DB), `conservation-guide-ai`(FastAPI, 8000), `xray-ai`(FastAPI, 8001), `vca-ai`(Docker 내부 FastAPI), `conservation-backend`(Spring, 8080) 컨테이너로 구성.
+`postgres`(LangGraph 체크포인터 + 앱 DB), `conservation-guide-ai`(FastAPI, 8000), `xray-ai`(FastAPI, 8001), `vca-ai`(FastAPI, 8002), `pottery-inspection-ai`(FastAPI, 8003), `conservation-backend`(Spring, 8080) 컨테이너로 구성.
 
 ---
 
@@ -58,11 +58,12 @@
 | ---------------------- | ------------------------------- | ---- |
 | `conservation-backend` | Spring. 모든 요청의 관문        | 8080 |
 | `xray-ai`              | 결합 엔진, YOLO 탐지, 문안 생성 | 8001 |
-| `vca-ai`               | `vca_v2` real/dry-run 어댑터    | 내부 |
+| `vca-ai`               | `vca_v2` real/dry-run 어댑터    | 8002 |
 
 프론트엔드는 Spring 만 호출한다. AI 서비스를 직접 부르지 않는다.
-`vca-ai`는 host port를 열지 않고 Docker 내부 네트워크에서만 Spring이 호출한다.
-VCA 엔진 소스는 `ai-services/vca-ai/engine`에 포함되어 있어 별도
+`vca-ai`의 8002는 로컬 진단/디버깅용으로 host에 열려 있을 뿐이고,
+실제 요청 경로는 Docker 내부 네트워크로 Spring이 `vca-ai:8000`을 호출하는
+것이다. VCA 엔진 소스는 `ai-services/vca-ai/engine`에 포함되어 있어 별도
 `../vca_v2` 체크아웃 없이 Docker 이미지 안의 `/vca_v2`에서 실행된다.
 
 > `docker compose up` 은 `postgres` 와 `conservation-guide-ai` 도
@@ -84,11 +85,12 @@ VCA 엔진 소스는 `ai-services/vca-ai/engine`에 포함되어 있어 별도
 | 서비스                 | 역할                                          | 포트 |
 | ---------------------- | --------------------------------------------- | ---- |
 | `conservation-backend` | Spring. 모든 요청의 관문                      | 8080 |
-| `vca-ai`               | `vca_v2` 파이프라인 어댑터(FastAPI)           | 내부 |
-| `pottery-inspection-ai`| 도자기 재질 유물 후속 검사(완전성/유약/시대/문양) | 내부 |
+| `vca-ai`               | `vca_v2` 파이프라인 어댑터(FastAPI)           | 8002 |
+| `pottery-inspection-ai`| 도자기 재질 유물 후속 검사(완전성/유약/시대/문양) | 8003 |
 
-`vca-ai`/`pottery-inspection-ai` 모두 host port를 열지 않고 Docker
-내부 네트워크에서만 Spring이 호출한다.
+실제 요청 경로는 Spring이 Docker 내부 네트워크로 `vca-ai:8000`/
+`pottery-inspection-ai:8000`을 호출하는 것이다. 위 8002/8003 host port는
+로컬 진단/디버깅(`curl localhost:8002/health` 등)용으로만 열려 있다.
 
 ### 분석 흐름
 

@@ -121,6 +121,8 @@ services:
       UV_PROJECT_ENVIRONMENT: /opt/vca-uv-env
       UV_CACHE_DIR: /opt/vca-uv-cache
       UV_FROZEN: "true"
+    ports:
+      - "8002:8000"
     volumes:
       - ./shared:/shared
       - ./shared/vca/engine-output:/vca_v2/output
