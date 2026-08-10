@@ -127,8 +127,8 @@ erDiagram
 
 | 테이블 | 소유 파트 | report-ai 연동 |
 |---|---|---|
-| `xray_job` / `xray_defect` | X-ray | ✅ [[XraySourceAdapter]] |
-| `assessment_run` / `inspection_result_pottery` | 육안조사 | ✅ [[PotterySourceAdapter]] |
+| `xray_job` / `xray_defect` | X-ray | ✅ `XraySourceAdapter` |
+| `assessment_run` / `inspection_result_pottery` | 육안조사 | ✅ `PotterySourceAdapter` |
 | `assessment_report` | 보고서(공용) | report-ai가 만드는 `report_json`의 **저장처** — 아직 실제 저장 로직은 없음(호출자가 만들어 받기만 함) |
 | `uploaded_image` | 공용(사진) | 미연동 — `.docx` 사진은 아직 호출자가 base64로 직접 인코딩해서 넘김 |
 | `report_pdf_job` | 보고서(공용) | 이름이 "PDF"라 Word로 확정된 것과 불일치 — 팀 확인 필요 |
