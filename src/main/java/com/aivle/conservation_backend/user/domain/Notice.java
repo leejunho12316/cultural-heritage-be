@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Getter
@@ -24,6 +26,9 @@ public class Notice {
 
     @Column(name = "is_pinned", nullable = false)
     private boolean isPinned;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     @Builder
     public Notice(String title, String content, Boolean isPinned){
