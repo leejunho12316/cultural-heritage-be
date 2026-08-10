@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import uuid
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Any, Iterator
 
 import psycopg2
@@ -46,6 +47,7 @@ def upsert_s3_file(
     schema = os.getenv("DB_SCHEMA", "public")
     table = os.getenv("S3_FILE_TABLE", "s3_file")
     available = _columns(conn, schema, table)
+    now = datetime.now(timezone.utc)
 
     values: dict[str, Any] = {
         "id": str(uuid.uuid4()),
@@ -59,19 +61,27 @@ def upsert_s3_file(
         "size_bytes": size_bytes,
         "etag": etag,
         "status": "COMPLETED",
+        "created_at": now,
+        "updated_at": now,
     }
     insert_values = {key: value for key, value in values.items() if key in available}
     required = {"id", "artifact_id", "module_type", "usage_name", "s3_key"}
     missing = required - insert_values.keys()
     if missing:
-        raise RuntimeError(
-            f"{schema}.{table} is missing required columns: {sorted(missing)}"
-        )
+        raise RuntimeError(f"{schema}.{table} is missing required columns: {sorted(missing)}")
 
     update_names = [
         name
         for name in insert_values
-        if name not in {"id", "s3_key", "artifact_id", "module_type", "usage_name"}
+        if name
+        not in {
+            "id",
+            "s3_key",
+            "artifact_id",
+            "module_type",
+            "usage_name",
+            "created_at",
+        }
     ]
     assignments = [
         sql.SQL("{} = EXCLUDED.{}").format(sql.Identifier(name), sql.Identifier(name))
@@ -80,7 +90,9 @@ def upsert_s3_file(
     if "updated_at" in available:
         assignments.append(sql.SQL("updated_at = CURRENT_TIMESTAMP"))
 
-    query = sql.SQL("INSERT INTO {}.{} ({}) VALUES ({}) ON CONFLICT (s3_key) DO UPDATE SET {}").format(
+    query = sql.SQL(
+        "INSERT INTO {}.{} ({}) VALUES ({}) ON CONFLICT (s3_key) DO UPDATE SET {}"
+    ).format(
         sql.Identifier(schema),
         sql.Identifier(table),
         sql.SQL(", ").join(map(sql.Identifier, insert_values.keys())),

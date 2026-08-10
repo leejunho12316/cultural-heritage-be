@@ -7,6 +7,8 @@ import com.aivle.conservation_backend.xray_api.dto.XrayStitchCallbackRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.PrepareRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.PrepareResponse;
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.ReconcileResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.SourceResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.SourceTarget;
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.StartRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.UrlResponse;
 import com.aivle.conservation_backend.xray_api.service.XrayStitchService;
@@ -30,6 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.stream.IntStream;
 
 @RestController
 @RequestMapping("/api/xray/stitch")
@@ -123,6 +126,16 @@ public class XrayStitchController {
                 stitchService.getLayoutUrl(jobId),
                 XrayS3Keys.layout(job.artifactId())
         ));
+    }
+
+    @GetMapping(value = "/jobs/{jobId}/sources", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<SourceResponse> getSourceUrls(@PathVariable String jobId) {
+        List<String> fileNames = stitchService.getOrderedXraySourceFileNames(jobId);
+        List<String> urls = stitchService.getOrderedXraySourceUrls(jobId);
+        List<SourceTarget> sources = IntStream.range(0, fileNames.size())
+                .mapToObj(index -> new SourceTarget(index, fileNames.get(index), urls.get(index)))
+                .toList();
+        return ResponseEntity.ok(new SourceResponse(sources));
     }
 
     @GetMapping(value = "/jobs/{jobId}/report", produces = MediaType.APPLICATION_JSON_VALUE)
