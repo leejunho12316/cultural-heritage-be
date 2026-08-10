@@ -117,10 +117,6 @@ ai-services/conservation-guide-ai/app/restoration_rag/documents/*
 # xray-ai
 # ============================================================
 
-ai-services/xray-ai/models/*.pt
-ai-services/xray-ai/models/*.pt*
-ai-services/xray-ai/models/*.pth
-
 ai-services/xray-ai/samples/
 ai-services/xray-ai/test_output/
 
