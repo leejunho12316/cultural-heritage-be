@@ -68,21 +68,19 @@ def upsert_s3_file(
     required = {"id", "artifact_id", "module_type", "usage_name", "s3_key"}
     missing = required - insert_values.keys()
     if missing:
-        raise RuntimeError(
-            f"{schema}.{table} is missing required columns: {sorted(missing)}"
-        )
+        raise RuntimeError(f"{schema}.{table} is missing required columns: {sorted(missing)}")
 
     update_names = [
         name
         for name in insert_values
-        if name not in {
+        if name
+        not in {
             "id",
             "s3_key",
             "artifact_id",
             "module_type",
             "usage_name",
             "created_at",
-            "updated_at",
         }
     ]
     assignments = [
@@ -92,7 +90,9 @@ def upsert_s3_file(
     if "updated_at" in available:
         assignments.append(sql.SQL("updated_at = CURRENT_TIMESTAMP"))
 
-    query = sql.SQL("INSERT INTO {}.{} ({}) VALUES ({}) ON CONFLICT (s3_key) DO UPDATE SET {}").format(
+    query = sql.SQL(
+        "INSERT INTO {}.{} ({}) VALUES ({}) ON CONFLICT (s3_key) DO UPDATE SET {}"
+    ).format(
         sql.Identifier(schema),
         sql.Identifier(table),
         sql.SQL(", ").join(map(sql.Identifier, insert_values.keys())),
