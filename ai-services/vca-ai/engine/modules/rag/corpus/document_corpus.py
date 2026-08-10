@@ -90,9 +90,8 @@ class DocumentCorpusConfig:
     extraction_cache: CacheFallback | None = None
 
 
-# 소스 루트 바로 아래 PDF만 훑는다(하위 디렉터리 재귀 없음). build_document_corpus
-# 와 startup_corpus_cache._source_fingerprint 둘 다 동일한 목록을 얻기 위해
-# 이 함수를 호출한다.
+# 소스 루트 바로 아래 PDF만 훑는다(하위 디렉터리 재귀 없음). build_document_corpus가
+# 코퍼스를 새로 빌드할 때 이 함수로 대상 목록을 얻는다.
 def discover_document_pdfs(source_root: Path) -> tuple[Path, ...]:
     """Return source PDFs in stable relative-path order."""
     return tuple(

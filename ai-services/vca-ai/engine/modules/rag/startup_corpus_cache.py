@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from hashlib import sha256
 from pathlib import Path, PurePath
 from typing import Final
 
@@ -16,7 +15,6 @@ from modules.rag.corpus.document_corpus import (
     PdfTextExtractor,
     build_document_corpus,
     corpus_metadata_records,
-    discover_document_pdfs,
 )
 from modules.shared import (
     ContractValidationError,
@@ -33,7 +31,6 @@ from modules.shared.json_object import (
 
 CACHE_ROOT_NAME: Final = "rag"
 CORPUS_CACHE_NAME: Final = "document_corpus_metadata.jsonl"
-CORPUS_FINGERPRINT_NAME: Final = "document_corpus_fingerprint.json"
 DOCUMENT_CORPUS_DIR_ENV: Final = "VCA_DOCUMENT_CORPUS_DIR"
 
 
@@ -46,87 +43,39 @@ class _WriteBoundary:
 # startup_runner._locked_corpus_vector_index가 락을 잡은 상태에서 호출하는
 # 코퍼스 메타데이터 진입점. 캐시 재사용 조건은 아래 docstring 참고.
 def startup_corpus_rows(model_cache_root: Path) -> tuple[CorpusMetadataRow, ...]:
-    """Reuse a cached corpus build only when the source PDF set is unchanged.
+    """Reuse a cached corpus build whenever one already exists.
 
-    The source directory is fingerprinted by each PDF's relative path, size,
-    and mtime. Any addition, removal, or in-place content change flips the
-    fingerprint and forces a full rebuild, so a stale cache can never be
-    served silently; the fingerprint check only ever skips work, it never
-    changes what the freshly-built corpus would have contained.
+    Cache freshness is not auto-detected against the source PDFs (no
+    fingerprint/mtime comparison) - once document_corpus_metadata.jsonl
+    exists and parses, it is trusted as-is. Refreshing the corpus is an
+    explicit operator action: delete the cache file (or the whole `rag/`
+    cache directory) and rerun so this falls through to a full rebuild.
     """
     _guard_model_cache_root(model_cache_root)
     config = _document_corpus_config(model_cache_root)
     cache_path = _corpus_cache_path(model_cache_root, config)
-    fingerprint_path = _corpus_fingerprint_path(model_cache_root, config)
     boundary = _WriteBoundary(model_cache_root, config.source_root)
-    fingerprint = _source_fingerprint(config.source_root)
-    cached_rows = _cached_rows_if_fresh(cache_path, fingerprint_path, fingerprint)
+    cached_rows = _cached_rows_if_present(cache_path)
     if cached_rows is not None:
         return cached_rows
     rows = build_document_corpus(config, PdfTextExtractor())
     _write_corpus_cache(cache_path, rows, boundary)
-    _write_fingerprint(fingerprint_path, fingerprint, boundary)
     return rows
 
 
-# 소스 디렉터리 전체의 상태를 하나의 해시로 요약한다. startup_corpus_rows가
-# 캐시 유효성을 판단하는 기준이 되며, 내용까지는 읽지 않고 경로/크기/mtime만
-# 본다(빠르지만 mtime을 보존한 내용 변경은 놓칠 수 있음).
-def _source_fingerprint(source_root: Path) -> str:
-    # Relative paths can contain lone UTF-16 surrogates on POSIX (pathlib
-    # decodes unrepresentable filename bytes with surrogateescape). This
-    # hash only needs a stable byte representation, so pass surrogates
-    # through instead of raising.
-    entries: list[str] = []
-    for relative_path in discover_document_pdfs(source_root):
-        pdf_stat = (source_root / relative_path).stat()
-        entries.append(f"{relative_path}\t{pdf_stat.st_size}\t{pdf_stat.st_mtime_ns}")
-    payload = "\n".join(entries)
-    return sha256(payload.encode("utf-8", errors="surrogatepass")).hexdigest()
-
-
-def _corpus_fingerprint_path(
-    model_cache_root: Path, config: DocumentCorpusConfig
-) -> Path:
-    fallback = CacheFallback(
-        allowed_root=model_cache_root,
-        root=model_cache_root / CACHE_ROOT_NAME,
-        relative_path=PurePath(CORPUS_FINGERPRINT_NAME),
-    )
-    return safe_cache_target(config.source_root, fallback)
-
-
-# 캐시/지문 파일이 모두 존재하고 지문이 현재 소스 상태와 일치할 때만 캐시된
-# 행을 돌려준다. 그 외 모든 경우(파일 없음, 지문 불일치, 파싱 실패)는 캐시
-# 미스로 취급해 startup_corpus_rows가 다시 빌드하게 한다.
-def _cached_rows_if_fresh(
-    cache_path: Path, fingerprint_path: Path, current_fingerprint: str
+# 캐시 파일이 존재하고 파싱 가능할 때만 캐시된 행을 돌려준다. 그 외 모든
+# 경우(파일 없음, 파싱 실패, 빈 내용)는 캐시 미스로 취급해
+# startup_corpus_rows가 소스 PDF에서 다시 빌드하게 한다 - 소스 PDF가
+# 그새 바뀌었는지는 더 이상 확인하지 않는다(명시적 삭제로만 갱신).
+def _cached_rows_if_present(
+    cache_path: Path,
 ) -> tuple[CorpusMetadataRow, ...] | None:
-    if not cache_path.is_file() or not fingerprint_path.is_file():
-        return None
-    try:
-        stored = parse_json_object_for_field(
-            fingerprint_path.read_text(encoding="utf-8"),
-            "document_corpus_fingerprint",
-        )
-    except (OSError, ContractValidationError):
-        return None
-    if stored.get("fingerprint") != current_fingerprint:
+    if not cache_path.is_file():
         return None
     try:
         return _read_cached_rows(cache_path)
     except (OSError, ContractValidationError):
         return None
-
-
-def _write_fingerprint(path: Path, fingerprint: str, boundary: _WriteBoundary) -> None:
-    payload = (
-        json.dumps({"fingerprint": fingerprint}, sort_keys=True, separators=(",", ":"))
-        + "\n"
-    )
-    _guard_write_directory(path.parent, boundary)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _write_text_atomic(path, payload, boundary)
 
 
 def _read_cached_rows(cache_path: Path) -> tuple[CorpusMetadataRow, ...]:

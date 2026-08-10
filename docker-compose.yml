@@ -117,6 +117,7 @@ services:
       VCA_MODEL_CACHE_ROOT: /opt/vca-models/models
       VCA_DOCUMENT_CORPUS_DIR: /opt/vca-data/document
       VCA_BOOTSTRAP_MODELS: ${VCA_BOOTSTRAP_MODELS:-false}
+      VCA_RAG_CORPUS_ARCHIVE_URL: ${VCA_RAG_CORPUS_ARCHIVE_URL:-}
       UV_PROJECT_ENVIRONMENT: /opt/vca-uv-env
       UV_CACHE_DIR: /opt/vca-uv-cache
       UV_FROZEN: "true"
@@ -195,6 +196,14 @@ services:
         condition: service_started
     ports:
       - "8080:8080"
+    volumes:
+      # VcaS3ImageStorage.materializeRunInput가 VCA_SHARED_STORAGE_ROOT
+      # (/shared/vca/input-store) 밑에 run 입력 이미지를 실제 로컬 파일로
+      # 써야 vca-ai 컨테이너가 같은 호스트 디렉터리(./shared/vca/input-store →
+      # /vca_v2/output/input)에서 읽을 수 있다. 이 마운트가 없으면 컨테이너
+      # 자체 파일시스템에만 쓰고 사라져서, vca-ai가 "폴더 없음"으로 매번
+      # 400을 던진다 - S3에 이미지가 있어도 이 로컬 핸드오프 단계는 필요하다.
+      - ./shared:/shared
 
 volumes:
   pgdata:

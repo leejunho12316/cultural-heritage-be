@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path, PurePath
 from typing import TYPE_CHECKING
 
 import pytest
@@ -15,7 +14,7 @@ from modules.rag.startup_corpus_cache import startup_corpus_rows
 from modules.shared import ContractValidationError, PathSafetyError
 
 if TYPE_CHECKING:
-    import os
+    from pathlib import Path
 
     from modules.rag.corpus.document_corpus import (
         DocumentCorpusConfig,
@@ -60,11 +59,12 @@ def _write_cached_corpus(model_cache_root: Path) -> None:
     _ = cache_path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def test_startup_corpus_rows_rebuilds_when_metadata_cache_exists(
+def test_startup_corpus_rows_reuses_existing_metadata_cache_unconditionally(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Given: cached source-backed corpus metadata exists from an earlier run.
+    # Given: cached source-backed corpus metadata exists from an earlier run
+    # (no fingerprint sidecar - that concept no longer exists).
     monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", "unused-in-tests")
     model_cache_root = tmp_path / "models"
     _write_cached_corpus(model_cache_root)
@@ -87,9 +87,9 @@ def test_startup_corpus_rows_rebuilds_when_metadata_cache_exists(
     # When: startup asks for corpus rows.
     rows = startup_corpus_rows(model_cache_root)
 
-    # Then: rows are rebuilt from source instead of read from metadata cache.
+    # Then: the existing cache is trusted as-is, no rebuild happens.
     assert rows == (_corpus_row(),)
-    assert calls == 1
+    assert calls == 0
 
 
 def test_startup_corpus_rows_writes_cache_after_local_build(
@@ -183,11 +183,11 @@ def test_startup_corpus_rows_uses_configured_document_source_root(
     assert seen_sources == [source_root]
 
 
-def test_startup_corpus_rows_reuses_cache_when_source_pdfs_unchanged(
+def test_startup_corpus_rows_reuses_cache_across_calls(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Given: a source PDF set that will not change between two calls.
+    # Given: a first call has already built and cached the corpus.
     model_cache_root = tmp_path / "models"
     source_root = tmp_path / "document-corpus"
     monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", str(source_root))
@@ -218,7 +218,7 @@ def test_startup_corpus_rows_reuses_cache_when_source_pdfs_unchanged(
     assert calls == 1
 
 
-def test_startup_corpus_rows_rebuilds_when_source_pdf_is_added(
+def test_startup_corpus_rows_ignores_source_pdf_changes_until_cache_is_deleted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -244,45 +244,20 @@ def test_startup_corpus_rows_rebuilds_when_source_pdf_is_added(
     )
     _ = startup_corpus_rows(model_cache_root)
 
-    # When: a second PDF is added to the source directory before the next call.
+    # When: the source PDF set changes (added/replaced) but the cache is left alone.
     _write_source_pdf(source_root, "b.pdf")
+    _write_source_pdf(source_root, "a.pdf", content=b"replaced-content")
     _ = startup_corpus_rows(model_cache_root)
 
-    # Then: the changed source set forces a full rebuild.
-    assert calls == 2
+    # Then: the changed source is not detected - refreshing is explicit only.
+    assert calls == 1
 
-
-def test_startup_corpus_rows_rebuilds_when_source_pdf_content_changes(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Given: a cached build exists for one source PDF's original content.
-    model_cache_root = tmp_path / "models"
-    source_root = tmp_path / "document-corpus"
-    monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", str(source_root))
-    _write_source_pdf(source_root, "a.pdf", content=b"version-one")
-    calls = 0
-
-    def build_corpus(
-        config: DocumentCorpusConfig,
-        extractor: DocumentTextExtractor,
-    ) -> tuple[CorpusMetadataRow, ...]:
-        nonlocal calls
-        _ = config, extractor
-        calls += 1
-        return (_corpus_row(),)
-
-    monkeypatch.setattr(
-        "modules.rag.startup_corpus_cache.build_document_corpus",
-        build_corpus,
-    )
+    # When: the operator explicitly deletes the cache to force a refresh.
+    cache_path = model_cache_root / "rag" / "document_corpus_metadata.jsonl"
+    cache_path.unlink()
     _ = startup_corpus_rows(model_cache_root)
 
-    # When: the same-named PDF is replaced in place with different content.
-    _write_source_pdf(source_root, "a.pdf", content=b"version-two-is-longer")
-    _ = startup_corpus_rows(model_cache_root)
-
-    # Then: the size change is detected and the corpus is rebuilt, not served stale.
+    # Then: the deletion is what triggers the rebuild, not the source change itself.
     assert calls == 2
 
 
@@ -352,7 +327,7 @@ def test_startup_corpus_rows_rebuilds_when_cached_metadata_is_malformed(
     cache_path = model_cache_root / "rag" / "document_corpus_metadata.jsonl"
     _ = cache_path.write_text("not json\n", encoding="utf-8")
 
-    # When: startup asks for corpus rows again with a matching fingerprint.
+    # When: startup asks for corpus rows again.
     rows = startup_corpus_rows(model_cache_root)
 
     # Then: the unreadable cache is treated as a miss rather than propagating.
@@ -473,65 +448,3 @@ def test_startup_corpus_rows_rejects_symlinked_model_parent_before_mkdir(
     with pytest.raises(PathSafetyError):
         _ = startup_corpus_rows(model_cache_root)
     assert not (external_parent / "models").exists()
-
-
-def test_startup_corpus_rows_fingerprints_relative_paths_with_lone_surrogates(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Given: a discovered relative path containing a lone UTF-16 surrogate.
-    # Real filenames can decode to this under POSIX surrogateescape
-    # handling (macOS/APFS rejects creating such a file directly, so the
-    # discovered path and its stat() are faked here instead of using a
-    # real file on disk).
-    model_cache_root = tmp_path / "models"
-    source_root = tmp_path / "document-corpus"
-    source_root.mkdir(parents=True)
-    monkeypatch.setenv("VCA_DOCUMENT_CORPUS_DIR", str(source_root))
-    bad_relative_path = PurePath("broken-\udcff-name.pdf")
-    # A real, validly-named stand-in file with a stable stat() result: the
-    # bad path can't exist on disk (APFS rejects it), and stat()-ing
-    # anything under tmp_path would pick up mtime churn from the cache
-    # writes this test triggers.
-    stat_stand_in = source_root / "stand-in.pdf"
-    _ = stat_stand_in.write_bytes(b"pdf-bytes")
-    real_stat = Path.stat
-
-    def fake_stat(self: Path, *args: object, **kwargs: object) -> os.stat_result:
-        if self.name == bad_relative_path.name:
-            return real_stat(stat_stand_in)
-        return real_stat(self, *args, **kwargs)
-
-    def fake_discover(source_root: Path) -> tuple[PurePath, ...]:
-        _ = source_root
-        return (bad_relative_path,)
-
-    monkeypatch.setattr(
-        "modules.rag.startup_corpus_cache.discover_document_pdfs",
-        fake_discover,
-    )
-    monkeypatch.setattr(Path, "stat", fake_stat)
-    calls = 0
-
-    def build_corpus(
-        config: DocumentCorpusConfig,
-        extractor: DocumentTextExtractor,
-    ) -> tuple[CorpusMetadataRow, ...]:
-        nonlocal calls
-        _ = config, extractor
-        calls += 1
-        return (_corpus_row(),)
-
-    monkeypatch.setattr(
-        "modules.rag.startup_corpus_cache.build_document_corpus",
-        build_corpus,
-    )
-
-    # When: startup fingerprints the source directory twice without changes.
-    first_rows = startup_corpus_rows(model_cache_root)
-    second_rows = startup_corpus_rows(model_cache_root)
-
-    # Then: fingerprinting does not raise and the cache is reused.
-    assert first_rows == (_corpus_row(),)
-    assert second_rows == (_corpus_row(),)
-    assert calls == 1

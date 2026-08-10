@@ -8,6 +8,11 @@ ENV ENGINE_ROOT=/vca_v2 \
     UV_FROZEN=true \
     PYTHONUNBUFFERED=1
 
+# unzip: vca-entrypoint.sh가 RAG 코퍼스 캐시 아카이브(Google Drive에서 받음)를
+# 여기서 풀어 모델 캐시 루트에 채운다.
+RUN apt-get update && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY app/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir uv && pip install --no-cache-dir -r requirements.txt
 
