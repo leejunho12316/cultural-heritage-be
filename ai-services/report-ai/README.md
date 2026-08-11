@@ -186,7 +186,7 @@ DTO/Adapter)가 위 FastAPI 엔드포인트를 감싼 것입니다.
 | 설명 | 보존가이드·X-ray·육안조사 결과를 받아 LangGraph로 `report_json` 생성 (LLM 호출 발생) |
 | Request Body | `{ "artifact_id": string, "relic_info": object, "guide_result": object, "xray_report_text": string, "xray_regions": [ { "region_code": string, "position": string, "review_decision": "damage"\|"normal", "user_note": string } ], "pottery_inspection": { "inspection_text": string, "human_review_recommended": boolean, "detail": object }, "photos": { "<section_key>": [ { "caption": string, "image_base64": string } ] } }` |
 | Response | `report_json` 객체 자체: `{ "report_type": "ceramic_treatment_report", "artifact_id": string, "sections": [ { "key", "title", "fields" } \| { "key", "title", "body" } ] }` |
-| 비고 | `section_key` = `header/pre_investigation/disassembly/cleaning/reinforcement/bonding/restoration/conclusion`. 매번 호출하면 LLM 비용 중복 — 한 번 생성 후 저장해서 재사용 권장 |
+| 비고 | `section_key` = `header/pre_investigation_xray/pre_investigation_visual/disassembly/cleaning/reinforcement/bonding/restoration/conclusion` (`pre_investigation`만 X-ray/육안조사 두 key로 나뉨 — "사진 배치 방식" 참고). 매번 호출하면 LLM 비용 중복 — 한 번 생성 후 저장해서 재사용 권장 |
 
 ### 2. 보고서 생성 + `.docx` 변환 (한 번에)
 
@@ -248,12 +248,27 @@ DTO/Adapter)가 위 FastAPI 엔드포인트를 감싼 것입니다.
 ## 사진 배치 방식
 
 실제 보존처리 보고서 여러 건(국립박물관 보존과학 논문, 발굴조사 보존처리
-보고서 등)을 직접 확인해서 정한 관행입니다: 사진을 문서 끝에 몰아 붙이지
-않고, 관련 단계 서술이 끝나는 지점에 바로 이어 붙입니다. `photos`는
-섹션 title이 아니라 `assemble.py`가 심어둔 안정적인 `key`(header/
-pre_investigation/disassembly/cleaning/reinforcement/bonding/
-restoration/conclusion) 기준으로 매칭합니다 — title 문자열은 LLM마다
-표현이 조금씩 달라질 수 있어 매칭 기준으로 쓰기엔 불안정합니다.
+보고서, 규장각 보고서 등)을 직접 확인해서 정한 관행입니다: 사진을 문서
+끝에 몰아 붙이지 않고, 관련 조사/단계 서술이 끝나는 지점에 바로 이어
+붙입니다. `photos`는 섹션 title이 아니라 안정적인 `key` 기준으로
+매칭합니다 — title 문자열은 LLM마다 표현이 조금씩 달라질 수 있어
+매칭 기준으로 쓰기엔 불안정합니다.
+
+키 목록: `header`/`pre_investigation_xray`/`pre_investigation_visual`/
+`disassembly`/`cleaning`/`reinforcement`/`bonding`/`restoration`/
+`conclusion`.
+
+**`pre_investigation`(처리 전 상태조사)만 예외적으로 세부 key 2개를
+씁니다.** 이 섹션은 X-ray 조사와 육안조사라는 서로 다른 데이터 출처를
+한 섹션 안에서 다뤄서, 예전엔 둘을 하나의 LLM 호출로 묶어 사진도
+`pre_investigation` 키 하나에 다 붙였습니다 — 그 결과 사진이 두 조사
+서술이 **전부 끝난 뒤**에야 붙어서, 참고 보고서들의 관행("문양 서술
+직후 문양 사진, 그다음 다음 항목")과 어긋났습니다(2026-08-11 발견 및
+수정). 지금은 `pre_investigation_node`가 X-ray/육안조사를 각각 독립된
+LLM 호출로 만들어 `report_json`에 `parts` 리스트로 담고, `docx_export`가
+part마다 본문을 쓴 직후 그 part의 key로 사진을 붙입니다 — 그래서
+`photos`도 `pre_investigation`이 아니라 `pre_investigation_xray`/
+`pre_investigation_visual` 두 key로 나눠 보내야 합니다.
 
 ## 실행 방법
 
