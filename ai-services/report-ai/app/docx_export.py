@@ -1,18 +1,36 @@
 """report_json(assemble_node 출력)을 편집 가능한 .docx 파일로 변환한다.
 
-섹션은 두 가지 형태만 온다 (assemble.py 참고):
-  - {"title", "fields": dict, "key"}  -> header 섹션, 표로 렌더링
-  - {"title", "body": str, "key"}     -> LLM이 작성한 섹션, 문단으로 렌더링
+섹션은 세 가지 형태로 온다 (assemble.py 참고):
+  - {"title", "fields": dict, "key"}   -> header 섹션, 표로 렌더링
+  - {"title", "body": str, "key"}      -> LLM이 작성한 섹션, 문단으로 렌더링
     (body는 "\n\n"으로 문단이 구분된 정식 보고서체 텍스트)
+  - {"title", "parts": [...], "key"}   -> 서로 다른 데이터 출처를 한 섹션
+    안에서 나눠 서술해야 하는 경우 (지금은 pre_investigation만 해당:
+    X-ray 조사 part + 육안조사 part). 각 part는
+    {"key", "title", "body"} 형태 - part마다 본문을 쓰고, 그 part의
+    key로 사진을 바로 이어 붙인 다음 다음 part로 넘어간다.
 
 사진 배치 방식은 실제 보존처리 보고서(예: 국립박물관 보존과학 논문,
-문화재청 보존처리 보고서) 여러 건을 직접 확인해서 정했다 - 공통적으로
-사진을 문서 끝에 모아 붙이지 않고, "그림 N. 캡션" 형태로 해당 단계
-서술이 끝나는 지점에 바로 이어 붙인다 (예: "세척" 문단 뒤에 세척 전/후
-사진, 그 다음에 "안정화처리" 문단). 그래서 photos는 섹션 title이 아니라
-assemble.py가 심어둔 안정적인 "key"(header/pre_investigation/disassembly/
-cleaning/reinforcement/bonding/restoration/conclusion)로 매칭해서, 각
-섹션 본문 바로 뒤에 삽입한다.
+문화재청 보존처리 보고서, 규장각 보고서) 여러 건을 직접 확인해서 정했다
+- 공통적으로 사진을 문서 끝에 모아 붙이지 않고, "그림 N. 캡션" 형태로
+해당 조사/단계 서술이 끝나는 지점에 바로 이어 붙인다 (예: "적외선 촬영"
+서술 뒤에 적외선 사진, 그 다음에 "분석결과" 서술 — 세척 문단 뒤에 세척
+전/후 사진, 그 다음에 안정화처리 문단도 마찬가지). photos는 title이
+아니라 assemble.py/각 노드가 심어둔 안정적인 "key"로 매칭한다 - title
+문자열은 LLM마다 표현이 달라질 수 있어 불안정하다.
+
+"parts"가 있는 섹션은 원칙적으로 섹션 자체의 최상위 key(예:
+"pre_investigation")로는 사진을 매칭하지 않는다 - 각 part의 key(예:
+"pre_investigation_xray"/"pre_investigation_visual")로 보내야 정확한
+위치에 붙는다. 섹션 전체가 끝난 뒤에야 사진이 붙던 예전 버그가 바로 이
+구분을 안 두고 섹션 key 하나에 사진을 전부 모아서 생긴 문제였다.
+
+**하위호환**: 아직 옛날 방식대로 "pre_investigation" 키 하나에 사진을
+몰아서 보내는 호출자(2026-08-11 기준 cultural-heritage-fe PR #21)가
+있어서, 그 키로 들어온 사진은 캡션 문구로 육안조사/X-ray를 분류해서
+해당 part에 자동으로 합쳐준다(`_classify_legacy_pre_investigation_photo`
+참고) - 캡션으로도 분류 안 되는 사진은 잃어버리지 않도록 섹션 맨 끝에
+붙인다. 새로 연동하는 호출자는 처음부터 part별 key를 쓰는 게 맞다.
 """
 
 from __future__ import annotations
@@ -123,17 +141,61 @@ def _add_photo_block(doc: Document, photos: list[dict[str, Any]]) -> None:
     doc.add_paragraph()
 
 
+_LEGACY_XRAY_CAPTION_KEYWORDS = ("x-ray", "xray", "엑스레이")
+_LEGACY_VISUAL_CAPTION_KEYWORDS = ("육안", "문양", "visual")
+
+
+def _classify_legacy_pre_investigation_photo(photo: dict[str, Any]) -> str | None:
+    """구버전 호출자가 "pre_investigation" 키 하나에 몰아 보낸 사진을
+    캡션 문구로 X-ray/육안조사 part에 분류한다. 둘 다 안 걸리면 None.
+    """
+    caption = (photo.get("caption") or "").lower()
+    if any(keyword in caption for keyword in _LEGACY_XRAY_CAPTION_KEYWORDS):
+        return "pre_investigation_xray"
+    if any(keyword in caption for keyword in _LEGACY_VISUAL_CAPTION_KEYWORDS):
+        return "pre_investigation_visual"
+    return None
+
+
+def _add_section_with_parts(
+    doc: Document,
+    section: dict[str, Any],
+    photos: dict[str, list[dict[str, Any]]],
+) -> None:
+    parts = section.get("parts") or []
+
+    # 하위호환: 구버전 호출자가 섹션 최상위 key로 보낸 사진을 part별로 분류.
+    leftover: list[dict[str, Any]] = []
+    by_part: dict[str, list[dict[str, Any]]] = {}
+    for photo in photos.get(section.get("key")) or []:
+        target = _classify_legacy_pre_investigation_photo(photo)
+        (by_part.setdefault(target, []) if target else leftover).append(photo)
+
+    for part in parts:
+        part_key = part.get("key")
+        part_title = part.get("title")
+        if part_title:
+            doc.add_heading(part_title, level=2)
+        _add_body_paragraphs(doc, part.get("body") or "")
+        part_photos = list(photos.get(part_key) or []) + by_part.get(part_key, [])
+        _add_photo_block(doc, part_photos)
+
+    # 캡션으로도 분류가 안 된 레거시 사진은 잃어버리지 않도록 섹션 끝에 붙인다.
+    _add_photo_block(doc, leftover)
+
+
 def render_report_docx(
     report_json: dict[str, Any],
     photos: dict[str, list[dict[str, Any]]] | None = None,
 ) -> bytes:
     """report_json -> .docx 바이트. Spring/프론트가 그대로 파일로 내려주면 된다.
 
-    photos: {section_key: [{"caption": str, "image": bytes}, ...]}.
-    section_key는 assemble.py의 SECTION_ORDER 값(header/pre_investigation/
-    disassembly/cleaning/reinforcement/bonding/restoration/conclusion)과
-    맞춰서 넘긴다 - 해당 섹션의 본문 바로 뒤에 사진이 삽입된다. 안 넘기면
-    (None/빈 dict) 기존과 동일하게 텍스트만 생성된다 - 하위 호환 유지.
+    photos: {photo_key: [{"caption": str, "image": bytes}, ...]}. 대부분의
+    photo_key는 assemble.py의 SECTION_ORDER 값(header/disassembly/cleaning/
+    reinforcement/bonding/restoration/conclusion)과 같지만, pre_investigation
+    섹션만 예외로 "pre_investigation_xray"/"pre_investigation_visual" 두
+    key를 쓴다(모듈 docstring 참고). 안 넘기면(None/빈 dict) 기존과 동일하게
+    텍스트만 생성된다 - 하위 호환 유지.
     """
     photos = photos or {}
 
@@ -145,13 +207,14 @@ def render_report_docx(
         title = section.get("title") or ""
         doc.add_heading(title, level=1)
 
-        if "fields" in section:
+        if "parts" in section:
+            _add_section_with_parts(doc, section, photos)
+        elif "fields" in section:
             _add_fields_table(doc, section["fields"] or {})
+            _add_photo_block(doc, photos.get(section.get("key")))
         else:
             _add_body_paragraphs(doc, section.get("body") or "")
-
-        section_photos = photos.get(section.get("key"))
-        _add_photo_block(doc, section_photos)
+            _add_photo_block(doc, photos.get(section.get("key")))
 
     buffer = BytesIO()
     doc.save(buffer)

@@ -67,8 +67,12 @@ class GenerateReportRequest(BaseModel):
     pottery_inspection: dict[str, Any] | None = None  # INSPECTION_RESULT_POTTERY
     # docx에 붙일 사진(작업 전/후, X-ray 원본 등). S3_FILE에서 조회한 이미지를
     # 호출자가 base64로 인코딩해서 넘긴다 - report-ai는 파일을 직접 조회하지 않는다.
-    # 키는 어느 단계 섹션에 붙일지를 나타낸다 - header/pre_investigation/
-    # disassembly/cleaning/reinforcement/bonding/restoration/conclusion.
+    # 키는 어느 단계/조사 항목에 붙일지를 나타낸다 - header/
+    # pre_investigation_xray/pre_investigation_visual/disassembly/cleaning/
+    # reinforcement/bonding/restoration/conclusion. pre_investigation은 X-ray
+    # 조사와 육안조사를 한 섹션 안에서 나눠 서술하므로(docx_export.py 참고)
+    # 사진도 "pre_investigation"이 아니라 이 두 세부 key로 보내야 각 조사
+    # 서술 바로 뒤에 붙는다.
     photos: dict[str, list[PhotoAttachment]] = Field(default_factory=dict)
 
 
