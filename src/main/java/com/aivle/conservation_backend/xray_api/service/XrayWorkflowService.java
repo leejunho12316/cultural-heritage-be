@@ -88,7 +88,7 @@ public class XrayWorkflowService {
             );
         }
         stitchService.requireFinalizedJob(jobIdValue);
-        job.markDetecting();
+        job.markDetectingFragments();
         jobRepository.save(job);
 
         try {
@@ -103,6 +103,9 @@ public class XrayWorkflowService {
                     AnalysisTarget.FRAGMENT,
                     confidence
             );
+
+            job.markDetectingAssembled();
+            jobRepository.save(job);
             XrayDetectionResponse assembled = anomalyClient.detectUrl(
                     "assembled_xray.final.png",
                     stitchService.getFinalAssembledUrl(jobIdValue),
@@ -110,6 +113,9 @@ public class XrayWorkflowService {
                     confidence,
                     null
             );
+
+            job.markMapping();
+            jobRepository.save(job);
             XrayDefectMappingResponse mapping = mappingService.mapDefects(
                     jobIdValue,
                     new XrayDefectMappingRequest(fragments, assembled)

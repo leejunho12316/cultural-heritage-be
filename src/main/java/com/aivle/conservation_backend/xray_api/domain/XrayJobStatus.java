@@ -12,8 +12,19 @@ public enum XrayJobStatus {
     UPLOADING,
     STITCHING,
     STITCHED,
+    /** 이전 버전과 기존 DB 행 호환용 통합 탐지 상태. */
     DETECTING,
+    DETECTING_FRAGMENTS,
+    DETECTING_ASSEMBLED,
+    MAPPING,
     REVIEW_READY,
     COMPLETED,
-    FAILED
+    FAILED;
+
+    public boolean isDetectionInProgress() {
+        return this == DETECTING
+                || this == DETECTING_FRAGMENTS
+                || this == DETECTING_ASSEMBLED
+                || this == MAPPING;
+    }
 }
