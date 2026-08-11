@@ -59,10 +59,28 @@ erDiagram
     ASSESSMENT_RUN ||--o{ INSPECTION_RESULT_POTTERY : "assessment_run_id FK"
     ASSESSMENT_RUN ||--o{ REPORT_PDF_JOB : "assessment_run_id FK"
     XRAY_JOB ||--o{ XRAY_DEFECT : "xray_job_id FK"
+    ARTIFACTS ||--o{ REPORT_DOCUMENT : "artifact_id FK (진짜 FK)"
 
+    REPORT_DOCUMENT {
+        uuid id PK
+        uuid artifact_id FK
+        jsonb report_json "report-ai 산출물 저장처 (report-ai 전용)"
+        string docx_object_key "영구 S3 key, presign은 조회 시점마다 새로 발급"
+    }
+    ARTIFACTS {
+        uuid artifact_id PK
+        string name
+        string category
+        string material
+        string era
+        string weight
+        string bonding_area
+        string treatment_purpose
+        string representative_image_key
+    }
     ASSESSMENT_RUN {
         uuid id PK
-        uuid artifact_id "FK 아님, ARTIFACT 통합 전"
+        uuid artifact_id "FK 아님(ARTIFACTS.artifact_id와 값은 같지만 제약 없음)"
         int run_number "artifact_id+run_number UNIQUE"
         string status "queued/running/completed/failed"
         string material
@@ -117,21 +135,24 @@ erDiagram
     }
 ```
 
-**주의 — `artifact_id`는 대부분 실제 FK가 아닙니다.** `ARTIFACT` 테이블
-통합 전이라 각 테이블이 `artifact_id`(UUID) 컬럼만 들고 있고, DB 레벨
-제약은 없습니다 (`ASSESSMENT_RUN`/`XRAY_JOB`/`UPLOADED_IMAGE`가 각자
-독립적으로 `artifact_id`를 저장). `TASKS`(보존가이드)는 그마저도 없고
-`task_id`가 `artifact_id`와 같은 값이라는 컨벤션에 기대는 것으로
-보이는데, 이 레포 코드만으로는 확정할 수 없습니다 (프론트엔드 확인
-필요).
+**주의 — `artifact_id`는 대부분 실제 FK가 아닙니다.** 2026-08-11에
+`artifacts` 테이블(유물 기본정보)이 생겼지만, 기존 테이블들은 아직 이걸
+FK로 참조하지 않고 각자 독립적으로 `artifact_id`(UUID) 컬럼만 들고
+있습니다(`ASSESSMENT_RUN`/`XRAY_JOB`/`UPLOADED_IMAGE`). `report_document`는
+`artifacts`가 생긴 뒤에 만든 신규 테이블이라 처음부터 진짜 FK로
+연결했습니다. `TASKS`(보존가이드)는 그마저도 없고 `task_id`가
+`artifact_id`와 같은 값이라는 컨벤션에 기대는 것으로 보이는데, 이 레포
+코드만으로는 확정할 수 없습니다(프론트엔드 확인 필요).
 
 | 테이블 | 소유 파트 | report-ai 연동 |
 |---|---|---|
+| `artifacts` | 유물 등록(공용) | ✅ `ArtifactSourceAdapter` |
 | `xray_job` / `xray_defect` | X-ray | ✅ `XraySourceAdapter` |
-| `assessment_run` / `inspection_result_pottery` | 육안조사 | ✅ `PotterySourceAdapter` |
-| `assessment_report` | 보고서(공용) | report-ai가 만드는 `report_json`의 **저장처** — 아직 실제 저장 로직은 없음(호출자가 만들어 받기만 함) |
+| `assessment_run` / `inspection_result_pottery` | 육안조사 | ⚠️ 어댑터(`PotterySourceAdapter`)는 있지만, 이 테이블에 실제로 값을 채워 넣는 코드가 아직 없음(FE `feature/vca_v2_fe`가 준비 중인 `/api/vca/*` BE 엔드포인트가 아직 없음) — BE 작업 진행 중이라 report-ai 쪽은 대기 |
+| `report_document` | **report-ai 전용 신규 테이블** | ✅ report-ai가 만드는 `report_json` + 변환된 `.docx`의 실제 저장처. `assessment_report`(vca 파이프라인 산출물)와는 **별개 테이블** — `assessment_run` 존재 여부와 무관하게 `artifact_id`만으로 저장/조회한다 (2026-08-11 팀 결정) |
+| `assessment_report` | 육안조사(vca, 공용) | report-ai와 무관 — vca 파이프라인 자체 산출물 저장처. 혼동 방지를 위해 report-ai는 이 테이블을 쓰지 않는다 |
 | `uploaded_image` | 공용(사진) | 미연동 — `.docx` 사진은 아직 호출자가 base64로 직접 인코딩해서 넘김 |
-| `report_pdf_job` | 보고서(공용) | 이름이 "PDF"라 Word로 확정된 것과 불일치 — 팀 확인 필요 |
+| `report_pdf_job` | 보고서(공용) | 이름이 "PDF"라 Word로 확정된 것과 불일치 — 팀 확인 필요. report-ai는 `report_document`를 쓰므로 이 테이블은 안 씀 |
 | `tasks` | 보존가이드 | ❌ 미연동 — `task_id`/`artifact_id` 매핑 확인 전까지 어댑터 보류 |
 
 ## 엔드포인트 (FastAPI, report-ai 자체)
@@ -144,10 +165,12 @@ erDiagram
 | `POST /reports/generate/docx` | 생성 + `.docx` 변환을 한 번에 (데모/직접 테스트용) |
 | `POST /reports/docx` | 이미 만들어진 `report_json`을 `.docx`로 변환만 (LLM 재호출 없음) |
 
-운영에서는 `/reports/generate`로 한 번 만든 `report_json`을
-`ASSESSMENT_REPORT`에 저장해두고, 다운로드할 때마다 `/reports/docx`로
-변환만 반복 요청하는 흐름을 권장합니다 (`/reports/generate/docx`를 매번
-호출하면 LLM 비용이 중복 발생합니다).
+운영에서는 `/reports/generate`로 한 번 만든 `report_json`을 Spring이
+`report_document`에 저장해두고(아래 Spring API 명세 6번 `/save`),
+다운로드할 때마다 `/reports/docx`로 변환만 반복 요청하는 흐름을
+권장합니다 (`/reports/generate/docx`를 매번 호출하면 LLM 비용이 중복
+발생합니다). report-ai 자신은 이 저장을 하지 않으므로, 저장은 항상
+Spring 쪽 엔드포인트를 거쳐야 합니다.
 
 ## Spring API 명세 (`/api/reports/*`, 팀이 실제로 호출하는 창구)
 
@@ -193,6 +216,34 @@ DTO/Adapter)가 위 FastAPI 엔드포인트를 감싼 것입니다.
 | 설명 | `xray_job`/`xray_defect`(DAMAGE만)를 report-ai 입력 형태로 변환 |
 | Response | `{ "xray_report_text": string, "xray_regions": [ { "region_code", "position", "review_decision": "damage", "user_note": "" } ] }` |
 | 비고 | job 없음/`artifactId`가 UUID 아님 → 빈 값 반환(에러 아님). 응답을 그대로 1/2번의 `xray_report_text`/`xray_regions`에 채우면 됨. 담당 어댑터: `XraySourceAdapter` |
+
+### 5. 유물 기본정보 조회 (report-ai 입력 형태 변환)
+
+| 항목 | 내용 |
+|---|---|
+| Method / URL | `GET /api/reports/{artifactId}/relic-info-source` |
+| 설명 | `artifacts` 테이블을 report-ai 입력 형태로 변환. `Artifact.era` → `relic_info.period`로 이름만 바뀜(그 외 필드는 이름 동일) |
+| Response | `{ "id": string, "artifact_code": string, "name": string, "material": string, "period": string, "weight": string, "bondingArea": string, "treatmentPurpose": string }` |
+| 비고 | 유물이 없거나 `artifactId`가 UUID 아님 → 빈 객체 반환(에러 아님). 응답을 그대로 1/2번의 `relic_info`에 채우면 됨. 담당 어댑터: `ArtifactSourceAdapter` |
+
+### 6. 보고서 저장 (`report_document`에 실제 저장)
+
+| 항목 | 내용 |
+|---|---|
+| Method / URL | `POST /api/reports/{artifactId}/save` |
+| 설명 | 미리보기까지 끝난 `report_json`을 `.docx`로 변환해 S3에 영구 저장하고, 그 결과를 `report_document`에 기록 (LLM 재호출 없음 — 내부적으로 3번과 같은 변환만 함) |
+| Request Body | `{ "reportJson": object, "photos": { "<section_key>": [ { "caption": string, "image_base64": string } ] } }` |
+| Response `201` | `{ "id": string, "artifactId": string, "reportJson": object, "docxDownloadUrl": string, "createdAt": string, "updatedAt": string }` |
+| 비고 | 유물이 없으면 `404`. `docxDownloadUrl`은 그 시점에 새로 발급한 presigned URL(1시간) — 응답을 캐싱해서 나중에 재사용하면 만료될 수 있음, 매번 7번으로 다시 조회할 것 |
+
+### 7. 저장된 보고서 조회 (게시판 등에서 재조회용)
+
+| 항목 | 내용 |
+|---|---|
+| Method / URL | `GET /api/reports/{artifactId}` |
+| 설명 | 이 유물의 가장 최근 저장 보고서(`report_document`)를 조회 |
+| Response | 6번과 동일한 형태 |
+| 비고 | 저장된 보고서가 없으면 `404` |
 
 ## 사진 배치 방식
 

@@ -44,6 +44,29 @@ public class S3PhotoStorageService {
     }
 
     /*
+     * 생성된 보고서 .docx를 유물별 영구 key로 업로드한다.
+     * 대표 이미지와 같은 패턴: key는 영구 저장하고, URL은 조회 시점에
+     * presignedUrl()로 매번 새로 발급한다.
+     */
+    public String uploadReportDocx(UUID artifactId, byte[] docx) {
+        String key = "artifacts/" + artifactId + "/reports/" + UUID.randomUUID() + ".docx";
+
+        s3Client.putObject(
+                PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(key)
+                        .contentType(
+                                "application/vnd.openxmlformats-officedocument"
+                                        + ".wordprocessingml.document"
+                        )
+                        .build(),
+                RequestBody.fromBytes(docx)
+        );
+
+        return key;
+    }
+
+    /*
      * 유물 대표 이미지 업로드
      */
     public String uploadArtifactRepresentative(

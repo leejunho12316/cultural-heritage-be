@@ -3,13 +3,18 @@ package com.aivle.conservation_backend.report_ai.controller;
 import com.aivle.conservation_backend.report_ai.client.ReportAiClient;
 import com.aivle.conservation_backend.report_ai.dto.DocxRequestDto;
 import com.aivle.conservation_backend.report_ai.dto.GenerateReportRequestDto;
+import com.aivle.conservation_backend.report_ai.dto.ReportDocumentResponseDto;
+import com.aivle.conservation_backend.report_ai.dto.SaveReportRequestDto;
+import com.aivle.conservation_backend.report_ai.service.ArtifactSourceAdapter;
 import com.aivle.conservation_backend.report_ai.service.PotterySourceAdapter;
+import com.aivle.conservation_backend.report_ai.service.ReportDocumentService;
 import com.aivle.conservation_backend.report_ai.service.XraySourceAdapter;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,13 +26,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * 보고서 자동생성 연동 확인용 컨트롤러.
+ * 보고서 자동생성 연동 컨트롤러.
  *
- * X-ray/육안조사 컨트롤러와 마찬가지로 아직 결과를 DB(ASSESSMENT_REPORT)에
- * 저장하지 않고 그대로 반환한다 - 저장 로직은 보존가이드/X-ray/육안조사 각
- * 파트의 실제 DB 연동이 끝난 뒤, 그 결과를 모아 넘기는 형태로 붙일 예정이다.
+ * `save()`/`latest()`만 DB(report_document)에 실제로 저장/조회하고,
+ * 나머지(`generate`/`generate/docx`/`docx`, `*-source`)는 report-ai를
+ * 그대로 감싸거나 각 파트 RDS 결과를 변환해서 보여주기만 한다 - 유물
+ * 기본정보/X-ray는 실제 테이블에서 조회되지만, 보존가이드/육안조사는
+ * 아직 해당 파트 DB 연동이 끝나지 않아 호출자가 직접 채워야 한다
+ * (README 참고).
  */
 @RequiredArgsConstructor
 @RestController
@@ -41,6 +50,45 @@ public class ReportAiController {
     private final ReportAiClient reportAiClient;
     private final XraySourceAdapter xraySourceAdapter;
     private final PotterySourceAdapter potterySourceAdapter;
+    private final ArtifactSourceAdapter artifactSourceAdapter;
+    private final ReportDocumentService reportDocumentService;
+
+    /**
+     * 미리보기까지 끝난 report_json을 .docx로 변환해 S3에 영구 저장하고,
+     * 그 결과를 DB(report_document)에 기록한다 (LLM 재호출 없음).
+     *
+     * assessment_report(vca 파이프라인 산출물)와는 별개 테이블이다 -
+     * 육안조사 실행 여부와 무관하게 유물(artifact_id) 기준으로 저장한다.
+     */
+    @PostMapping("/{artifactId}/save")
+    public ResponseEntity<ReportDocumentResponseDto> save(
+            @PathVariable UUID artifactId,
+            @RequestBody SaveReportRequestDto request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(reportDocumentService.save(artifactId, request));
+    }
+
+    /** 이 유물의 가장 최근 저장 보고서를 조회한다 (게시판 등에서 재조회용). */
+    @GetMapping("/{artifactId}")
+    public ResponseEntity<ReportDocumentResponseDto> latest(@PathVariable UUID artifactId) {
+        return ResponseEntity.ok(reportDocumentService.findLatest(artifactId));
+    }
+
+    /**
+     * 유물 기본정보(`artifacts` 테이블)를 report-ai 입력 형태
+     * (relic_info)로 변환해서 보여준다.
+     *
+     * 다른 source 엔드포인트와 동일하게 generate()의 동작은 바꾸지
+     * 않는 별도 조회용 엔드포인트다. 이 응답을 그대로
+     * GenerateReportRequestDto.relicInfo에 넣으면 된다.
+     */
+    @GetMapping("/{artifactId}/relic-info-source")
+    public ResponseEntity<Map<String, Object>> relicInfoSource(@PathVariable String artifactId) {
+        return artifactSourceAdapter.resolve(artifactId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.ok(Map.of()));
+    }
 
     /**
      * X-ray가 RDS에 저장해둔 결과(XrayJob/XrayDefect)를 report-ai 입력
