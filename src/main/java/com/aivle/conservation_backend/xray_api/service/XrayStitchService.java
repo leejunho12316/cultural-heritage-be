@@ -103,7 +103,7 @@ public class XrayStitchService {
         XrayJob job = jobRepository.findByArtifactId(artifactId)
                 .map(existing -> {
                     if (existing.getStatus() == XrayJobStatus.STITCHING
-                            || existing.getStatus() == XrayJobStatus.DETECTING) {
+                            || existing.getStatus().isDetectionInProgress()) {
                         throw new ResponseStatusException(
                                 HttpStatus.CONFLICT,
                                 "This artifact has an X-ray job currently running: "
@@ -682,7 +682,7 @@ public class XrayStitchService {
     private XrayJob requireCompletedJob(String jobId) {
         XrayJob job = requireJob(parseUuid(jobId, "jobId"));
         if (job.getStatus() != XrayJobStatus.STITCHED
-                && job.getStatus() != XrayJobStatus.DETECTING
+                && !job.getStatus().isDetectionInProgress()
                 && job.getStatus() != XrayJobStatus.REVIEW_READY
                 && job.getStatus() != XrayJobStatus.COMPLETED) {
             throw new IllegalStateException("X-ray stitching result is not ready: " + job.getStatus());
@@ -740,6 +740,9 @@ public class XrayStitchService {
                     ? "Final X-ray layout is ready for defect analysis."
                     : "Automatic X-ray stitching is complete.";
             case DETECTING -> "X-ray defect detection and mapping are running.";
+            case DETECTING_FRAGMENTS -> "Original X-ray fragments are being analyzed.";
+            case DETECTING_ASSEMBLED -> "The final assembled X-ray is being analyzed.";
+            case MAPPING -> "Detected defects are being mapped and merged.";
             case REVIEW_READY -> "X-ray defects are ready for expert review.";
             case COMPLETED -> "X-ray inspection is complete.";
             case FAILED -> "X-ray processing failed.";
