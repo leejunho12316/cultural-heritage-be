@@ -270,6 +270,15 @@ part마다 본문을 쓴 직후 그 part의 key로 사진을 붙입니다 — �
 `photos`도 `pre_investigation`이 아니라 `pre_investigation_xray`/
 `pre_investigation_visual` 두 key로 나눠 보내야 합니다.
 
+**하위호환**: `cultural-heritage-fe` PR #21(2026-08-11 병합)처럼 아직
+구버전 방식대로 `pre_investigation` 키 하나에 사진을 몰아 보내는
+호출자가 있어서, `docx_export`가 그 키로 들어온 사진을 캡션 문구
+("X-ray"/"엑스레이" → X-ray part, "육안"/"문양" → 육안조사 part)로
+자동 분류해서 알맞은 part에 붙여줍니다. 캡션으로도 분류 안 되는
+사진은 잃어버리지 않게 섹션 맨 끝에 붙입니다. 새로 연동하는
+호출자는 처음부터 `pre_investigation_xray`/`pre_investigation_visual`
+키를 직접 쓰는 게 맞고, 이 하위호환은 기존 호출자용 안전장치입니다.
+
 ## 실행 방법
 
 ### ① BE랑 같이, docker-compose로
