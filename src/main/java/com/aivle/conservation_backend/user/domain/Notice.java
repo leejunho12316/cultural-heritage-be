@@ -30,6 +30,11 @@ public class Notice {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
+
     @Builder
     public Notice(String title, String content, Boolean isPinned){
         this.title = title;
