@@ -366,6 +366,18 @@ public class XrayStitchService {
         return toStatusResponse(requireJob(parseUuid(jobId, "jobId")));
     }
 
+    @Transactional(readOnly = true)
+    public XrayJobStatusResponse getLocalJobStatusByArtifactId(String artifactIdValue) {
+        UUID artifactId = parseUuid(artifactIdValue, "artifactId");
+        XrayJob job = jobRepository.findByArtifactId(artifactId).orElseThrow(() ->
+                new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "X-ray job not found for artifact: " + artifactId
+                )
+        );
+        return toStatusResponse(job);
+    }
+
     @Transactional
     public ReconcileResponse reconcile(String jobIdValue) {
         XrayJob job = requireJob(parseUuid(jobIdValue, "jobId"));

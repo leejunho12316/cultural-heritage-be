@@ -104,6 +104,14 @@ public class XrayStitchController {
         return ResponseEntity.ok(stitchService.getLocalJobStatus(jobId));
     }
 
+    /** 화면 재진입 시 artifactId로 기존 X-ray 작업을 복원한다. */
+    @GetMapping(value = "/jobs/by-artifact/{artifactId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<XrayJobStatusResponse> getStatusByArtifactId(
+            @PathVariable String artifactId
+    ) {
+        return ResponseEntity.ok(stitchService.getLocalJobStatusByArtifactId(artifactId));
+    }
+
     @PostMapping(value = "/jobs/{jobId}/reconcile", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ReconcileResponse> reconcile(@PathVariable String jobId) {
         return ResponseEntity.ok(stitchService.reconcile(jobId));
