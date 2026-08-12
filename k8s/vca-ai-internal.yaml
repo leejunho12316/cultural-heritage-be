@@ -1,0 +1,102 @@
+# vca-ai를 클러스터 안에서 직접 돌릴 때만 적용하는 파일. VCA 엔진을 RunPod
+# 등 외부에 위탁하는 경우엔 이 파일을 apply하지 않고, k8s/app.yaml의
+# conservation-backend VCA_AI_BASE_URL만 외부 주소로 바꾼다.
+#
+#   내부 모드: kubectl apply -f k8s/app.yaml -f k8s/vca-ai-internal.yaml
+#             (app.yaml의 VCA_AI_BASE_URL = http://vca-ai:8000)
+#   외부 모드: kubectl apply -f k8s/app.yaml
+#             (app.yaml의 VCA_AI_BASE_URL = 외부 주소로 직접 수정)
+#             이미 내부 모드로 떠있던 걸 외부로 전환하는 거라면
+#             `kubectl delete -f k8s/vca-ai-internal.yaml`로 기존
+#             vca-ai Deployment/Service도 같이 지울 것.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vca-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vca-ai
+  template:
+    metadata:
+      labels:
+        app: vca-ai
+    spec:
+      containers:
+        - name: vca-ai
+          image: 815373273907.dkr.ecr.ap-northeast-2.amazonaws.com/vca-ai:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: VCA_SHARED_STORAGE_ROOT
+              value: "/vca_v2/output/input"
+            - name: VCA_ENGINE_ROOT
+              value: "/vca_v2"
+            - name: VCA_RUN_TIMEOUT_SECONDS
+              value: "3600"
+            - name: VCA_RUN_MODE
+              value: "real"
+            - name: VCA_DEVICE
+              value: "auto"
+            - name: VCA_MAX_IMAGES
+              value: "1"
+            - name: VCA_SKIP_VISUAL_CUES
+              value: "false"
+            - name: VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES
+              value: "false"
+            - name: VCA_MODEL_CACHE_ROOT
+              value: "/opt/vca-models/models"
+            - name: VCA_DOCUMENT_CORPUS_DIR
+              value: "/opt/vca-data/document"
+            # 로컬 docker-compose는 이 값을 true로 켜서 첫 기동 시 모델을
+            # 내려받는다. 운영 이미지에 모델을 미리 구워넣을지, 매 기동마다
+            # 받을지(그럴 경우 vca-model-cache를 emptyDir이 아니라 영속
+            # 볼륨으로 바꿔야 함) 아직 안 정했다 - 일단 false로 두고 미룬다.
+            - name: VCA_BOOTSTRAP_MODELS
+              value: "false"
+            # vca-entrypoint.sh가 models/rag/ 캐시가 없을 때만 이 아카이브를
+            # 받아 채운다. vca-model-cache가 emptyDir(파드 재시작 시 초기화)
+            # 이라 위 VCA_BOOTSTRAP_MODELS와 같은 이유로 매 재시작마다 다시
+            # 받게 된다 - 영속 볼륨 전환 여부는 같이 미정.
+            # 예시 값(현재 로컬 docker-compose .env에서 쓰는 것과 동일):
+            # https://drive.google.com/file/d/1nkYrHJq8NKfGHVPp8xI40YdjkcwC3htM/view?usp=sharing
+            - name: VCA_RAG_CORPUS_ARCHIVE_URL
+              value: ""
+            - name: UV_PROJECT_ENVIRONMENT
+              value: "/opt/vca-uv-env"
+            - name: UV_CACHE_DIR
+              value: "/opt/vca-uv-cache"
+            - name: UV_FROZEN
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: app-secrets
+          # shared-storage(EFS) 없음 — X-ray와 동일하게 S3가 정본이다.
+          # conservation-backend가 업로드 이미지를 EFS로 미리 복사해두는 대신,
+          # presigned GET URL을 assessment-run 생성 요청에 실어 보내면 vca-ai가
+          # 여기서 직접 S3로부터 내려받는다(VcaS3ImageStorage.materializeRunInput,
+          # app/services/remote_io.py 참고). 그래서 output/input 모두 이 Pod
+          # 로컬 디스크(emptyDir)에만 있으면 되고, 다른 Pod와 공유할 필요가 없다.
+          volumeMounts:
+            - name: vca-uv-cache
+              mountPath: /opt/vca-uv-cache
+            - name: vca-model-cache
+              mountPath: /opt/vca-models
+      volumes:
+        - name: vca-uv-cache
+          emptyDir: {}
+        - name: vca-model-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vca-ai
+spec:
+  selector:
+    app: vca-ai
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
