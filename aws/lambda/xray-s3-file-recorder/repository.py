@@ -81,6 +81,7 @@ def upsert_s3_file(
             "module_type",
             "usage_name",
             "created_at",
+            "updated_at",
         }
     ]
     assignments = [
