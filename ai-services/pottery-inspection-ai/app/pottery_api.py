@@ -69,6 +69,7 @@ async def inspect(
     image: UploadFile = File(..., description="유물 사진 파일(jpg/png 등)"),
     n_calls: int = 3,
     use_vlm_pattern: bool = True,
+    treat_as_single_artifact: bool = False,
 ) -> JSONResponse:
     """유물 사진 한 장을 분석해 육안조사 결과를 반환한다.
 
@@ -76,6 +77,12 @@ async def inspect(
     주면 합의 검증 없이 단일 결과만 쓴다 - 빠르지만 신뢰도는 떨어진다.
     use_vlm_pattern: False로 주면 문양 분석(VLM 호출) 자체를 건너뛰고
     형태/광택/시대만 반환한다(비용 절감용).
+    treat_as_single_artifact: 사진에서 서로 떨어진 영역이 여러 개 감지돼
+    "다중 객체 감지"로 한 번 막혔을 때, 사용자가 "이건 하나의 유물이 깨진
+    조각들이다"라고 확인한 뒤 재요청할 때만 True로 보낸다. 기본값(False)이면
+    지금까지처럼 다중 객체는 재촬영 안내로 막는다 - 사진만으로 "다른 유물
+    여러 개"와 "깨진 조각들"을 구분하는 건 근본적으로 애매해서, 자동 판단
+    대신 사람 확인을 받는 쪽을 선택했다.
 
     응답 필드는 ../docs/API_SPEC.md 참고. 소요 시간은 n_calls와 확정된 문양
     수에 따라 달라지며(문양마다 클로즈업 상태조사 호출이 추가로 붙는다),
@@ -104,6 +111,7 @@ async def inspect(
                 tmp_path,
                 use_vlm_pattern=use_vlm_pattern,
                 n_calls=n_calls,
+                treat_as_single_artifact=treat_as_single_artifact,
             )
         except Exception as error:  # noqa: BLE001 - BE에는 원인만 넘기고 트레이스는 로그로
             traceback.print_exc()
@@ -115,6 +123,19 @@ async def inspect(
             os.remove(tmp_path)
 
     if result.get("status") != "성공":
+        if result.get("status") == "다중 객체 감지":
+            # FE가 "재촬영하라"는 일반 에러와 "하나의 유물이 깨진 조각인지
+            # 확인해달라"는 재시도 가능한 상황을 구분할 수 있도록, detail을
+            # 문자열이 아니라 구조화된 값으로 준다.
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "MULTIPLE_OBJECTS_DETECTED",
+                    "message": result.get("reason", "다중 객체 감지"),
+                    "detected_region_count": result.get("detected_region_count"),
+                    "region_groups": result.get("region_groups"),
+                },
+            )
         # 유물 실루엣을 못 찾은 경우 등 - BE가 "재촬영 요청" 같은 UX로
         # 분기할 수 있도록 4xx로 응답한다(서버 쪽 문제가 아니라 입력
         # 사진 자체의 문제일 가능성이 높으므로 500이 아니라 422).

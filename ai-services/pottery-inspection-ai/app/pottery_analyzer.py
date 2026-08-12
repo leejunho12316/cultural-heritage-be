@@ -868,6 +868,7 @@ def analyze_pottery(
     image_path: str,
     use_vlm_pattern: bool = DEFAULT_USE_VLM_PATTERN_ANALYSIS,
     n_calls: int = 3,
+    treat_as_single_artifact: bool = False,
 ) -> tuple[dict[str, Any], Image.Image | None, dict | None]:
     path = Path(image_path)
     if not path.exists():
@@ -888,13 +889,20 @@ def analyze_pottery(
     # 별도 영역으로 잡혔을 수 있으므로 실제 마스크 겹침으로 한 번 더 정리한다.
     regions = _deduplicate_overlapping_regions(regions)
 
-    if len(regions) > 1:
+    if len(regions) > 1 and not treat_as_single_artifact:
         # 발굴 현장에서 흔한 "여러 조각을 늘어놓고 찍은 사진" 케이스.
         # 이 파이프라인은 사진 한 장 = 유물 한 점을 전제로 완전/파편·유약·
         # 시대·문양을 계산하므로, 여러 영역이 잡히면 그중 하나를 임의로
         # 골라 분석하는 대신 재촬영을 안내하고 분석을 중단한다. 조용히
         # 하나만 골라 분석하면, 그 결과가 사진 전체를 대표하는 것처럼
         # 오인될 위험이 크다.
+        #
+        # 다만 "서로 다른 유물 여러 점"과 "하나의 유물이 깨져서 흩어진
+        # 조각들"은 사진만으로 구분이 근본적으로 애매하다(마스크가 안
+        # 닿아있다고 반드시 다른 유물인 건 아니다). 그래서 여기서 자동으로
+        # 판단하지 않고, 사용자에게 확인을 받는다 - 사용자가 "하나의 유물이
+        # 깨진 조각들"이라고 확인하면 treat_as_single_artifact=True로 재요청이
+        # 들어오고, 그때는 아래 블록에서 모든 영역을 하나로 합쳐 분석한다.
         image_bgr_multi = imread_unicode_safe(path)
         region_groups = (
             _group_regions_by_color_similarity(image_bgr_multi, regions)
@@ -916,7 +924,9 @@ def analyze_pottery(
                     f"이 사진에서 서로 떨어진 객체가 {len(regions)}개 감지되었습니다. "
                     "여러 파편이나 여러 점의 유물을 한 사진에 늘어놓고 촬영하신 것으로 "
                     "보입니다. 이 분석기는 사진 한 장에 유물(또는 파편) 하나만 있는 "
-                    "것을 전제로 합니다 - 파편별로 한 장씩 나눠서 다시 촬영해주세요."
+                    "것을 전제로 합니다 - 파편별로 한 장씩 나눠서 다시 촬영해주세요. "
+                    "만약 이 조각들이 전부 하나의 유물이 깨진 것이라면, 그렇게 확인하고 "
+                    "이 사진 그대로 분석을 진행할 수도 있습니다."
                     + group_note
                 ),
                 "detected_region_count": len(regions),
@@ -926,7 +936,18 @@ def analyze_pottery(
             None,
         )
 
-    artifact_mask = np.asarray(regions[0]["mask"], dtype=bool)
+    if len(regions) > 1:
+        # treat_as_single_artifact=True로 재요청된 경우 - 사용자가 이미
+        # "하나의 유물이 깨진 조각들"이라고 확인했으므로, 감지된 모든 영역의
+        # 마스크를 합쳐 하나의 유물로 취급한다. 조각 사이 빈 공간(원래
+        # 있었어야 할 부분)도 완전/파편 판정 계산에 자연스럽게 결손으로
+        # 반영된다 - 조각들을 이어붙인 하나의 외곽선으로 보기 때문이다.
+        artifact_mask = np.zeros_like(np.asarray(regions[0]["mask"], dtype=bool))
+        for region in regions:
+            artifact_mask |= np.asarray(region["mask"], dtype=bool)
+    else:
+        artifact_mask = np.asarray(regions[0]["mask"], dtype=bool)
+
     artifact_area = int(artifact_mask.sum())
     if artifact_area == 0:
         return {"status": "탐지 실패", "reason": "도자기 마스크 면적이 0"}, None, None
@@ -938,6 +959,10 @@ def analyze_pottery(
     base_image = Image.open(path).convert("RGBA")
     width, height = base_image.size
     result: dict[str, Any] = {"status": "성공"}
+    if len(regions) > 1:
+        # 이후 어디서 이 결과를 보든(화면, 보고서) "이건 여러 조각을
+        # 하나로 합쳐서 분석한 결과"라는 걸 알 수 있게 표시해둔다.
+        result["merged_fragment_count"] = len(regions)
     pattern_bundle: dict[str, Any] | None = None
 
     ink_mask = compute_ink_mask(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB), artifact_mask)
