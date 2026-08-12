@@ -22,16 +22,35 @@ _ORDER = [
 ]
 
 
+def _render_section(section: dict[str, Any]) -> str:
+    """섹션 하나를 LLM 컨텍스트용 텍스트로 변환한다.
+
+    일반 섹션은 {title, body} 형태지만, pre_investigation만 육안조사/X-ray
+    두 세부 파트로 나뉘어 {title, parts: [{title, body}, ...]} 형태다
+    (pre_investigation_node 참고 - 한쪽 데이터가 없으면 그 part 자체가
+    빠질 수 있다). 여기서 그 차이를 흡수해서 conclusion_node는 몰라도
+    되게 한다.
+    """
+    parts = section.get("parts")
+    if parts is not None:
+        return "\n\n".join(
+            f"[{part['title']}]\n{part['body']}"
+            for part in parts
+            if part.get("body")
+        )
+    return f"[{section['title']}]\n{section['body']}"
+
+
 def conclusion_node(state: State) -> dict[str, Any]:
     sections = state.get("sections") or {}
-    data_context = (
-        "\n\n".join(
-            f"[{sections[key]['title']}]\n{sections[key]['body']}"
-            for key in _ORDER
-            if key in sections
-        )
-        or "(작성된 섹션 없음)"
-    )
+    rendered = [
+        text
+        for key in _ORDER
+        if key in sections
+        for text in [_render_section(sections[key])]
+        if text
+    ]
+    data_context = "\n\n".join(rendered) or "(작성된 섹션 없음)"
 
     section = build_section_via_llm(
         system_prompt=SYSTEM_PROMPT,
