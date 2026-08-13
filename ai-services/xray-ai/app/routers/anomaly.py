@@ -278,11 +278,12 @@ async def detect_batch(
 # 이미지를 다시 전송받아 박스를 그린 뒤 함께 전달한다.
 #
 # 소요 시간은 30초~2분이며 이미지 장수와
-# 출력 길이에 따라 달라진다.
+# 출력 길이에 따라 달라진다. 일반 def 엔드포인트로 두어 FastAPI가
+# 이 동기 OpenAI 호출을 worker thread에서 실행하게 하고 event loop를 막지 않는다.
 # ------------------------------------------------------------
 
 @router.post("/report")
-async def generate_report(
+def generate_report(
     regions: str = Form(...),
     artifact_type: str = Form(""),
     material: str = Form(""),
