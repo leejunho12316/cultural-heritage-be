@@ -197,53 +197,60 @@ public class XrayWorkflowService {
                 .toList());
     }
 
-    @Transactional
     public ReportTextResponse generateReportText(
             String jobIdValue,
             ReportGenerateRequest request
     ) {
         XrayJob job = requireReviewReady(jobIdValue);
+        job.markReporting();
+        jobRepository.save(job);
+
         List<XrayDefect> damages = defectRepository
                 .findAllByXrayJob_IdAndReviewDecisionOrderByIdAsc(
                         job.getId(),
                         XrayDefectReviewDecision.DAMAGE
                 );
 
-        String regions = objectMapper.writeValueAsString(
-                damages.stream().map(this::toReportRegion).toList()
-        );
-        Resource assembled = namedResource(
-                s3Service.getBytes(XrayS3Keys.finalAssembled(job.getArtifactId().toString())),
-                "assembled_xray.final.png"
-        );
-        List<Resource> fragments = stitchService.getOrderedXraySourceResources(jobIdValue);
-        List<Resource> colors = List.of(stitchService.getColorReferenceResource(jobIdValue));
-        String raw = anomalyClient.generateReportResources(
-                regions,
-                request == null ? null : request.artifactType(),
-                request == null ? null : request.material(),
-                request == null ? "summary" : request.reportStyle(),
-                assembled,
-                fragments,
-                colors
-        );
+        try {
+            String regions = objectMapper.writeValueAsString(
+                    damages.stream().map(this::toReportRegion).toList()
+            );
+            Resource assembled = namedResource(
+                    s3Service.getBytes(XrayS3Keys.finalAssembled(job.getArtifactId().toString())),
+                    "assembled_xray.final.png"
+            );
+            List<Resource> fragments = stitchService.getOrderedXraySourceResources(jobIdValue);
+            List<Resource> colors = List.of(stitchService.getColorReferenceResource(jobIdValue));
+            String raw = anomalyClient.generateReportResources(
+                    regions,
+                    request == null ? null : request.artifactType(),
+                    request == null ? null : request.material(),
+                    request == null ? "summary" : request.reportStyle(),
+                    assembled,
+                    fragments,
+                    colors
+            );
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = objectMapper.readValue(raw, Map.class);
-        String reportText = result.get("report") == null
-                ? null
-                : String.valueOf(result.get("report"));
-        if (reportText == null || reportText.isBlank()) {
-            throw new IllegalStateException("AI report response does not contain report text.");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = objectMapper.readValue(raw, Map.class);
+            String reportText = result.get("report") == null
+                    ? null
+                    : String.valueOf(result.get("report"));
+            if (reportText == null || reportText.isBlank()) {
+                throw new IllegalStateException("AI report response does not contain report text.");
+            }
+
+            // 생성 중 페이지를 벗어나도 재진입 시 복원할 수 있도록 AI 초안을 즉시 저장한다.
+            job.updateReportText(reportText.trim());
+            job.markReviewReady();
+            jobRepository.save(job);
+            return reportResponse(job);
+        } catch (RuntimeException e) {
+            // 문안 생성 실패가 앞 단계의 결함 검수 결과까지 무효화하지 않도록 복구한다.
+            job.markReviewReady();
+            jobRepository.save(job);
+            throw e;
         }
-
-        // AI 초안은 최종 확정 전까지 DB에 저장하지 않는다.
-        return new ReportTextResponse(
-                job.getId().toString(),
-                job.getArtifactId().toString(),
-                reportText,
-                job.getStatus().name()
-        );
     }
 
     @Transactional(readOnly = true)

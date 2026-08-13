@@ -53,20 +53,33 @@ EXPERT_INSTRUCTIONS = """
 
 판정은 반드시 전문가가 수행해야 한다.
 
+[현재 데이터 구조]
+
+현재 업무 API가 전달하는 영역은 원본 조각 탐지와 결합본 탐지를
+그대로 나열한 결과가 아니라, layout.final.json으로 좌표를 변환해
+최종 결합본 좌표계에서 중복을 통합한 전문가 검수 결과이다.
+
+- 모든 bbox는 최종 결합본 좌표계에 있다.
+- review_decision이 DAMAGE인, 즉 전문가가 정상으로 제외하지 않은
+  영역만 문안 생성 입력에 포함된다.
+- origin_type은 탐지·매핑 근거를 나타낸다.
+  - MATCHED: 원본 조각과 최종 결합본에서 대응이 확인된 후보
+  - ASSEMBLED_ONLY: 최종 결합본 탐지만으로 남은 후보
+  - SOURCE_ONLY: 원본 조각 탐지를 최종 좌표계로 투영했으나
+    결합본 탐지와 대응되지 않은 후보
+- origin_type이 없는 구버전 입력에만 analysis_target 구분을 사용한다.
+
 [분석 자료의 구분]
 
-1. 결합 완료 X-ray
-- 최종 검수의 주 대상 영상이다.
-- 여러 조각을 이동·회전·결합한 영상일 수 있다.
+1. 최종 결합 X-ray
+- 최종 좌표계와 전체 형상을 확인하는 주 대상 영상이다.
 
 2. X-ray 원본 조각
-- 결합 전 각 조각의 원본 영상이다.
-- 결합본에서 관찰된 이상 영역이 원본 조각에도 있었는지
-  확인하기 위한 보조 자료이다.
+- 결합 전 영상 특징을 대조하기 위한 보조 자료이다.
+- 현재 문안 입력에는 원본 조각별 bbox가 별도로 제공되지 않을 수 있다.
 
 3. 컬러 2D 이미지
-- 유물 표면에서 육안으로 관찰되는 특징을 확인하기 위한
-  참고 영상이다.
+- 표면에서 직접 관찰되는 특징만 확인하기 위한 참고 영상이다.
 
 [분석 원칙]
 
@@ -78,8 +91,9 @@ EXPERT_INSTRUCTIONS = """
 - X-ray 명암 차이만으로 균열, 부식, 충전재,
   이물질 또는 제작기법을 확정하지 않는다.
 - 원본 조각과 결합본의 방향 및 배율이 같다고 가정하지 않는다.
-- 좌표 변환 정보가 없으면 원본 조각의 이상 영역과
-  결합본의 이상 영역이 동일한 위치라고 단정하지 않는다.
+- origin_type이 MATCHED인 경우에만 원본·결합본 탐지의 대응 근거가
+  있다고 기록한다. 이것도 손상 종류나 원인을 확정하는 근거는 아니다.
+- ASSEMBLED_ONLY와 SOURCE_ONLY를 서로 동일한 영역으로 연결하지 않는다.
 - X-ray와 컬러 2D 이미지의 촬영 방향이 같다고 가정하지 않는다.
 - 위치 대응이 확인되지 않은 X-ray 이상 영역과
   컬러 표면 손상을 동일한 손상으로 연결하지 않는다.
@@ -99,10 +113,10 @@ EXPERT_INSTRUCTIONS = """
 
 [중요 구분]
 
-결합 완료 X-ray 탐지 결과와 원본 조각 탐지 결과를
-서로 구분하여 작성해야 한다.
+현재 통합 결과에서는 결합본·원본 탐지 건수를 다시 합산하지 말고
+origin_type별 분포를 근거로 작성해야 한다.
 
-결합본에서만 탐지된 영역은 다음 가능성을 함께 검토한다.
+ASSEMBLED_ONLY 영역은 다음 가능성을 함께 검토한다.
 
 - 결합 경계
 - 실제 파손 간격
@@ -111,8 +125,9 @@ EXPERT_INSTRUCTIONS = """
 - 리사이즈 또는 회전 과정의 보간 흔적
 - 실제 손상 후보
 
-원본 조각에서 탐지된 영역은 결합 이전부터 영상에 존재한
-후보라는 점만 기록하고 실제 손상으로 확정하지 않는다.
+SOURCE_ONLY 영역은 원본에서 탐지되어 최종 좌표계로 투영되었지만
+결합본 탐지와 대응되지 않았다는 점만 기록한다. 결합본에서 실제로
+보이는 손상이라고 단정하지 않는다.
 
 최종 결과는 문화유산 보존처리 전문가가 수정하는
 1차 상태조사 초안이어야 한다.
@@ -198,16 +213,18 @@ def render_annotated(
         except (KeyError, TypeError, ValueError):
             continue
 
-        conf = float(r.get("confidence", 0.0))
-        color = _region_color(conf)
+        confidence = r.get("confidence")
+        conf = float(confidence) if confidence is not None else None
+        color = _region_color(conf) if conf is not None else (0, 165, 255)
 
         cv2.rectangle(
             annotated, (x1, y1), (x2, y2), color, thickness
         )
 
-        label = (
-            f"{r.get('regionId', '')} {conf:.2f}"
-        )
+        label = str(r.get("regionId", ""))
+
+        if conf is not None:
+            label = f"{label} {conf:.2f}"
 
         (tw, th), baseline = cv2.getTextSize(
             label,
@@ -258,12 +275,13 @@ def build_payload(
     프롬프트의 "최대 N개 작성" 지시와 여기서 보내는 건수를
     일치시켜야 결과가 흔들리지 않는다.
     """
+    unified = [r for r in regions if r.get("originType")]
     assembled = sorted(
         [
             r for r in regions
             if r.get("analysisTarget") == "결합 완료본"
         ],
-        key=lambda r: -float(r.get("confidence", 0)),
+        key=lambda r: -float(r.get("confidence") or 0),
     )
 
     fragment = sorted(
@@ -271,15 +289,20 @@ def build_payload(
             r for r in regions
             if r.get("analysisTarget") != "결합 완료본"
         ],
-        key=lambda r: -float(r.get("confidence", 0)),
+        key=lambda r: -float(r.get("confidence") or 0),
     )
 
     def simplify(items):
-        return [
-            {
+        simplified = []
+
+        for r in items:
+            item = {
                 "region_id": r.get("regionId"),
                 "analysis_target": r.get("analysisTarget"),
                 "xray_file": r.get("fileName"),
+                "origin_type": r.get("originType"),
+                "review_decision": r.get("reviewDecision"),
+                "bbox_final": r.get("bbox"),
                 "confidence": r.get("confidence"),
                 "position": r.get("position"),
                 "area_ratio_percent": r.get(
@@ -287,21 +310,40 @@ def build_payload(
                 ),
                 "user_note": r.get("userNote"),
             }
-            for r in items
-        ]
 
-    detail = (
-        simplify(assembled[:top_assembled])
-        + simplify(fragment[:top_fragment])
-    )
+            simplified.append({
+                key: value for key, value in item.items()
+                if value is not None and value != ""
+            })
+
+        return simplified
+
+    if unified:
+        # 현재 workflow에서는 모든 영역이 최종 결합본 좌표계로 통합된다.
+        # 과거의 결합본/원본 상세 건수 설정은 전체 상세 건수 상한으로만 쓴다.
+        detail_limit = top_assembled + top_fragment
+        detail = simplify(sorted(
+            unified,
+            key=lambda r: -float(r.get("confidence") or 0),
+        )[:detail_limit])
+    else:
+        detail = (
+            simplify(assembled[:top_assembled])
+            + simplify(fragment[:top_fragment])
+        )
 
     def conf_range(items):
         if not items:
             return None
 
         values = [
-            float(r.get("confidence", 0)) for r in items
+            float(r["confidence"])
+            for r in items
+            if r.get("confidence") is not None
         ]
+
+        if not values:
+            return None
 
         return {
             "min": round(min(values), 3),
@@ -322,24 +364,40 @@ def build_payload(
         key = r.get("fileName", "미상")
         file_counts[key] = file_counts.get(key, 0) + 1
 
+    origin_counts = {}
+
+    for r in regions:
+        key = r.get("originType") or "구버전_미분류"
+        origin_counts[key] = origin_counts.get(key, 0) + 1
+
     stats = {
-        "결합본": {
-            "총_영역수": len(assembled),
-            "상세서술_대상": min(
-                top_assembled, len(assembled)
-            ),
-            "신뢰도_범위": conf_range(assembled),
-            "위치별_분포": position_counts,
-        },
-        "원본_조각": {
-            "총_영역수": len(fragment),
-            "상세서술_대상": min(
-                top_fragment, len(fragment)
-            ),
-            "신뢰도_범위": conf_range(fragment),
-            "파일별_탐지건수": file_counts,
+        "통합_검수결과": {
+            "전문가_포함_영역수": len(regions),
+            "상세서술_대상": len(detail),
+            "매핑_근거별_분포": origin_counts,
+            "좌표계": "최종 결합본",
         },
     }
+
+    if not unified:
+        stats.update({
+            "결합본": {
+                "총_영역수": len(assembled),
+                "상세서술_대상": min(
+                    top_assembled, len(assembled)
+                ),
+                "신뢰도_범위": conf_range(assembled),
+                "위치별_분포": position_counts,
+            },
+            "원본_조각": {
+                "총_영역수": len(fragment),
+                "상세서술_대상": min(
+                    top_fragment, len(fragment)
+                ),
+                "신뢰도_범위": conf_range(fragment),
+                "파일별_탐지건수": file_counts,
+            },
+        })
 
     return detail, stats
 
@@ -382,26 +440,31 @@ def build_summary_prompt(
     """PPT 삽입용 요약본."""
 
     return f"""
-다음 자료를 바탕으로 PPT에 삽입할 수 있는
-간결한 AI 1차 상태조사 요약문을 작성하라.
+다음 자료를 바탕으로 현재 X-ray 업무 흐름에 맞는
+전문가 검토용 AI 1차 상태조사 요약문을 작성하라.
 {_common_header(artifact_type, material, detail, stats)}
 [작성 원칙]
 1. 전체 분량은 공백 포함 1,500자 이내로 작성한다.
-2. 결합 완료본을 중심으로 작성하고
-   원본 조각은 비교 근거로만 활용한다.
-3. 개별 서술은 [주요 검토 영역] 목록에 있는 것만 작성한다.
-4. 영역별 내용은 3절의 형식을 그대로 따른다.
-5. 목록에 없는 영역은 전체 건수와 분포만 요약한다.
-6. 결합본과 원본 조각의 좌표가 정합되지 않았으므로
-   동일 위치의 특징이라고 단정하지 않는다.
-7. 신뢰도는 AI 탐지 점수이며 실제 손상 확률이나
-   손상 심각도를 의미하지 않는다.
-8. 컬러 이미지에 직접 보이는 특징만 작성한다.
-9. X-ray와 컬러 이미지의 위치 대응이 불명확하면
-   '대응 관계 확인 필요'라고 작성한다.
-10. 손상 종류나 발생 원인은 확정하지 말고
+2. 현재 영역 목록은 전문가가 정상으로 제외하지 않은 후보이며,
+   모든 bbox는 최종 결합본 좌표계라는 전제로 작성한다.
+3. 결합본 탐지 건수와 원본 조각 탐지 건수를 단순 합산하지 않는다.
+   통합된 전체 건수와 origin_type별 분포를 사용한다.
+4. MATCHED는 원본·결합본 대응 근거가 있는 후보,
+   ASSEMBLED_ONLY는 결합본 탐지만으로 남은 후보,
+   SOURCE_ONLY는 원본 탐지를 최종 좌표계로 투영했으나
+   결합본 탐지와 대응되지 않은 후보로 구분한다.
+5. origin_type은 손상 종류, 손상 확률 또는 심각도가 아니다.
+6. 개별 서술은 [주요 검토 영역] 목록에 있는 것만 작성하고,
+   목록에 없는 영역은 건수와 분포로만 요약한다.
+7. 입력에 없는 신뢰도, 상대 면적, 사용자 소견을 만들어내지 않는다.
+8. 결합 경계, 파손 간격, 중첩, 밝기 차이 또는 보간 흔적을
+   실제 손상으로 단정하지 않는다.
+9. 원본 조각 이미지는 origin_type의 근거를 보조 확인하는 용도로만
+   사용하고, 별도 bbox가 없으면 임의로 영역 ID를 부여하지 않는다.
+10. 컬러 이미지에는 직접 보이는 표면 특징만 작성하며,
+    X-ray와 위치 대응이 확인되지 않으면 연결하지 않는다.
+11. 손상 종류나 발생 원인은 확정하지 말고
     '가능성', '추정', '확인 필요'로 표현한다.
-11. 비슷한 주의사항이나 설명을 반복하지 않는다.
 12. 자료에서 확인할 수 없는 내용은 작성하지 않는다.
 
 [출력 형식]
@@ -410,24 +473,24 @@ def build_summary_prompt(
 
 1. 분석 개요
 - 유물 유형과 재질
-- 분석 대상
-- 전체 탐지 건수와 상세 검토 범위
+- 최종 결합 X-ray와 원본 조각의 사용 목적
+- 전문가 검수에서 포함된 통합 영역 수와 상세 검토 범위
 
-2. 주요 관찰 결과
-- 결합 완료본의 형상, 명암 및 탐지 영역 분포
-- 조각 경계, 파손 간격, 중첩 또는 보간 흔적 검토
-- 핵심 내용을 최대 3개 항목으로 작성
+2. 통합 검수 결과
+- MATCHED, ASSEMBLED_ONLY, SOURCE_ONLY 분포와 의미
+- 최종 결합본의 형상, 명암 및 영역 분포
+- 조각 경계, 파손 간격, 중첩 또는 보간 흔적 가능성
 
 3. 주요 검토 영역
 - 영역별로 한 줄씩 작성
 - 형식:
-  영역 ID | 위치 | 신뢰도 | 상대 면적 | 관찰 내용 및 확인사항
+  영역 ID | 매핑 근거 | 최종 결합본 위치 | 관찰 내용 및 확인사항
+- 값이 제공되지 않은 항목은 '정보 없음'을 반복하지 말고 생략한다.
 
-4. 원본 조각 및 컬러 이미지 비교
-- 원본 조각의 탐지 분포와 주요 특징
+4. 보조 영상 대조
+- 원본 조각에서 직접 확인 가능한 특징과 매핑 결과의 일치 여부
 - 컬러 이미지에서 직접 확인되는 표면 특징
-- X-ray와 컬러 이미지의 대응 여부
-- 최대 3개 항목으로 작성
+- 대응이 확인되지 않는 항목과 추가 대조 필요사항
 
 5. 종합 의견
 - 핵심 판단 2~3문장

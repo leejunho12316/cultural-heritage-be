@@ -103,7 +103,8 @@ public class XrayStitchService {
         XrayJob job = jobRepository.findByArtifactId(artifactId)
                 .map(existing -> {
                     if (existing.getStatus() == XrayJobStatus.STITCHING
-                            || existing.getStatus().isDetectionInProgress()) {
+                            || existing.getStatus().isDetectionInProgress()
+                            || existing.getStatus().isReportInProgress()) {
                         throw new ResponseStatusException(
                                 HttpStatus.CONFLICT,
                                 "This artifact has an X-ray job currently running: "
@@ -386,6 +387,7 @@ public class XrayStitchService {
 
         if (hasFinalOutputs(artifactId) || hasBaseOutputs(artifactId)) {
             if (job.getStatus() != XrayJobStatus.REVIEW_READY
+                    && job.getStatus() != XrayJobStatus.REPORTING
                     && job.getStatus() != XrayJobStatus.COMPLETED) {
                 job.markStitched();
             }
@@ -696,6 +698,7 @@ public class XrayStitchService {
         if (job.getStatus() != XrayJobStatus.STITCHED
                 && !job.getStatus().isDetectionInProgress()
                 && job.getStatus() != XrayJobStatus.REVIEW_READY
+                && job.getStatus() != XrayJobStatus.REPORTING
                 && job.getStatus() != XrayJobStatus.COMPLETED) {
             throw new IllegalStateException("X-ray stitching result is not ready: " + job.getStatus());
         }
@@ -756,6 +759,7 @@ public class XrayStitchService {
             case DETECTING_ASSEMBLED -> "The final assembled X-ray is being analyzed.";
             case MAPPING -> "Detected defects are being mapped and merged.";
             case REVIEW_READY -> "X-ray defects are ready for expert review.";
+            case REPORTING -> "AI X-ray report text is being generated.";
             case COMPLETED -> "X-ray inspection is complete.";
             case FAILED -> "X-ray processing failed.";
         };
@@ -875,6 +879,7 @@ public class XrayStitchService {
             if (hasFinalOutputs(artifactId)) {
                 XrayJob current = requireJob(jobId);
                 if (current.getStatus() != XrayJobStatus.REVIEW_READY
+                        && current.getStatus() != XrayJobStatus.REPORTING
                         && current.getStatus() != XrayJobStatus.COMPLETED) {
                     current.markStitched();
                     jobRepository.save(current);
