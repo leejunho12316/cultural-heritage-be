@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.user.service;
 
+import com.aivle.conservation_backend.user.domain.User;
 import com.aivle.conservation_backend.user.domain.Notice;
 import com.aivle.conservation_backend.user.dto.AddNoticeRequest;
 import com.aivle.conservation_backend.user.dto.UpdateNoticeRequest;
@@ -18,8 +19,15 @@ public class NoticeService {
     private final NoticeRepository noticeRepository;
 
     @Transactional
-    public Notice save(AddNoticeRequest request){
-        return noticeRepository.save(request.toEntity());
+    public Notice save(AddNoticeRequest request, User currentUser){
+        Notice notice = Notice.builder()
+                .title(request.getTitle())
+                .content(request.getContent())
+                .isPinned(request.getIsPinned())
+                .author(currentUser)
+                .build();
+
+        return noticeRepository.save(notice);
     }
 
     public List<Notice> findAll(){

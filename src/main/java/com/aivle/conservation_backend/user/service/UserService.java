@@ -4,6 +4,7 @@ import com.aivle.conservation_backend.common.config.jwt.JwtTokenProvider;
 import com.aivle.conservation_backend.user.domain.User;
 import com.aivle.conservation_backend.user.dto.AddUserRequest;
 import com.aivle.conservation_backend.user.dto.LoginRequest;
+import com.aivle.conservation_backend.user.dto.LoginResponse;
 import com.aivle.conservation_backend.user.repository.PostRepository;
 import com.aivle.conservation_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,23 +24,34 @@ public class UserService {
     private final PostRepository postRepository;
 
     public Long save(AddUserRequest request) {
+        if (userRepository.findByLoginId(request.getLoginId()).isPresent()) {
+            throw new IllegalArgumentException("이미 사용 중인 아이디입니다.");
+        }
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
         }
+
         String encodedPassword = bCryptPasswordEncoder.encode(request.getPassword());
         return userRepository.save(request.toEntity(encodedPassword)).getId();
     }
 
-    public String login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("가입되지 않은 이메일입니다."));
+    public LoginResponse login(LoginRequest request) {
+        User user = userRepository.findByLoginId(request.getLoginId())
+                .orElseThrow(() -> new IllegalArgumentException("가입되지 않은 아이디입니다."));
 
         if (!bCryptPasswordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
+        String token = jwtTokenProvider.createToken(user.getLoginId(), user.getRole().name());
 
-        return jwtTokenProvider.createToken(user.getEmail(), user.getRole().name());
+        return new LoginResponse(
+                token,
+                user.getLoginId(),
+                user.getEmail(),
+                user.getNickname(),
+                user.getRole().name()
+        );
     }
 
     @Transactional
@@ -65,9 +77,7 @@ public class UserService {
             );
         }
 
-        // 외래키 충돌 방지를 위해 게시글을 먼저 삭제
         postRepository.deleteAllByAuthorId(user.getId());
-
         userRepository.delete(user);
     }
 }
