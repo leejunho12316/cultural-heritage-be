@@ -114,6 +114,26 @@ spec:
           envFrom:
             - secretRef:
                 name: app-secrets
+          resources:
+            # requests는 낮게 잡았다 - 여기 숫자가 크면 노드에 그만큼 여유가
+            #없을 때 파드가 아예 스케줄이 안 돼서(Pending) 오히려 더 헷갈리는
+            # 문제가 생긴다. limits만 실질적인 상한선 역할을 한다: 이걸 넘으면
+            # 이 파드 하나만 죽는다(OOMKilled) - "이 파드가 메모리를 계속
+            # 먹다가 노드 전체가/다른 파드까지 같이 죽는" 예전 사고를 막는
+            # 목적이 크다. 정확한 값이 아니라 안전판이니, kubectl top pod로
+            # 실사용량 확인되면 그 값 기준으로 다시 조정하는 걸 권장한다.
+            requests:
+              memory: "1Gi"
+              cpu: "250m"
+            limits:
+              memory: "4Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12
           volumeMounts:
             - name: hf-cache
               mountPath: /root/.cache/huggingface
@@ -252,6 +272,7 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-northeast-2:428270342381:certificate/64434549-f54e-4b87-b230-c1d76d9fb0a1"
     alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=120
 spec:
   rules:
     - http:
