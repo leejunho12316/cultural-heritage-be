@@ -18,6 +18,7 @@ public enum XrayJobStatus {
     DETECTING_ASSEMBLED,
     MAPPING,
     REVIEW_READY,
+    REPORTING,
     COMPLETED,
     FAILED;
 
@@ -26,5 +27,9 @@ public enum XrayJobStatus {
                 || this == DETECTING_FRAGMENTS
                 || this == DETECTING_ASSEMBLED
                 || this == MAPPING;
+    }
+
+    public boolean isReportInProgress() {
+        return this == REPORTING;
     }
 }
