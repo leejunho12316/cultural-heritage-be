@@ -6,6 +6,7 @@ import com.aivle.conservation_backend.report_ai.dto.GenerateReportRequestDto;
 import com.aivle.conservation_backend.report_ai.dto.ReportDocumentResponseDto;
 import com.aivle.conservation_backend.report_ai.dto.SaveReportRequestDto;
 import com.aivle.conservation_backend.report_ai.service.ArtifactSourceAdapter;
+import com.aivle.conservation_backend.report_ai.service.ConservationGuideSourceAdapter;
 import com.aivle.conservation_backend.report_ai.service.PotterySourceAdapter;
 import com.aivle.conservation_backend.report_ai.service.ReportDocumentService;
 import com.aivle.conservation_backend.report_ai.service.XraySourceAdapter;
@@ -51,6 +52,7 @@ public class ReportAiController {
     private final XraySourceAdapter xraySourceAdapter;
     private final PotterySourceAdapter potterySourceAdapter;
     private final ArtifactSourceAdapter artifactSourceAdapter;
+    private final ConservationGuideSourceAdapter conservationGuideSourceAdapter;
     private final ReportDocumentService reportDocumentService;
 
     /**
@@ -130,6 +132,22 @@ public class ReportAiController {
                         "human_review_recommended", false,
                         "detail", Map.of()
                 )));
+    }
+
+    /**
+     * 보존가이드가 RDS에 저장해둔 결과(tasks.results)를 report-ai 입력
+     * 형태(guide_result)로 변환해서 보여준다.
+     *
+     * 다른 source 엔드포인트와 동일하게 generate()의 동작을 바꾸지 않는
+     * 별도 조회용 엔드포인트다. 이 응답을 그대로
+     * GenerateReportRequestDto.guideResult에 넣으면 된다. 아직 어떤
+     * 단계도 완료되지 않았으면(진행 중이거나 시작 전) 빈 객체를 반환한다.
+     */
+    @GetMapping("/{artifactId}/conservation-guide-source")
+    public ResponseEntity<Map<String, Object>> conservationGuideSource(@PathVariable String artifactId) {
+        return conservationGuideSourceAdapter.resolve(artifactId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.ok(Map.of()));
     }
 
     /** report_json만 생성한다. */

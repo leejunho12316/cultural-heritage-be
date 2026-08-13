@@ -1,10 +1,15 @@
 package com.aivle.conservation_backend.conservation_guide_ai.domain;
 
+import com.aivle.conservation_backend.artifact.domain.Artifact;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,6 +42,15 @@ public class Task {
 
     @Column(name = "task_manager")
     private String taskManager;
+
+    // 이 작업이 어느 유물에 대한 것인지. taskId는 FE가 새로고침하면 사라지는
+    // React Context에만 살아있어 그것만으로는 진행상황을 복구할 수 없다 -
+    // artifactId(URL 파라미터로 항상 남아있음) 기준 조회(TaskRepository 참고)를
+    // 붙이기 위해 추가됐다. 이 컬럼이 생기기 전에 저장된 row는 null일 수 있어
+    // nullable로 둔다(과거 데이터 백필 불가 - 원본 유물 매칭 정보 자체가 없음).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "artifact_id")
+    private Artifact artifact;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "relic_info", columnDefinition = "jsonb")

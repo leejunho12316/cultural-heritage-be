@@ -60,6 +60,7 @@ erDiagram
     ASSESSMENT_RUN ||--o{ REPORT_PDF_JOB : "assessment_run_id FK"
     XRAY_JOB ||--o{ XRAY_DEFECT : "xray_job_id FK"
     ARTIFACTS ||--o{ REPORT_DOCUMENT : "artifact_id FK (진짜 FK)"
+    ARTIFACTS ||--o{ TASKS : "artifact_id FK (nullable, 2026-08-12 추가)"
 
     REPORT_DOCUMENT {
         uuid id PK
@@ -128,9 +129,10 @@ erDiagram
         string review_decision "DAMAGE/NORMAL"
     }
     TASKS {
-        string task_id PK "artifact_id와 같은 값이라 추정 - 미확인"
+        string task_id PK "FE가 task-${timestamp}로 직접 생성"
+        uuid artifact_id FK "nullable - 과거 row는 NULL(백필 불가)"
         jsonb relic_info
-        jsonb results "완료 결과, stage별 status 포함"
+        jsonb results "완료 결과, stage별 status 포함 (report-ai의 guide_result)"
         string total_state
     }
 ```
@@ -140,9 +142,11 @@ erDiagram
 FK로 참조하지 않고 각자 독립적으로 `artifact_id`(UUID) 컬럼만 들고
 있습니다(`ASSESSMENT_RUN`/`XRAY_JOB`/`UPLOADED_IMAGE`). `report_document`는
 `artifacts`가 생긴 뒤에 만든 신규 테이블이라 처음부터 진짜 FK로
-연결했습니다. `TASKS`(보존가이드)는 그마저도 없고 `task_id`가
-`artifact_id`와 같은 값이라는 컨벤션에 기대는 것으로 보이는데, 이 레포
-코드만으로는 확정할 수 없습니다(프론트엔드 확인 필요).
+연결했습니다. `TASKS`(보존가이드)도 2026-08-12에 `artifact_id` FK가
+추가됐습니다 — 다만 기존 운영 데이터를 백필할 수 없어서 **nullable**로
+붙였습니다(`NOT NULL`이 아님). FE가 `/start` 요청에 `artifactId`를 실어
+보내야 채워지는데, 아직 FE 쪽 연결은 안 끝났습니다(`cultural-heritage-fe`
+별도 작업).
 
 | 테이블 | 소유 파트 | report-ai 연동 |
 |---|---|---|
@@ -153,7 +157,7 @@ FK로 참조하지 않고 각자 독립적으로 `artifact_id`(UUID) 컬럼만 �
 | `assessment_report` | 육안조사(vca, 공용) | report-ai와 무관 — vca 파이프라인 자체 산출물 저장처. 혼동 방지를 위해 report-ai는 이 테이블을 쓰지 않는다 |
 | `uploaded_image` | 공용(사진) | 미연동 — `.docx` 사진은 아직 호출자가 base64로 직접 인코딩해서 넘김 |
 | `report_pdf_job` | 보고서(공용) | 이름이 "PDF"라 Word로 확정된 것과 불일치 — 팀 확인 필요. report-ai는 `report_document`를 쓰므로 이 테이블은 안 씀 |
-| `tasks` | 보존가이드 | ❌ 미연동 — `task_id`/`artifact_id` 매핑 확인 전까지 어댑터 보류 |
+| `tasks` | 보존가이드 | ✅ `ConservationGuideSourceAdapter` — `results`(완료된 stage 결과)를 `guide_result` 그대로 전달. FE가 아직 `artifactId`를 안 보내서 실사용은 FE 작업 이후부터 |
 
 ## 엔드포인트 (FastAPI, report-ai 자체)
 
@@ -244,6 +248,15 @@ DTO/Adapter)가 위 FastAPI 엔드포인트를 감싼 것입니다.
 | 설명 | 이 유물의 가장 최근 저장 보고서(`report_document`)를 조회 |
 | Response | 6번과 동일한 형태 |
 | 비고 | 저장된 보고서가 없으면 `404` |
+
+### 8. 보존가이드 결과 조회 (report-ai 입력 형태 변환)
+
+| 항목 | 내용 |
+|---|---|
+| Method / URL | `GET /api/reports/{artifactId}/conservation-guide-source` |
+| 설명 | `tasks.results`(이 유물의 최신 보존가이드 작업, 완료된 stage 결과)를 report-ai 입력 형태로 변환 |
+| Response | `{ "disassembly": { "status": "completed", ... }, "cleaning": { ... }, ... }` — stage_key를 그대로 씀, 변환 없음 |
+| 비고 | 작업이 없거나 아직 완료된 stage가 없으면(진행 중/시작 전) 빈 객체 반환(에러 아님). 응답을 그대로 1/2번의 `guide_result`에 채우면 됨. 담당 어댑터: `ConservationGuideSourceAdapter`. FE가 `/start` 요청에 `artifactId`를 아직 안 보내므로, 그 전까지는 이 엔드포인트가 항상 빈 객체를 반환함 |
 
 ## 사진 배치 방식
 

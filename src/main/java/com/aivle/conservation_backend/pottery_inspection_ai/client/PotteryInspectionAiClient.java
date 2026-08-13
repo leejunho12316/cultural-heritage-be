@@ -19,7 +19,9 @@ public class PotteryInspectionAiClient {
 
     private final RestClient potteryInspectionAiRestClient;
 
-    public PotteryInspectionResponseDto inspect(MultipartFile image, int nCalls, boolean useVlmPattern) {
+    public PotteryInspectionResponseDto inspect(
+            MultipartFile image, int nCalls, boolean useVlmPattern, boolean treatAsSingleArtifact
+    ) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("image", toResource(image));
 
@@ -28,6 +30,7 @@ public class PotteryInspectionAiClient {
                         .path("/inspect")
                         .queryParam("n_calls", nCalls)
                         .queryParam("use_vlm_pattern", useVlmPattern)
+                        .queryParam("treat_as_single_artifact", treatAsSingleArtifact)
                         .build())
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(body)
