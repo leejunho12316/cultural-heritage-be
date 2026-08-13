@@ -35,7 +35,7 @@ public class XrayJob {
 
     /** 인증/사용자 통합 전까지 nullable. 이후 USER FK 연결 예정. */
     @Column(name = "user_id")
-    private UUID userId;
+    private Long userId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -73,7 +73,7 @@ public class XrayJob {
         return artifactId;
     }
 
-    public UUID getUserId() {
+    public Long getUserId() {
         return userId;
     }
 
@@ -112,7 +112,7 @@ public class XrayJob {
     public static XrayJob create(
             UUID id,
             UUID artifactId,
-            UUID userId,
+            Long userId,
             int expectedColorCount,
             int expectedXrayCount
     ) {
