@@ -24,13 +24,21 @@ phases:
         echo "===== ENSURE GIT HISTORY ====="
 
         if ! git rev-parse HEAD^ >/dev/null 2>&1; then
-          echo "Previous commit not available. Fetching history..."
+          echo "Previous commit not available. Fetching from GitHub..."
 
-          git fetch --unshallow origin main 2>/dev/null \
-            || git fetch --depth=10 origin main
+          git fetch --depth=10 \
+            https://github.com/BigProject09/cultural-heritage-be.git \
+            main
         fi
 
         echo "===== DETECT CHANGED FILES ====="
+
+        if git rev-parse HEAD^ >/dev/null 2>&1; then
+          CHANGED_FILES="$(git diff --name-only HEAD^ HEAD)"
+        else
+          echo "No previous commit available. Running full build."
+          CHANGED_FILES="__FULL_BUILD__"
+        fi
 
         BUILD_BACKEND=false
         BUILD_GUIDE=false
