@@ -21,6 +21,21 @@ phases:
         git rev-parse HEAD
         git rev-parse HEAD^ || true
         git rev-parse --is-shallow-repository || true
+        echo "===== GIT DEBUG ====="
+        git status
+        git log --oneline -5 || true
+        git rev-parse HEAD
+        git rev-parse --is-shallow-repository || true
+
+        echo "===== ENSURE GIT HISTORY ====="
+
+        if ! git rev-parse HEAD^ >/dev/null 2>&1; then
+          echo "Previous commit not available. Fetching history..."
+
+          git fetch --unshallow origin main 2>/dev/null \
+            || git fetch --depth=10 origin main
+        fi
+
         echo "===== DETECT CHANGED FILES ====="
 
         BUILD_BACKEND=false
