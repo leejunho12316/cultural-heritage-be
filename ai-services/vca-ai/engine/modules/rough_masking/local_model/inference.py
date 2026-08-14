@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from modules.rough_masking.local_model.segmentation import (
     LocalDetection,
@@ -41,10 +41,26 @@ class _BoxPolicy:
     max_boxes: int
 
 
+# rough_masking은 object-view + tile-view마다(런당 최대 수백 회) 같은 lane의
+# detector를 다시 호출한다. 캐시가 없으면 매 호출마다 from_pretrained를 새로
+# 실행해 디스크 IO와 로딩 시간이 그대로 누적되므로, (모델 디렉터리, 디바이스)
+# 단위로 프로세스 수명 동안 재사용한다.
+_OWLV2_CACHE: dict[tuple[str, str], tuple[Owlv2Processor, Owlv2ForObjectDetection]] = {}
+_FLORENCE2_CACHE: dict[tuple[str, str], tuple[AutoProcessor, AutoModelForCausalLM]] = {}
+_GROUNDED_CACHE: dict[
+    tuple[str, str], tuple[AutoProcessor, AutoModelForZeroShotObjectDetection]
+] = {}
+
+
 def load_owlv2_detector(
     model_dir: Path, device: str
 ) -> tuple[Owlv2Processor, Owlv2ForObjectDetection]:
-    """Load OWLv2 exclusively from its inventory directory."""
+    """Load OWLv2 exclusively from its inventory directory, reused across calls."""
+    cache_key = (str(model_dir), device)
+    cached = _OWLV2_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     from transformers import Owlv2ForObjectDetection, Owlv2Processor
 
     processor = Owlv2Processor.from_pretrained(
@@ -54,13 +70,19 @@ def load_owlv2_detector(
         model_dir, local_files_only=True
     ).to(device)
     _ = model.eval()
+    _OWLV2_CACHE[cache_key] = (processor, model)
     return processor, model
 
 
 def load_florence2_detector(
     model_dir: Path, device: str
 ) -> tuple[AutoProcessor, AutoModelForCausalLM]:
-    """Load Florence-2 from a local cache without a remote model identifier."""
+    """Load Florence-2 from a local cache without a remote model identifier, reused across calls."""
+    cache_key = (str(model_dir), device)
+    cached = _FLORENCE2_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     from transformers import AutoModelForCausalLM, AutoProcessor
 
     processor = AutoProcessor.from_pretrained(
@@ -73,13 +95,19 @@ def load_florence2_detector(
         trust_remote_code=True,
     ).to(device)
     _ = model.eval()
+    _FLORENCE2_CACHE[cache_key] = (processor, model)
     return processor, model
 
 
 def load_grounded_detector(
     model_dir: Path, device: str
 ) -> tuple[AutoProcessor, AutoModelForZeroShotObjectDetection]:
-    """Load Hugging Face GroundingDINO artifacts from the local inventory path."""
+    """Load Hugging Face GroundingDINO artifacts from the local inventory path, reused across calls."""
+    cache_key = (str(model_dir), device)
+    cached = _GROUNDED_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
 
     processor = AutoProcessor.from_pretrained(model_dir, local_files_only=True)
@@ -87,6 +115,7 @@ def load_grounded_detector(
         model_dir, local_files_only=True
     ).to(device)
     _ = model.eval()
+    _GROUNDED_CACHE[cache_key] = (processor, model)
     return processor, model
 
 
@@ -115,6 +144,49 @@ def bounded_detections(
         if len(detections) >= policy.max_boxes:
             break
     return tuple(detections)
+
+
+# open-vocabulary 디텍터(OWLv2/GroundingDINO/Florence-2)는 확신이 높은 특징
+# 하나에 대해 거의 같은 위치의 박스를 여러 개 내놓는 경우가 드물지 않은데,
+# threshold 필터링만으로는 이걸 못 거른다 - post_process_grounded_object_detection이
+# NMS를 포함하지 않기 때문이다(실측: mask_refining 재탐지에서 IoU 0.9999인
+# 박스 두 개가 각각 별도 "특이점"으로 리포트까지 새어나감). 예전엔 이 뒤에
+# 있던 post-refinement relation-authority가 안전망 역할을 했지만, 그 단계가
+# 병합 로직 단순화로 없어졌으므로 발생 지점(디텍터 후처리)에서 직접 막는다.
+# 프롬프트 하나짜리 호출(_owlv2_detections/_grounded_detections 등)뿐 아니라,
+# 같은 이미지에 여러 프롬프트를 순차 실행해 합친 결과에도 적용해야 한다 -
+# 서로 다른 프롬프트가 같은 자리를 각자 잡아내는 경우도 실제로 있었다.
+_NMS_IOU_THRESHOLD: Final = 0.5
+
+
+def _box_iou(
+    left: tuple[float, float, float, float], right: tuple[float, float, float, float]
+) -> float:
+    lx0, ly0, lx1, ly1 = left
+    rx0, ry0, rx1, ry1 = right
+    ix0, iy0 = max(lx0, rx0), max(ly0, ry0)
+    ix1, iy1 = min(lx1, rx1), min(ly1, ry1)
+    if ix1 <= ix0 or iy1 <= iy0:
+        return 0.0
+    intersection = (ix1 - ix0) * (iy1 - iy0)
+    union = (lx1 - lx0) * (ly1 - ly0) + (rx1 - rx0) * (ry1 - ry0) - intersection
+    return intersection / union if union > 0 else 0.0
+
+
+def suppress_near_duplicate_detections(
+    detections: tuple[LocalDetection, ...],
+) -> tuple[LocalDetection, ...]:
+    """Greedily drop lower-score boxes that overlap an already-kept one (IoU-based NMS)."""
+    ordered = sorted(detections, key=lambda item: item.score, reverse=True)
+    kept: list[LocalDetection] = []
+    for candidate in ordered:
+        if any(
+            _box_iou(candidate.bbox_xyxy, accepted.bbox_xyxy) > _NMS_IOU_THRESHOLD
+            for accepted in kept
+        ):
+            continue
+        kept.append(candidate)
+    return tuple(kept)
 
 
 def box_policy(request: AdapterRequest, prompt: PromptRecord) -> _BoxPolicy:
@@ -160,7 +232,7 @@ def _owlv2_detections(
                 result["scores"], result["boxes"], box_policy(request, prompt)
             )
         )
-    return tuple(detections)
+    return suppress_near_duplicate_detections(tuple(detections))
 
 
 # Florence-2를 <CAPTION_TO_PHRASE_GROUNDING> 태스크로 실행해 프롬프트별
@@ -205,7 +277,7 @@ def _florence2_detections(
         detections.extend(
             bounded_detections([1.0] * len(boxes), boxes, box_policy(request, prompt))
         )
-    return tuple(detections)
+    return suppress_near_duplicate_detections(tuple(detections))
 
 
 # GroundingDINO를 box_threshold/text_threshold 두 임계값으로 실행하고
@@ -239,7 +311,7 @@ def _grounded_detections(
                 result["scores"], result["boxes"], box_policy(request, prompt)
             )
         )
-    return tuple(detections)
+    return suppress_near_duplicate_detections(tuple(detections))
 
 
 def _segment(

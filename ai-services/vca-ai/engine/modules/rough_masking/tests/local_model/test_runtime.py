@@ -10,8 +10,10 @@ from modules.rough_masking import ImageDimensions, build_roi_seed_request
 from modules.rough_masking.local_model.inference import (
     bounded_detections,
     box_policy,
+    suppress_near_duplicate_detections,
 )
 from modules.rough_masking.local_model.runtime import build_lane_runtime
+from modules.rough_masking.local_model.segmentation import LocalDetection
 from modules.rough_masking.tests.artifacts.test_t4_generation import (
     JPEG_HEADER,
     PNG_HEADER,
@@ -55,6 +57,41 @@ def test_detector_boxes_stay_in_roi_and_respect_per_prompt_cap(tmp_path: Path) -
         (4.0, 5.0, 18.0, 20.0),
     ]
     assert all(detection.prompt is request.prompts[0] for detection in detections)
+
+
+def test_suppress_near_duplicate_detections_keeps_the_higher_score_box(
+    tmp_path: Path,
+) -> None:
+    # Given: two detections whose boxes overlap almost completely (IoU well
+    # above the NMS threshold) - the exact pattern a real mask_refining run
+    # produced (two "accepted" candidates for the same physical spot, IoU
+    # 0.9999) once the post-refinement dedup step it used to rely on was
+    # removed. A third, genuinely separate detection stays untouched.
+    request = build_roi_seed_request(
+        lane=DetectorLane.OWLV2_SAM2,
+        view=make_roi_view(),
+        image_dimensions=ImageDimensions(200, 200),
+        paths=make_paths(tmp_path / "run", DetectorLane.OWLV2_SAM2),
+    )
+    prompt = request.prompts[0]
+    near_duplicate_high = LocalDetection(
+        prompt=prompt, score=0.9, bbox_xyxy=(10.0, 10.0, 60.0, 60.0)
+    )
+    near_duplicate_low = LocalDetection(
+        prompt=prompt, score=0.8, bbox_xyxy=(11.0, 11.0, 59.0, 59.0)
+    )
+    distinct = LocalDetection(
+        prompt=prompt, score=0.7, bbox_xyxy=(150.0, 150.0, 180.0, 180.0)
+    )
+
+    # When: NMS runs over all three.
+    kept = suppress_near_duplicate_detections(
+        (near_duplicate_low, distinct, near_duplicate_high)
+    )
+
+    # Then: only the higher-score member of the overlapping pair survives,
+    # alongside the untouched distinct detection.
+    assert kept == (near_duplicate_high, distinct)
 
 
 @pytest.mark.parametrize(
