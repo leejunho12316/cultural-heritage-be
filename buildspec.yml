@@ -15,6 +15,12 @@ phases:
       - echo "IMAGE_TAG=$IMAGE_TAG"
 
       - |
+        echo "===== GIT DEBUG ====="
+        git status
+        git log --oneline -5 || true
+        git rev-parse HEAD
+        git rev-parse HEAD^ || true
+        git rev-parse --is-shallow-repository || true
         echo "===== DETECT CHANGED FILES ====="
 
         BUILD_BACKEND=false
@@ -174,4 +180,5 @@ phases:
           kubectl rollout status deployment/$svc --timeout=10m
         done
 
-      - echo "===== DEPLOY COMPLETE ====="
+      - |
+        echo "===== DEPLOY COMPLETE ====="
