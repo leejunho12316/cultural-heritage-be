@@ -6,6 +6,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.aivle.conservation_backend.vca.config.VcaAccessTokenInterceptor;
 import com.aivle.conservation_backend.vca.controller.VcaController;
 import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
+import com.aivle.conservation_backend.vca.dto.CreateArtifactRequest;
 import com.aivle.conservation_backend.vca.dto.RunResponse;
 import com.aivle.conservation_backend.vca.exception.VcaApiException;
 import com.aivle.conservation_backend.vca.exception.VcaExceptionHandler;
@@ -107,6 +108,21 @@ class VcaControllerTest {
                 .build();
     }
 
+    // artifactId가 이제 서버 생성 UUID라, 테스트도 실제 API처럼 먼저 POST /api/vca로
+    // 만들고 응답에서 그 UUID를 받아써야 한다(예전처럼 임의 슬러그를 URL에 바로 못 씀).
+    private String createArtifact(MockMvc mvc, String name) throws Exception {
+        MvcResult result = mvc.perform(post("/api/vca")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.artifactId");
+    }
+
+    private String createArtifact(MockMvc mvc) throws Exception {
+        return createArtifact(mvc, "test artifact");
+    }
+
     private static final class StaticVcaAiGateway implements VcaAiGateway {
 
         @Override
@@ -119,6 +135,7 @@ class VcaControllerTest {
                 String assessmentId,
                 String projectName,
                 String inputImageFolder,
+                List<VcaAiGateway.InputImageUrl> inputImageUrls,
                 String resumeFromProjectName
         ) {
             return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
@@ -228,7 +245,7 @@ class VcaControllerTest {
                     Files.writeString(inputDirectory.resolve(image.imageId() + "-" + image.fileName()), image.objectKey());
                 }
                 runInputMaterialized = true;
-                return new VcaSharedStorage.RunInputDirectory("/shared/vca/" + assessmentRunId + "/input");
+                return new VcaSharedStorage.RunInputDirectory("/shared/vca/" + assessmentRunId + "/input", List.of());
             } catch (java.io.IOException exception) {
                 throw new IllegalStateException(exception);
             }
@@ -321,7 +338,9 @@ class VcaControllerTest {
 
     @Test
     void supportsUploadRunReportAndPdfLifecycle() throws Exception {
-        MvcResult presignResult = mockMvc.perform(post("/api/vca/test-artifact/images/presign")
+        String artifactId = createArtifact(mockMvc, "test artifact");
+
+        MvcResult presignResult = mockMvc.perform(post("/api/vca/{artifactId}/images/presign", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -345,7 +364,7 @@ class VcaControllerTest {
                 "$.imageId"
         );
 
-        mockMvc.perform(post("/api/vca/test-artifact/images/{imageId}/complete", imageId)
+        mockMvc.perform(post("/api/vca/{artifactId}/images/{imageId}/complete", artifactId, imageId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"sha256":"%s"}
@@ -353,9 +372,9 @@ class VcaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UPLOADED"))
                 .andExpect(jsonPath("$.imageUrl").value(
-                        "/api/vca/test-artifact/files/sha256/" + SHA256));
+                        "/api/vca/" + artifactId + "/files/sha256/" + SHA256));
 
-        MvcResult runResult = mockMvc.perform(post("/api/vca/test-artifact/runs"))
+        MvcResult runResult = mockMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andExpect(jsonPath("$.imageCount").value(1))
@@ -365,13 +384,13 @@ class VcaControllerTest {
                 "$.assessmentRunId"
         );
 
-        mockMvc.perform(post("/api/vca/test-artifact/runs"))
+        mockMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ACTIVE_RUN_EXISTS"));
 
         MvcResult reportResult = mockMvc.perform(get(
-                        "/api/vca/test-artifact/runs/{assessmentRunId}/report",
-                        assessmentRunId
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
+                        artifactId, assessmentRunId
                 ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.assessmentRunId").value(assessmentRunId))
@@ -398,8 +417,8 @@ class VcaControllerTest {
                 );
 
         MvcResult pdfResult = mockMvc.perform(post(
-                        "/api/vca/test-artifact/runs/{assessmentRunId}/report/pdf",
-                        assessmentRunId
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report/pdf",
+                        artifactId, assessmentRunId
                 ))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("QUEUED"))
@@ -410,31 +429,31 @@ class VcaControllerTest {
         );
 
         mockMvc.perform(post(
-                        "/api/vca/test-artifact/runs/{assessmentRunId}/report/pdf",
-                        assessmentRunId
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report/pdf",
+                        artifactId, assessmentRunId
                 ))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.jobId").value(jobId))
                 .andExpect(jsonPath("$.status").value("QUEUED"));
 
-        mockMvc.perform(get("/api/vca/test-artifact/report-pdf-jobs/{jobId}/download", jobId))
+        mockMvc.perform(get("/api/vca/{artifactId}/report-pdf-jobs/{jobId}/download", artifactId, jobId))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("PDF_NOT_READY"));
 
-        mockMvc.perform(get("/api/vca/test-artifact/report-pdf-jobs/{jobId}", jobId))
+        mockMvc.perform(get("/api/vca/{artifactId}/report-pdf-jobs/{jobId}", artifactId, jobId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.downloadUrl").value(
-                        "/api/vca/test-artifact/report-pdf-jobs/" + jobId + "/download"));
+                        "/api/vca/" + artifactId + "/report-pdf-jobs/" + jobId + "/download"));
 
-        mockMvc.perform(get("/api/vca/test-artifact/report-pdf-jobs/{jobId}/download", jobId))
+        mockMvc.perform(get("/api/vca/{artifactId}/report-pdf-jobs/{jobId}/download", artifactId, jobId))
                 .andExpect(status().isSeeOther())
                 .andExpect(header().string(
                         "Location",
                         org.hamcrest.Matchers.startsWith("https://vca-local.invalid/downloads/")
                 ));
 
-        mockMvc.perform(get("/api/vca/test-artifact/files/sha256/{sha256}", SHA256))
+        mockMvc.perform(get("/api/vca/{artifactId}/files/sha256/{sha256}", artifactId, SHA256))
                 .andExpect(status().isSeeOther())
                 .andExpect(header().string(
                         "Location",
@@ -444,11 +463,11 @@ class VcaControllerTest {
         mockMvc.perform(get("/api/vca"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isArray())
-                .andExpect(jsonPath("$.items[?(@.artifactId == 'test-artifact')]").exists());
+                .andExpect(jsonPath("$.items[?(@.artifactId == '" + artifactId + "')]").exists());
 
-        MvcResult artifactResult = mockMvc.perform(get("/api/vca/test-artifact"))
+        MvcResult artifactResult = mockMvc.perform(get("/api/vca/{artifactId}", artifactId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.artifactId").value("test-artifact"))
+                .andExpect(jsonPath("$.artifactId").value(artifactId))
                 .andExpect(jsonPath("$.uploadedImages[0].imageId").value(imageId))
                 .andReturn();
         String artifactJson = artifactResult.getResponse().getContentAsString();
@@ -480,18 +499,19 @@ class VcaControllerTest {
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         FakeVcaImageStorage imageStorage = new FakeVcaImageStorage(tempDirectory.resolve("objects"));
         MockMvc pdfMvc = mvc(new VcaService(true, new StaticVcaAiGateway(), sharedStorage, imageStorage));
+        String artifactId = createArtifact(pdfMvc, "pdf artifact");
 
-        pdfMvc.perform(multipart("/api/vca/pdf-artifact/images").file(
+        pdfMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", realJpegBytes())))
                 .andExpect(status().isCreated());
-        MvcResult runResult = pdfMvc.perform(post("/api/vca/pdf-artifact/runs"))
+        MvcResult runResult = pdfMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andReturn();
         String runId = JsonPath.read(runResult.getResponse().getContentAsString(), "$.assessmentRunId");
 
         // When: a PDF job is created for the completed run.
         MvcResult pdfResult = pdfMvc.perform(post(
-                        "/api/vca/pdf-artifact/runs/{runId}/report/pdf", runId
+                        "/api/vca/{artifactId}/runs/{runId}/report/pdf", artifactId, runId
                 ))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
@@ -502,7 +522,7 @@ class VcaControllerTest {
         // download endpoint redirects to a real object-storage URL backed by an
         // actual file - not the old "/downloads/{jobId}.pdf" stub that nothing served.
         MvcResult downloadResult = pdfMvc.perform(get(
-                        "/api/vca/pdf-artifact/report-pdf-jobs/{jobId}/download", jobId
+                        "/api/vca/{artifactId}/report-pdf-jobs/{jobId}/download", artifactId, jobId
                 ))
                 .andExpect(status().isSeeOther())
                 .andReturn();
@@ -526,11 +546,12 @@ class VcaControllerTest {
         FakeVcaImageStorage imageStorage = new FakeVcaImageStorage(tempDirectory.resolve("objects"));
         FakePotteryInspectionAiClient potteryClient = new FakePotteryInspectionAiClient();
         MockMvc pdfMvc = mvc(new VcaService(true, new StaticVcaAiGateway(), sharedStorage, imageStorage, potteryClient));
+        String artifactId = createArtifact(pdfMvc, "pottery pdf artifact");
 
-        pdfMvc.perform(multipart("/api/vca/pottery-pdf-artifact/images").file(
+        pdfMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", realJpegBytes())))
                 .andExpect(status().isCreated());
-        MvcResult runResult = pdfMvc.perform(post("/api/vca/pottery-pdf-artifact/runs")
+        MvcResult runResult = pdfMvc.perform(post("/api/vca/{artifactId}/runs", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"material":"도자기"}
@@ -541,12 +562,12 @@ class VcaControllerTest {
 
         // Polling the report once triggers the auto pottery inspection (same
         // transition-based trigger as runsPotteryInspectionFromReportOnlyForPotteryMaterial).
-        pdfMvc.perform(get("/api/vca/pottery-pdf-artifact/runs/{runId}/report", runId))
+        pdfMvc.perform(get("/api/vca/{artifactId}/runs/{runId}/report", artifactId, runId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.potteryInspection.moduleVersion").value("pottery-test-v1"));
 
         MvcResult pdfResult = pdfMvc.perform(post(
-                        "/api/vca/pottery-pdf-artifact/runs/{runId}/report/pdf", runId
+                        "/api/vca/{artifactId}/runs/{runId}/report/pdf", artifactId, runId
                 ))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
@@ -569,7 +590,8 @@ class VcaControllerTest {
     @Test
     void rejectsDirectCompleteWhenLocalUploadModeIsNotEnabled() throws Exception {
         MockMvc productionMvc = mvc(new VcaService(false));
-        MvcResult presignResult = productionMvc.perform(post("/api/vca/production-artifact/images/presign")
+        String artifactId = createArtifact(productionMvc, "production artifact");
+        MvcResult presignResult = productionMvc.perform(post("/api/vca/{artifactId}/images/presign", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -587,7 +609,7 @@ class VcaControllerTest {
                 "$.imageId"
         );
 
-        productionMvc.perform(post("/api/vca/production-artifact/images/{imageId}/complete", imageId)
+        productionMvc.perform(post("/api/vca/{artifactId}/images/{imageId}/complete", artifactId, imageId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"sha256":"%s"}
@@ -606,8 +628,9 @@ class VcaControllerTest {
                 sharedStorage,
                 imageStorage
         ));
+        String artifactId = createArtifact(productionMvc, "s3 artifact");
 
-        MvcResult presignResult = productionMvc.perform(post("/api/vca/s3-artifact/images/presign")
+        MvcResult presignResult = productionMvc.perform(post("/api/vca/{artifactId}/images/presign", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -620,12 +643,12 @@ class VcaControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.uploadMode").value("SIGNED_PUT"))
                 .andExpect(jsonPath("$.uploadUrl").value(org.hamcrest.Matchers.startsWith(
-                        "http://localhost:9000/conservation-local/vca/images/s3-artifact/")))
+                        "http://localhost:9000/conservation-local/vca/images/" + artifactId + "/")))
                 .andExpect(jsonPath("$.requiredHeaders['x-amz-meta-sha256']").value(SHA256))
                 .andReturn();
         String imageId = JsonPath.read(presignResult.getResponse().getContentAsString(), "$.imageId");
 
-        productionMvc.perform(post("/api/vca/s3-artifact/images/{imageId}/complete", imageId)
+        productionMvc.perform(post("/api/vca/{artifactId}/images/{imageId}/complete", artifactId, imageId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"sha256":"%s"}
@@ -634,14 +657,14 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.status").value("UPLOADED"));
         assertThat(imageStorage.uploadVerified).isTrue();
 
-        productionMvc.perform(get("/api/vca/s3-artifact/files/sha256/{sha256}", SHA256))
+        productionMvc.perform(get("/api/vca/{artifactId}/files/sha256/{sha256}", artifactId, SHA256))
                 .andExpect(status().isSeeOther())
                 .andExpect(header().string(
                         "Location",
                         org.hamcrest.Matchers.startsWith("http://localhost:9000/conservation-local/vca/images/")
                 ));
 
-        productionMvc.perform(post("/api/vca/s3-artifact/runs"))
+        productionMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("RUNNING"));
         assertThat(imageStorage.runInputMaterialized).isTrue();
@@ -650,22 +673,29 @@ class VcaControllerTest {
     @Test
     void enforcesConfiguredVcaAccessToken() throws Exception {
         MockMvc secured = securedMvc(new VcaService(true), "test-token");
+        MvcResult createResult = secured.perform(post("/api/vca")
+                        .header("X-VCA-Access-Token", "test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"demo artifact\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String artifactId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.artifactId");
 
-        secured.perform(get("/api/vca/demo-artifact"))
+        secured.perform(get("/api/vca/{artifactId}", artifactId))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("VCA_UNAUTHORIZED"));
 
-        secured.perform(get("/api/vca/demo-artifact")
+        secured.perform(get("/api/vca/{artifactId}", artifactId)
                         .header("X-VCA-Access-Token", "wrong-token"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("VCA_UNAUTHORIZED"));
 
-        secured.perform(get("/api/vca/demo-artifact")
+        secured.perform(get("/api/vca/{artifactId}", artifactId)
                         .header("X-VCA-Access-Token", "test-token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.artifactId").value("demo-artifact"));
+                .andExpect(jsonPath("$.artifactId").value(artifactId));
 
-        secured.perform(options("/api/vca/demo-artifact"))
+        secured.perform(options("/api/vca/{artifactId}", artifactId))
                 .andExpect(status().isOk());
     }
 
@@ -699,7 +729,15 @@ class VcaControllerTest {
     void acceptsQueryTokenForBrowserManagedMediaRequests() throws Exception {
         VcaService service = new VcaService(true);
         MockMvc secured = securedMvc(service, "test-token");
-        MvcResult presignResult = secured.perform(post("/api/vca/demo-artifact/images/presign")
+        MvcResult createResult = secured.perform(post("/api/vca")
+                        .header("X-VCA-Access-Token", "test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"demo artifact\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String artifactId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.artifactId");
+
+        MvcResult presignResult = secured.perform(post("/api/vca/{artifactId}/images/presign", artifactId)
                         .header("X-VCA-Access-Token", "test-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -717,7 +755,7 @@ class VcaControllerTest {
                 "$.imageId"
         );
 
-        secured.perform(post("/api/vca/demo-artifact/images/{imageId}/complete", imageId)
+        secured.perform(post("/api/vca/{artifactId}/images/{imageId}/complete", artifactId, imageId)
                         .header("X-VCA-Access-Token", "test-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -725,14 +763,15 @@ class VcaControllerTest {
                                 """.formatted(SHA256)))
                 .andExpect(status().isOk());
 
-        secured.perform(get("/api/vca/demo-artifact/files/sha256/{sha256}", SHA256)
+        secured.perform(get("/api/vca/{artifactId}/files/sha256/{sha256}", artifactId, SHA256)
                         .queryParam("vca_access_token", "test-token"))
                 .andExpect(status().isSeeOther());
     }
 
     @Test
     void cancelsQueuedDemoRunAndReportsFailedWithReason() throws Exception {
-        MvcResult presignResult = mockMvc.perform(post("/api/vca/cancel-demo-artifact/images/presign")
+        String artifactId = createArtifact(mockMvc, "cancel demo artifact");
+        MvcResult presignResult = mockMvc.perform(post("/api/vca/{artifactId}/images/presign", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -748,14 +787,14 @@ class VcaControllerTest {
                 presignResult.getResponse().getContentAsString(),
                 "$.imageId"
         );
-        mockMvc.perform(post("/api/vca/cancel-demo-artifact/images/{imageId}/complete", imageId)
+        mockMvc.perform(post("/api/vca/{artifactId}/images/{imageId}/complete", artifactId, imageId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"sha256":"%s"}
                                 """.formatted(SHA256)))
                 .andExpect(status().isOk());
 
-        MvcResult runResult = mockMvc.perform(post("/api/vca/cancel-demo-artifact/runs"))
+        MvcResult runResult = mockMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andReturn();
@@ -764,13 +803,13 @@ class VcaControllerTest {
                 "$.assessmentRunId"
         );
 
-        mockMvc.perform(post("/api/vca/cancel-demo-artifact/runs/{assessmentRunId}/cancel", assessmentRunId))
+        mockMvc.perform(post("/api/vca/{artifactId}/runs/{assessmentRunId}/cancel", artifactId, assessmentRunId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"))
                 .andExpect(jsonPath("$.failureReason").value("사용자가 분석을 중지했습니다."));
 
         // A second stop click on an already-terminal run is a harmless no-op.
-        mockMvc.perform(post("/api/vca/cancel-demo-artifact/runs/{assessmentRunId}/cancel", assessmentRunId))
+        mockMvc.perform(post("/api/vca/{artifactId}/runs/{assessmentRunId}/cancel", artifactId, assessmentRunId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"));
     }
@@ -788,6 +827,7 @@ class VcaControllerTest {
                     String assessmentId,
                     String projectName,
                     String inputImageFolder,
+                    List<VcaAiGateway.InputImageUrl> inputImageUrls,
                     String resumeFromProjectName
             ) {
                 return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
@@ -812,11 +852,12 @@ class VcaControllerTest {
         };
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "cancel gateway artifact");
 
-        gatewayMvc.perform(multipart("/api/vca/cancel-gateway-artifact/images").file(
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
                 .andExpect(status().isCreated());
-        MvcResult runResult = gatewayMvc.perform(post("/api/vca/cancel-gateway-artifact/runs"))
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("RUNNING"))
                 .andReturn();
@@ -825,28 +866,40 @@ class VcaControllerTest {
                 "$.assessmentRunId"
         );
 
-        gatewayMvc.perform(post("/api/vca/cancel-gateway-artifact/runs/{assessmentRunId}/cancel", assessmentRunId))
+        gatewayMvc.perform(post("/api/vca/{artifactId}/runs/{assessmentRunId}/cancel", artifactId, assessmentRunId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"))
                 .andExpect(jsonPath("$.failureReason").value("cancelled by user"));
     }
 
+    // 예전엔 "처음 보는 artifactId로 GET하면 DRAFT 상태로 자동 생성됨"을 검증했는데,
+    // 이제 artifactId가 서버 생성 UUID라 자동 생성 자체가 없다 - 그 대신 POST(생성) 직후
+    // 응답이 DRAFT 상태(업로드/run 없음)인지를 검증하는 걸로 의도를 유지한다.
     @Test
     void returnsDraftArtifactForFirstVcaEntry() throws Exception {
-        mockMvc.perform(get("/api/vca/new-workspace-artifact"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.artifactId").value("new-workspace-artifact"))
-                .andExpect(jsonPath("$.displayName").value("Artifact new-workspace-artifact"))
+        MvcResult createResult = mockMvc.perform(post("/api/vca")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"new workspace artifact\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.artifactId").isString())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
                 .andExpect(jsonPath("$.uploadedImages").isEmpty())
                 .andExpect(jsonPath("$.runs").isEmpty())
                 .andExpect(jsonPath("$.createdAt").isString())
-                .andExpect(jsonPath("$.updatedAt").isString());
+                .andExpect(jsonPath("$.updatedAt").isString())
+                .andReturn();
+        String artifactId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.artifactId");
+
+        mockMvc.perform(get("/api/vca/{artifactId}", artifactId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.artifactId").value(artifactId))
+                .andExpect(jsonPath("$.status").value("DRAFT"));
     }
 
     @Test
     void advancesDemoRunStatusThroughArtifactPolling() throws Exception {
-        MvcResult presignResult = mockMvc.perform(post("/api/vca/polling-artifact/images/presign")
+        String artifactId = createArtifact(mockMvc, "polling artifact");
+        MvcResult presignResult = mockMvc.perform(post("/api/vca/{artifactId}/images/presign", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -863,14 +916,14 @@ class VcaControllerTest {
                 "$.imageId"
         );
 
-        mockMvc.perform(post("/api/vca/polling-artifact/images/{imageId}/complete", imageId)
+        mockMvc.perform(post("/api/vca/{artifactId}/images/{imageId}/complete", artifactId, imageId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"sha256":"%s"}
                                 """.formatted(SHA256)))
                 .andExpect(status().isOk());
 
-        MvcResult runResult = mockMvc.perform(post("/api/vca/polling-artifact/runs"))
+        MvcResult runResult = mockMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andReturn();
@@ -880,14 +933,14 @@ class VcaControllerTest {
         );
 
         Thread.sleep(1_000);
-        mockMvc.perform(get("/api/vca/polling-artifact"))
+        mockMvc.perform(get("/api/vca/{artifactId}", artifactId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runs[0].assessmentRunId").value(assessmentRunId))
                 .andExpect(jsonPath("$.runs[0].status").value("RUNNING"))
                 .andExpect(jsonPath("$.status").value("ANALYZING"));
 
         Thread.sleep(2_100);
-        mockMvc.perform(get("/api/vca/polling-artifact"))
+        mockMvc.perform(get("/api/vca/{artifactId}", artifactId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runs[0].assessmentRunId").value(assessmentRunId))
                 .andExpect(jsonPath("$.runs[0].status").value("COMPLETED"))
@@ -911,6 +964,7 @@ class VcaControllerTest {
                     String requestedAssessmentId,
                     String requestedProjectName,
                     String requestedInputImageFolder,
+                    List<VcaAiGateway.InputImageUrl> inputImageUrls,
                     String requestedResumeFromProjectName
             ) {
                 assessmentId.set(requestedAssessmentId);
@@ -959,6 +1013,7 @@ class VcaControllerTest {
         };
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "gateway artifact");
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -966,7 +1021,7 @@ class VcaControllerTest {
                 "image/jpeg",
                 JPEG_BYTES
         );
-        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/gateway-artifact/images")
+        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId)
                         .file(file))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("UPLOADED"))
@@ -978,7 +1033,7 @@ class VcaControllerTest {
         assertThat(uploadResult.getResponse().getContentAsString())
                 .doesNotContain("/shared/vca", "inputImageFolder", tempDirectory.toString());
 
-        MvcResult runResult = gatewayMvc.perform(post("/api/vca/gateway-artifact/runs"))
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("RUNNING"))
                 .andReturn();
@@ -987,18 +1042,19 @@ class VcaControllerTest {
                 "$.assessmentRunId"
         );
         assertThat(assessmentId.get()).isEqualTo(assessmentRunId);
-        assertThat(projectName.get()).isEqualTo("gateway-artifact-" + assessmentRunId);
+        assertThat(projectName.get()).isEqualTo(artifactId + "-" + assessmentRunId);
         assertThat(inputImageFolder.get()).isEqualTo("/shared/vca/" + assessmentRunId + "/input");
         assertThat(Files.list(tempDirectory.resolve(assessmentRunId).resolve("input")).toList())
                 .hasSize(1)
                 .anySatisfy(path -> assertThat(path.getFileName().toString()).contains(imageId));
 
-        gatewayMvc.perform(get("/api/vca/gateway-artifact"))
+        gatewayMvc.perform(get("/api/vca/{artifactId}", artifactId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runs[0].status").value("COMPLETED"));
 
         gatewayMvc.perform(get(
-                        "/api/vca/gateway-artifact/runs/{assessmentRunId}/report",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
+                        artifactId,
                         assessmentRunId
                 ))
                 .andExpect(status().isOk())
@@ -1035,6 +1091,7 @@ class VcaControllerTest {
                     String assessmentId,
                     String projectName,
                     String inputImageFolder,
+                    List<VcaAiGateway.InputImageUrl> inputImageUrls,
                     String resumeFromProjectName
             ) {
                 if (createCallCount.getAndIncrement() == 0) {
@@ -1064,12 +1121,13 @@ class VcaControllerTest {
         };
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "resume gateway artifact");
 
-        gatewayMvc.perform(multipart("/api/vca/resume-gateway-artifact/images").file(
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
                 .andExpect(status().isCreated());
 
-        MvcResult firstRunResult = gatewayMvc.perform(post("/api/vca/resume-gateway-artifact/runs"))
+        MvcResult firstRunResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andReturn();
         String firstRunId = JsonPath.read(
@@ -1080,20 +1138,20 @@ class VcaControllerTest {
         assertThat(firstResumeFromProjectName.get()).isNull();
 
         gatewayMvc.perform(post(
-                        "/api/vca/resume-gateway-artifact/runs/{assessmentRunId}/cancel", firstRunId
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/cancel", artifactId, firstRunId
                 ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"));
 
         // And: the artifact now advertises a resumable run so FE can offer
         // both "이어서 분석 시작" and "새로 분석 시작".
-        gatewayMvc.perform(get("/api/vca/resume-gateway-artifact"))
+        gatewayMvc.perform(get("/api/vca/{artifactId}", artifactId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resumableRunId").value(firstRunId));
 
         // When: the same artifact is re-run with the exact same uploaded images,
         // explicitly choosing "이어서 분석 시작" (resume=true).
-        MvcResult secondRunResult = gatewayMvc.perform(post("/api/vca/resume-gateway-artifact/runs")
+        MvcResult secondRunResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"resume":true}
@@ -1107,7 +1165,7 @@ class VcaControllerTest {
         // Then: vca-ai is told to resume from the failed run's project name,
         // and the new run still gets its own distinct id (audit trail intact).
         assertThat(secondResumeFromProjectName.get())
-                .isEqualTo("resume-gateway-artifact-" + firstRunId);
+                .isEqualTo(artifactId + "-" + firstRunId);
         assertThat(secondRunId).isNotEqualTo(firstRunId);
     }
 
@@ -1171,11 +1229,12 @@ class VcaControllerTest {
                 sharedStorage,
                 potteryClient
         ));
+        String potteryArtifactId = createArtifact(gatewayMvc, "pottery artifact");
 
-        gatewayMvc.perform(multipart("/api/vca/pottery-artifact/images").file(
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", potteryArtifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
                 .andExpect(status().isCreated());
-        MvcResult potteryRun = gatewayMvc.perform(post("/api/vca/pottery-artifact/runs")
+        MvcResult potteryRun = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", potteryArtifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"material":"도자기"}
@@ -1188,7 +1247,8 @@ class VcaControllerTest {
         // the transition to a COMPLETED VCA report auto-triggers pottery
         // inspection server-side, with no separate manual call required.
         gatewayMvc.perform(get(
-                        "/api/vca/pottery-artifact/runs/{assessmentRunId}/report",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
+                        potteryArtifactId,
                         potteryRunId
                 ))
                 .andExpect(status().isOk())
@@ -1203,7 +1263,11 @@ class VcaControllerTest {
         assertThat(potteryClient.inspectedFileName).isEqualTo("front.jpg");
 
         // When: the manual endpoint is still used to explicitly re-run it (eg. as a retry).
-        gatewayMvc.perform(post("/api/vca/pottery-artifact/runs/{assessmentRunId}/pottery-inspection", potteryRunId)
+        gatewayMvc.perform(post(
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/pottery-inspection",
+                        potteryArtifactId,
+                        potteryRunId
+                )
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"material":"도자기"}
@@ -1216,10 +1280,11 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(true));
         assertThat(potteryClient.calls.get()).isEqualTo(2);
 
-        gatewayMvc.perform(multipart("/api/vca/bronze-artifact/images").file(
+        String bronzeArtifactId = createArtifact(gatewayMvc, "bronze artifact");
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", bronzeArtifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
                 .andExpect(status().isCreated());
-        MvcResult bronzeRun = gatewayMvc.perform(post("/api/vca/bronze-artifact/runs")
+        MvcResult bronzeRun = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", bronzeArtifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"material":"청동"}
@@ -1229,14 +1294,19 @@ class VcaControllerTest {
         String bronzeRunId = JsonPath.read(bronzeRun.getResponse().getContentAsString(), "$.assessmentRunId");
 
         gatewayMvc.perform(get(
-                        "/api/vca/bronze-artifact/runs/{assessmentRunId}/report",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
+                        bronzeArtifactId,
                         bronzeRunId
                 ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
                 .andExpect(jsonPath("$.potteryInspection").isEmpty());
 
-        gatewayMvc.perform(post("/api/vca/bronze-artifact/runs/{assessmentRunId}/pottery-inspection", bronzeRunId)
+        gatewayMvc.perform(post(
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/pottery-inspection",
+                        bronzeArtifactId,
+                        bronzeRunId
+                )
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"material":"청동"}
@@ -1258,11 +1328,12 @@ class VcaControllerTest {
                 sharedStorage,
                 new FailingPotteryInspectionAiClient()
         ));
+        String artifactId = createArtifact(gatewayMvc, "pottery failure artifact");
 
-        gatewayMvc.perform(multipart("/api/vca/pottery-failure-artifact/images").file(
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
                 .andExpect(status().isCreated());
-        MvcResult runResult = gatewayMvc.perform(post("/api/vca/pottery-failure-artifact/runs")
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"material":"도자기"}
@@ -1271,7 +1342,9 @@ class VcaControllerTest {
                 .andReturn();
         String runId = JsonPath.read(runResult.getResponse().getContentAsString(), "$.assessmentRunId");
 
-        gatewayMvc.perform(post("/api/vca/pottery-failure-artifact/runs/{assessmentRunId}/pottery-inspection", runId)
+        gatewayMvc.perform(post(
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/pottery-inspection", artifactId, runId
+                )
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"material":"도자기"}
@@ -1285,7 +1358,8 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.potteryInspectionStatus.failureMessage").value("pottery service unavailable"));
 
         gatewayMvc.perform(get(
-                        "/api/vca/pottery-failure-artifact/runs/{assessmentRunId}/report",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
+                        artifactId,
                         runId
                 ))
                 .andExpect(status().isOk())
@@ -1306,6 +1380,7 @@ class VcaControllerTest {
                     String assessmentId,
                     String projectName,
                     String inputImageFolder,
+                    List<VcaAiGateway.InputImageUrl> inputImageUrls,
                     String resumeFromProjectName
             ) {
                 return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
@@ -1332,11 +1407,12 @@ class VcaControllerTest {
         };
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "pdf sync artifact");
 
-        gatewayMvc.perform(multipart("/api/vca/pdf-sync-artifact/images").file(
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
                 .andExpect(status().isCreated());
-        MvcResult runResult = gatewayMvc.perform(post("/api/vca/pdf-sync-artifact/runs"))
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("RUNNING"))
                 .andReturn();
@@ -1346,7 +1422,8 @@ class VcaControllerTest {
         );
 
         gatewayMvc.perform(post(
-                        "/api/vca/pdf-sync-artifact/runs/{assessmentRunId}/report/pdf",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report/pdf",
+                        artifactId,
                         assessmentRunId
                 ))
                 .andExpect(status().isAccepted())
@@ -1368,6 +1445,7 @@ class VcaControllerTest {
                     String assessmentId,
                     String projectName,
                     String inputImageFolder,
+                    List<VcaAiGateway.InputImageUrl> inputImageUrls,
                     String resumeFromProjectName
             ) {
                 gatewayEntered.countDown();
@@ -1400,18 +1478,19 @@ class VcaControllerTest {
                 gateway,
                 new VcaSharedStorage(tempDirectory.toString(), "/shared/vca")
         );
+        String artifactId = service.createArtifact(new CreateArtifactRequest("nonblocking artifact")).artifactId();
         service.uploadImage(
-                "nonblocking-artifact",
+                artifactId,
                 new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)
         );
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
-            Future<RunResponse> runFuture = executor.submit(() -> service.createRun("nonblocking-artifact"));
+            Future<RunResponse> runFuture = executor.submit(() -> service.createRun(artifactId));
             assertThat(gatewayEntered.await(5, TimeUnit.SECONDS)).isTrue();
 
             Future<ArtifactDetailResponse> detailFuture = executor.submit(
-                    () -> service.getArtifact("nonblocking-artifact")
+                    () -> service.getArtifact(artifactId)
             );
             ArtifactDetailResponse detail = detailFuture.get(1, TimeUnit.SECONDS);
             assertThat(detail.runs()).hasSize(1);
@@ -1429,6 +1508,7 @@ class VcaControllerTest {
     void rejectsMultipartUploadWhenImageBytesDoNotMatchDeclaredContentType() throws Exception {
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         MockMvc gatewayMvc = mvc(new VcaService(true, new StaticVcaAiGateway(), sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "gateway artifact");
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "fake.png",
@@ -1436,7 +1516,7 @@ class VcaControllerTest {
                 "not an image".getBytes()
         );
 
-        gatewayMvc.perform(multipart("/api/vca/gateway-artifact/images").file(file))
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
@@ -1462,6 +1542,7 @@ class VcaControllerTest {
             @Override
             public VcaAiAssessmentRun createAssessmentRun(
                     String assessmentId, String projectName, String inputImageFolder,
+                    List<VcaAiGateway.InputImageUrl> inputImageUrls,
                     String resumeFromProjectName
             ) {
                 return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
@@ -1500,18 +1581,19 @@ class VcaControllerTest {
             }
         };
         MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "report image id artifact");
         MockMultipartFile file = new MockMultipartFile(
                 "file", "front.jpg", "image/jpeg", JPEG_BYTES
         );
 
-        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/report-image-id-artifact/images").file(file))
+        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(file))
                 .andExpect(status().isCreated())
                 .andReturn();
         String uploadedImageId = JsonPath.read(
                 uploadResult.getResponse().getContentAsString(),
                 "$.imageId"
         );
-        MvcResult runResult = gatewayMvc.perform(post("/api/vca/report-image-id-artifact/runs"))
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andReturn();
         String assessmentRunId = JsonPath.read(
@@ -1520,7 +1602,8 @@ class VcaControllerTest {
         );
 
         gatewayMvc.perform(get(
-                        "/api/vca/report-image-id-artifact/runs/{assessmentRunId}/report",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
+                        artifactId,
                         assessmentRunId
                 ))
                 .andExpect(status().isOk())
@@ -1537,13 +1620,14 @@ class VcaControllerTest {
     void deletesStoredUploadDirectoryWhenImageIsDeleted() throws Exception {
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         MockMvc gatewayMvc = mvc(new VcaService(true, new StaticVcaAiGateway(), sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "delete storage artifact");
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "detail.png",
                 "image/png",
                 PNG_BYTES
         );
-        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/delete-storage-artifact/images")
+        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId)
                         .file(file))
                 .andExpect(status().isCreated())
                 .andReturn();
@@ -1552,7 +1636,7 @@ class VcaControllerTest {
                 "$.imageId"
         );
 
-        gatewayMvc.perform(delete("/api/vca/delete-storage-artifact/images/{imageId}", imageId))
+        gatewayMvc.perform(delete("/api/vca/{artifactId}/images/{imageId}", artifactId, imageId))
                 .andExpect(status().isNoContent());
 
         assertThat(tempDirectory.resolve("uploads").resolve(imageId)).doesNotExist();
@@ -1569,13 +1653,14 @@ class VcaControllerTest {
         // instead of silently breaking those reads later.
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
         MockMvc gatewayMvc = mvc(new VcaService(true, new StaticVcaAiGateway(), sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "image delete guard artifact");
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "detail.png",
                 "image/png",
                 PNG_BYTES
         );
-        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/image-delete-guard-artifact/images")
+        MvcResult uploadResult = gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId)
                         .file(file))
                 .andExpect(status().isCreated())
                 .andReturn();
@@ -1583,10 +1668,10 @@ class VcaControllerTest {
                 uploadResult.getResponse().getContentAsString(),
                 "$.imageId"
         );
-        gatewayMvc.perform(post("/api/vca/image-delete-guard-artifact/runs"))
+        gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted());
 
-        gatewayMvc.perform(delete("/api/vca/image-delete-guard-artifact/images/{imageId}", imageId))
+        gatewayMvc.perform(delete("/api/vca/{artifactId}/images/{imageId}", artifactId, imageId))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("IMAGE_REFERENCED_BY_RUN"));
     }
@@ -1610,6 +1695,7 @@ class VcaControllerTest {
             @Override
             public VcaAiAssessmentRun createAssessmentRun(
                     String assessmentId, String projectName, String inputImageFolder,
+                    List<VcaAiGateway.InputImageUrl> inputImageUrls,
                     String resumeFromProjectName
             ) {
                 throw new OutOfMemoryError("simulated process crash");
@@ -1631,19 +1717,20 @@ class VcaControllerTest {
             }
         };
         VcaService service = new VcaService(true, crashingGateway, sharedStorage);
+        String artifactId = service.createArtifact(new CreateArtifactRequest("stuck run artifact")).artifactId();
         MockMultipartFile file = new MockMultipartFile("file", "detail.png", "image/png", PNG_BYTES);
-        service.uploadImage("stuck-run-artifact", file);
+        service.uploadImage(artifactId, file);
 
         // When: run creation crashes uncaught partway through.
-        assertThatThrownBy(() -> service.createRun("stuck-run-artifact"))
+        assertThatThrownBy(() -> service.createRun(artifactId))
                 .isInstanceOf(OutOfMemoryError.class);
 
         // Then: the QUEUED reservation survives and blocks every subsequent
         // run creation attempt for this artifact - the actual bug.
-        ArtifactDetailResponse beforeReconcile = service.getArtifact("stuck-run-artifact");
+        ArtifactDetailResponse beforeReconcile = service.getArtifact(artifactId);
         assertThat(beforeReconcile.runs()).hasSize(1);
         assertThat(beforeReconcile.runs().get(0).status()).isEqualTo("QUEUED");
-        assertThatThrownBy(() -> service.createRun("stuck-run-artifact"))
+        assertThatThrownBy(() -> service.createRun(artifactId))
                 .isInstanceOf(VcaApiException.class)
                 .hasMessageContaining("already queued or running");
 
@@ -1651,7 +1738,7 @@ class VcaControllerTest {
         service.reconcileStuckRunsOnStartup();
 
         // Then: the stuck run is marked FAILED and no longer blocks new runs.
-        ArtifactDetailResponse afterReconcile = service.getArtifact("stuck-run-artifact");
+        ArtifactDetailResponse afterReconcile = service.getArtifact(artifactId);
         assertThat(afterReconcile.runs().get(0).status()).isEqualTo("FAILED");
     }
 
@@ -1667,22 +1754,23 @@ class VcaControllerTest {
                 sharedStorage,
                 intermediateStorage
         ));
+        String artifactId = createArtifact(gatewayMvc, "intermediate artifact");
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "front.jpg",
                 "image/jpeg",
                 JPEG_BYTES
         );
-        gatewayMvc.perform(multipart("/api/vca/intermediate-artifact/images").file(file))
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(file))
                 .andExpect(status().isCreated());
-        MvcResult runResult = gatewayMvc.perform(post("/api/vca/intermediate-artifact/runs"))
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andReturn();
         String assessmentRunId = JsonPath.read(
                 runResult.getResponse().getContentAsString(),
                 "$.assessmentRunId"
         );
-        String projectName = "intermediate-artifact-" + assessmentRunId;
+        String projectName = artifactId + "-" + assessmentRunId;
         Path manifest = outputRoot.resolve("preprocessing").resolve(projectName).resolve("manifest.json");
         Files.createDirectories(manifest.getParent());
         Files.writeString(manifest, "{\"stage\":\"preprocessing\"}");
@@ -1691,11 +1779,12 @@ class VcaControllerTest {
         Files.writeString(receipt, "{\"status\":\"completed\"}");
 
         MvcResult result = gatewayMvc.perform(get(
-                        "/api/vca/intermediate-artifact/runs/{assessmentRunId}/intermediate-results",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/intermediate-results",
+                        artifactId,
                         assessmentRunId
                 ))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.artifactId").value("intermediate-artifact"))
+                .andExpect(jsonPath("$.artifactId").value(artifactId))
                 .andExpect(jsonPath("$.assessmentRunId").value(assessmentRunId))
                 .andExpect(jsonPath("$.projectName").value(projectName))
                 .andExpect(jsonPath("$.stages[0].stage").value("preprocessing"))
@@ -1721,17 +1810,18 @@ class VcaControllerTest {
                 sharedStorage,
                 intermediateStorage
         ));
-        gatewayMvc.perform(multipart("/api/vca/preview-artifact/images").file(
+        String artifactId = createArtifact(gatewayMvc, "preview artifact");
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
                 .andExpect(status().isCreated());
-        MvcResult runResult = gatewayMvc.perform(post("/api/vca/preview-artifact/runs"))
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andReturn();
         String assessmentRunId = JsonPath.read(
                 runResult.getResponse().getContentAsString(),
                 "$.assessmentRunId"
         );
-        String projectName = "preview-artifact-" + assessmentRunId;
+        String projectName = artifactId + "-" + assessmentRunId;
         Path manifest = outputRoot.resolve("preprocessing").resolve(projectName).resolve("large.json");
         Files.createDirectories(manifest.getParent());
         Files.writeString(
@@ -1741,7 +1831,8 @@ class VcaControllerTest {
         );
 
         MvcResult result = gatewayMvc.perform(get(
-                        "/api/vca/preview-artifact/runs/{assessmentRunId}/intermediate-results",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/intermediate-results",
+                        artifactId,
                         assessmentRunId
                 ))
                 .andExpect(status().isOk())
@@ -1768,17 +1859,18 @@ class VcaControllerTest {
                 sharedStorage,
                 intermediateStorage
         ));
-        gatewayMvc.perform(multipart("/api/vca/sensitive-preview-artifact/images").file(
+        String artifactId = createArtifact(gatewayMvc, "sensitive preview artifact");
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(
                         new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES)))
                 .andExpect(status().isCreated());
-        MvcResult runResult = gatewayMvc.perform(post("/api/vca/sensitive-preview-artifact/runs"))
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isAccepted())
                 .andReturn();
         String assessmentRunId = JsonPath.read(
                 runResult.getResponse().getContentAsString(),
                 "$.assessmentRunId"
         );
-        String projectName = "sensitive-preview-artifact-" + assessmentRunId;
+        String projectName = artifactId + "-" + assessmentRunId;
         Path ragFile = outputRoot.resolve("rag").resolve(projectName).resolve("prompt_rag_results.jsonl");
         Path promptFile = outputRoot.resolve("prompt_generating").resolve(projectName).resolve("prompt.json");
         Files.createDirectories(ragFile.getParent());
@@ -1787,7 +1879,8 @@ class VcaControllerTest {
         Files.writeString(promptFile, "{\"prompt\":\"sensitive prompt text\"}");
 
         MvcResult result = gatewayMvc.perform(get(
-                        "/api/vca/sensitive-preview-artifact/runs/{assessmentRunId}/intermediate-results",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/intermediate-results",
+                        artifactId,
                         assessmentRunId
                 ))
                 .andExpect(status().isOk())
@@ -1819,17 +1912,20 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.error.message").isString());
 
-        mockMvc.perform(get("/api/vca/empty-artifact"))
+        String artifactId = createArtifact(mockMvc, "empty artifact");
+
+        mockMvc.perform(get("/api/vca/{artifactId}", artifactId))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get(
-                        "/api/vca/empty-artifact/runs/{assessmentRunId}/report",
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
+                        artifactId,
                         "12345678-1234-5678-1234-567812345678"
                 ))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
 
-        mockMvc.perform(post("/api/vca/empty-artifact/runs"))
+        mockMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("NOT_READY"));
 
@@ -1844,7 +1940,8 @@ class VcaControllerTest {
 
     @Test
     void validatesCompletionChecksumAndHardDeletesImageMetadata() throws Exception {
-        MvcResult presignResult = mockMvc.perform(post("/api/vca/delete-artifact/images/presign")
+        String artifactId = createArtifact(mockMvc, "delete artifact");
+        MvcResult presignResult = mockMvc.perform(post("/api/vca/{artifactId}/images/presign", artifactId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -1861,7 +1958,7 @@ class VcaControllerTest {
                 "$.imageId"
         );
 
-        mockMvc.perform(post("/api/vca/delete-artifact/images/{imageId}/complete", imageId)
+        mockMvc.perform(post("/api/vca/{artifactId}/images/{imageId}/complete", artifactId, imageId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
@@ -1869,10 +1966,10 @@ class VcaControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("SHA256_MISMATCH"));
 
-        mockMvc.perform(delete("/api/vca/delete-artifact/images/{imageId}", imageId))
+        mockMvc.perform(delete("/api/vca/{artifactId}/images/{imageId}", artifactId, imageId))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(post("/api/vca/delete-artifact/images/{imageId}/complete", imageId)
+        mockMvc.perform(post("/api/vca/{artifactId}/images/{imageId}/complete", artifactId, imageId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"sha256":"%s"}

@@ -3,6 +3,7 @@ package com.aivle.conservation_backend.vca.controller;
 import com.aivle.conservation_backend.vca.dto.ArtifactCollectionResponse;
 import com.aivle.conservation_backend.vca.dto.ArtifactDetailResponse;
 import com.aivle.conservation_backend.vca.dto.CompleteImageRequest;
+import com.aivle.conservation_backend.vca.dto.CreateArtifactRequest;
 import com.aivle.conservation_backend.vca.dto.CreateRunRequest;
 import com.aivle.conservation_backend.vca.dto.ImageResponse;
 import com.aivle.conservation_backend.vca.dto.IntermediateResultsResponse;
@@ -51,6 +52,17 @@ public class VcaController {
         return vcaService.getArtifacts();
     }
 
+    // 새 유물을 만들고 서버가 생성한 artifact_id(UUID)를 응답에 담아 돌려준다. artifactId가
+    // 서버 생성 UUID라 클라이언트가 URL에 미리 넣을 값을 알 수 없으므로, 하위 경로
+    // (/{artifactId}/...)에 접근하려면 먼저 이 엔드포인트를 호출해야 한다(팀의
+    // ArtifactApiController.create()와 같은 표준 REST 생성 패턴).
+    @PostMapping
+    public ResponseEntity<ArtifactDetailResponse> createArtifact(
+            @RequestBody CreateArtifactRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(vcaService.createArtifact(request));
+    }
+
     // RAG 근거로 쓰이는 PDF 코퍼스 관리 엔드포인트(아티팩트 단위가 아닌 전역 코퍼스).
     @GetMapping("/corpus/pdfs")
     public VcaCorpusPdfCollectionResponse getCorpusPdfs() {
@@ -80,7 +92,8 @@ public class VcaController {
         return vcaService.getSystemInfo();
     }
 
-    // 아티팩트 상세(업로드 이미지, run 이력 포함). artifactId가 없으면 VcaService가 자동 생성한다.
+    // 아티팩트 상세(업로드 이미지, run 이력 포함). artifactId는 createArtifact가 미리
+    // 반환한 UUID여야 한다 - 없으면 404(VcaService.requireArtifact).
     @GetMapping("/{artifactId}")
     public ArtifactDetailResponse getArtifact(@PathVariable String artifactId) {
         return vcaService.getArtifact(artifactId);

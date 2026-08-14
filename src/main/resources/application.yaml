@@ -73,6 +73,11 @@ vca:
   ai:
     base-url: ${VCA_AI_BASE_URL:http://localhost:8002}
     timeout-seconds: ${VCA_AI_TIMEOUT_SECONDS:150}
+    # BE -> vca-ai 호출에 실어 보내는 공유 시크릿. vca-ai가 인터넷에 공개
+    # 노출된 경우(RunPod 등 외부 위탁)에만 실질적인 의미가 있다 - 같은
+    # 클러스터 안에서만 닿을 수 있으면 비워둬도 되지만(vca-ai 쪽도 비어있으면
+    # 검증을 건너뜀), 외부에 노출하는 배포에서는 반드시 채울 것.
+    access-token: ${VCA_AI_ACCESS_TOKEN:}
 
 app:
   cors:

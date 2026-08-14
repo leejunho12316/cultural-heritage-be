@@ -10,6 +10,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -42,7 +44,7 @@ class RestClientVcaAiGatewayTest {
                 .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
 
         assertBadGateway(
-                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", null),
+                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", List.of(), null),
                 "VCA_AI_INVALID_RESPONSE"
         );
     }
@@ -84,7 +86,7 @@ class RestClientVcaAiGatewayTest {
                 ));
 
         assertBadGateway(
-                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", null),
+                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", List.of(), null),
                 "VCA_AI_INVALID_RESPONSE"
         );
     }
@@ -96,7 +98,7 @@ class RestClientVcaAiGatewayTest {
                 .andRespond(withServerError());
 
         assertBadGateway(
-                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", null),
+                () -> gateway.createAssessmentRun("assessment-1", "project-1", "/input", List.of(), null),
                 "VCA_AI_REQUEST_FAILED"
         );
     }

@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.BufferedInputStream;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -108,7 +109,7 @@ public class VcaSharedStorage {
                     "Failed to prepare VCA assessment input images."
             );
         }
-        return new RunInputDirectory(containerRoot + "/" + assessmentRunId + "/input");
+        return new RunInputDirectory(containerRoot + "/" + assessmentRunId + "/input", List.of());
     }
 
     // 이미지 삭제 API(VcaService.deleteImage)에서 호출되어 업로드 디렉터리 전체를 제거한다.
@@ -262,6 +263,11 @@ public class VcaSharedStorage {
     record StoredImageReference(String imageId, String fileName, Path localPath) {
     }
 
-    record RunInputDirectory(String containerPath) {
+    // containerPath: 로컬 폴백(VcaSharedStorage)이 채우는 컨테이너 내부 경로 - vca-ai가 마운트된
+    // 디렉터리를 그대로 읽을 때 쓴다. remoteImages: S3 기반(VcaS3ImageStorage)이 채우는, vca-ai가
+    // 직접 다운로드해야 할 이미지의 presigned GET URL 목록 - 둘 중 정확히 하나만 채워진다.
+    record RunInputDirectory(String containerPath, List<RemoteImage> remoteImages) {
+        record RemoteImage(String fileName, URI downloadUrl) {
+        }
     }
 }

@@ -2,6 +2,9 @@ package com.aivle.conservation_backend.vca.service;
 
 import com.aivle.conservation_backend.vca.dto.PresignImageRequest;
 import com.aivle.conservation_backend.vca.exception.VcaApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -20,14 +23,10 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,29 +36,28 @@ import java.util.Map;
 @Component
 class VcaS3ImageStorage implements VcaImageStorage {
 
+    private static final Logger log = LoggerFactory.getLogger(VcaS3ImageStorage.class);
+
     private static final Duration DOWNLOAD_URL_TTL = Duration.ofMinutes(5);
 
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
+    private final S3Presigner internalS3Presigner;
     private final String bucket;
     private final String objectPrefix;
-    private final Path storageRoot;
-    private final String containerRoot;
 
     VcaS3ImageStorage(
             S3Client s3Client,
             S3Presigner s3Presigner,
+            @Qualifier("internalS3Presigner") S3Presigner internalS3Presigner,
             @Value("${aws.s3.bucket}") String bucket,
-            @Value("${vca.s3.object-prefix:vca/images}") String objectPrefix,
-            @Value("${vca.storage.local-root}") String localRoot,
-            @Value("${vca.storage.container-root}") String containerRoot
+            @Value("${vca.s3.object-prefix:vca/images}") String objectPrefix
     ) {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
+        this.internalS3Presigner = internalS3Presigner;
         this.bucket = bucket;
         this.objectPrefix = removeSlashes(objectPrefix);
-        this.storageRoot = Path.of(localRoot).toAbsolutePath().normalize();
-        this.containerRoot = removeTrailingSlash(containerRoot);
     }
 
     // 클라이언트가 S3로 직접 PUT할 presigned URL을 발급한다. 이 경로는 파일 바이트를 Spring이
@@ -103,21 +101,20 @@ class VcaS3ImageStorage implements VcaImageStorage {
         String fileName = VcaImageUploadValidator.safeFileName(file.getOriginalFilename());
         String objectKey = objectKey(artifactId, imageId, fileName);
         try {
-            String sha256 = VcaImageUploadValidator.uploadSha256(file);
-            try (InputStream input = VcaImageUploadValidator.verifiedImageInput(file)) {
-                s3Client.putObject(
-                        PutObjectRequest.builder()
-                                .bucket(bucket)
-                                .key(objectKey)
-                                .contentType(file.getContentType())
-                                .contentLength(file.getSize())
-                                .metadata(Map.of("sha256", sha256))
-                                .build(),
-                        RequestBody.fromInputStream(input, file.getSize())
-                );
-            }
-            return new StoredImage(fileName, file.getContentType(), file.getSize(), sha256, objectKey);
+            VcaImageUploadValidator.VerifiedImage verified = VcaImageUploadValidator.verifyAndReadBytes(file);
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(objectKey)
+                            .contentType(file.getContentType())
+                            .contentLength((long) verified.bytes().length)
+                            .metadata(Map.of("sha256", verified.sha256()))
+                            .build(),
+                    RequestBody.fromBytes(verified.bytes())
+            );
+            return new StoredImage(fileName, file.getContentType(), (long) verified.bytes().length, verified.sha256(), objectKey);
         } catch (IOException exception) {
+            log.error("Failed to store uploaded VCA image (I/O)", exception);
             throw new VcaApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "UPLOAD_STORAGE_FAILED",
@@ -126,6 +123,7 @@ class VcaS3ImageStorage implements VcaImageStorage {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 digest is unavailable.", exception);
         } catch (S3Exception exception) {
+            log.error("Failed to store uploaded VCA image (S3)", exception);
             throw new VcaApiException(
                     HttpStatus.BAD_GATEWAY,
                     "UPLOAD_STORAGE_FAILED",
@@ -170,6 +168,17 @@ class VcaS3ImageStorage implements VcaImageStorage {
 
     @Override
     public URI presignedDownload(String objectKey) {
+        return presignedDownload(objectKey, s3Presigner);
+    }
+
+    // vca-ai(백엔드 컨테이너)가 직접 따라갈 다운로드 URL. presignedDownload와 달리
+    // internalS3Presigner를 써서, 로컬 MinIO에서는 컨테이너 네트워크 endpoint를
+    // 가리키는 URL을 만든다(브라우저용 presignedDownload와 endpoint가 다를 수 있음).
+    private URI presignedDownloadForBackend(String objectKey) {
+        return presignedDownload(objectKey, internalS3Presigner);
+    }
+
+    private URI presignedDownload(String objectKey, S3Presigner presigner) {
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                 .signatureDuration(DOWNLOAD_URL_TTL)
                 .getObjectRequest(GetObjectRequest.builder()
@@ -177,7 +186,7 @@ class VcaS3ImageStorage implements VcaImageStorage {
                         .key(objectKey)
                         .build())
                 .build();
-        return URI.create(s3Presigner.presignGetObject(presignRequest).url().toString());
+        return URI.create(presigner.presignGetObject(presignRequest).url().toString());
     }
 
     @Override
@@ -193,6 +202,7 @@ class VcaS3ImageStorage implements VcaImageStorage {
                     RequestBody.fromBytes(bytes)
             );
         } catch (S3Exception exception) {
+            log.error("Failed to store generated file (S3)", exception);
             throw new VcaApiException(
                     HttpStatus.BAD_GATEWAY,
                     "UPLOAD_STORAGE_FAILED",
@@ -201,37 +211,29 @@ class VcaS3ImageStorage implements VcaImageStorage {
         }
     }
 
-    // run 실행 전, S3에 있는 업로드 이미지들을 엔진 컨테이너가 마운트해 읽을 로컬 입력 디렉터리로 내려받는다.
+    // run 실행 전, S3에 있는 업로드 이미지 각각의 presigned GET URL을 만든다. vca-ai가 자기 pod의
+    // 로컬 임시 디렉터리로 직접 내려받으므로(EFS 등 공유 볼륨 불필요), 여기서는 로컬 디스크에
+    // 아무것도 쓰지 않는다.
     @Override
     public VcaSharedStorage.RunInputDirectory materializeRunInput(
             String assessmentRunId,
             List<StoredImageReference> images
     ) {
-        Path runDirectory = storageRoot.resolve(assessmentRunId).normalize();
-        requireChild(runDirectory, storageRoot, "Invalid VCA run directory path.");
-        Path inputDirectory = runDirectory.resolve("input").normalize();
-        requireChild(inputDirectory, runDirectory, "Invalid VCA run input path.");
         try {
-            deleteRecursively(runDirectory);
-            Files.createDirectories(inputDirectory);
-            for (StoredImageReference image : images) {
-                Path targetFile = inputDirectory
-                        .resolve(image.imageId() + "-" + VcaImageUploadValidator.safeFileName(image.fileName()))
-                        .normalize();
-                requireChild(targetFile, inputDirectory, "Invalid VCA run input file path.");
-                s3Client.getObject(
-                        GetObjectRequest.builder().bucket(bucket).key(image.objectKey()).build(),
-                        ResponseTransformer.toFile(targetFile)
-                );
-            }
-        } catch (IOException | S3Exception exception) {
+            List<VcaSharedStorage.RunInputDirectory.RemoteImage> remoteImages = images.stream()
+                    .map(image -> new VcaSharedStorage.RunInputDirectory.RemoteImage(
+                            image.imageId() + "-" + VcaImageUploadValidator.safeFileName(image.fileName()),
+                            presignedDownloadForBackend(image.objectKey())
+                    ))
+                    .toList();
+            return new VcaSharedStorage.RunInputDirectory(null, remoteImages);
+        } catch (S3Exception exception) {
             throw new VcaApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "RUN_INPUT_STORAGE_FAILED",
                     "Failed to prepare VCA assessment input images."
             );
         }
-        return new VcaSharedStorage.RunInputDirectory(containerRoot + "/" + assessmentRunId + "/input");
     }
 
     @Override
@@ -270,23 +272,6 @@ class VcaS3ImageStorage implements VcaImageStorage {
     // S3 오브젝트 키 레이아웃: {objectPrefix}/{artifactId}/{imageId}/{fileName}.
     private String objectKey(String artifactId, String imageId, String fileName) {
         return objectPrefix + "/" + artifactId + "/" + imageId + "/" + VcaImageUploadValidator.safeFileName(fileName);
-    }
-
-    private static void requireChild(Path path, Path parent, String message) {
-        if (!path.getParent().equals(parent.normalize())) {
-            throw new VcaApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message);
-        }
-    }
-
-    private static void deleteRecursively(Path directory) throws IOException {
-        if (!Files.exists(directory)) {
-            return;
-        }
-        try (var paths = Files.walk(directory)) {
-            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(path);
-            }
-        }
     }
 
     private static String removeTrailingSlash(String value) {

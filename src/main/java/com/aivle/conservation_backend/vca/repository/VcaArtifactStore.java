@@ -14,7 +14,5 @@ public interface VcaArtifactStore {
 
     Optional<VcaArtifactEntity> findById(UUID id);
 
-    Optional<VcaArtifactEntity> findByArtifactCode(String artifactCode);
-
     List<VcaArtifactEntity> findAll();
 }

@@ -1,6 +1,8 @@
 package com.aivle.conservation_backend.vca.gateway;
 
 import com.aivle.conservation_backend.vca.exception.VcaApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,6 +18,8 @@ import java.util.function.Supplier;
 @Component
 public class RestClientVcaAiGateway implements VcaAiGateway {
 
+    private static final Logger log = LoggerFactory.getLogger(RestClientVcaAiGateway.class);
+
     private final RestClient restClient;
 
     public RestClientVcaAiGateway(
@@ -30,6 +34,7 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
             String assessmentId,
             String projectName,
             String inputImageFolder,
+            List<InputImageUrl> inputImageUrls,
             String resumeFromProjectName
     ) {
         AssessmentRunResponse response = request(() -> restClient.post()
@@ -40,6 +45,9 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
                         assessmentId,
                         projectName,
                         inputImageFolder,
+                        inputImageUrls == null ? List.of() : inputImageUrls.stream()
+                                .map(image -> new InputImageUrlPayload(image.fileName(), image.downloadUrl().toString()))
+                                .toList(),
                         resumeFromProjectName
                 ))
                 .retrieve()
@@ -171,6 +179,7 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
             if (hasCause(exception, HttpMessageConversionException.class)) {
                 throw invalidResponse("VCA AI request", "response body could not be decoded");
             }
+            log.error("VCA AI request failed", exception);
             throw new VcaApiException(
                     HttpStatus.BAD_GATEWAY,
                     "VCA_AI_REQUEST_FAILED",
@@ -296,7 +305,14 @@ public class RestClientVcaAiGateway implements VcaAiGateway {
             String assessmentId,
             String projectName,
             String inputImageFolder,
+            List<InputImageUrlPayload> inputImageUrls,
             String resumeFromProjectName
+    ) {
+    }
+
+    private record InputImageUrlPayload(
+            String fileName,
+            String url
     ) {
     }
 

@@ -4,14 +4,11 @@ import com.aivle.conservation_backend.vca.exception.VcaApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Path;
-import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.regex.Pattern;
 
@@ -46,13 +43,18 @@ final class VcaImageUploadValidator {
         }
     }
 
-    // 멀티파트 Content-Type 헤더는 클라이언트가 스스로 선언한 값이라 그대로 신뢰할 수 없으므로,
-    // 아래에서 실제 파일 앞부분 바이트를 읽어 선언된 타입과 일치하는지 검증한다.
-    static InputStream verifiedImageInput(MultipartFile file) throws IOException {
-        BufferedInputStream input = new BufferedInputStream(file.getInputStream());
-        input.mark(IMAGE_HEADER_SIZE);
-        byte[] header = input.readNBytes(IMAGE_HEADER_SIZE);
-        input.reset();
+    // S3 업로드 경로(VcaS3ImageStorage.storeUpload) 전용: 파일 전체를 바이트 배열로 읽어
+    // 헤더 검증 + SHA-256 계산을 한 번에 끝낸다. 예전에는 헤더 확인용으로 mark(12)만 걸어둔
+    // BufferedInputStream을 그대로 RequestBody.fromInputStream에 넘겼는데, AWS SDK가 전송 중
+    // 재시도할 때 그 작은 되감기 한도를 넘어선 지점에서 reset()을 호출해 "Resetting to invalid
+    // mark"로 깨졌다(실제 RunPod 경유 업로드에서 재현됨). 바이트 배열은 되감을 스트림 상태 자체가
+    // 없어 RequestBody.fromBytes와 함께 쓰면 재시도가 항상 안전하다.
+    record VerifiedImage(byte[] bytes, String sha256) {
+    }
+
+    static VerifiedImage verifyAndReadBytes(MultipartFile file) throws IOException, NoSuchAlgorithmException {
+        byte[] bytes = file.getBytes();
+        byte[] header = Arrays.copyOf(bytes, Math.min(bytes.length, IMAGE_HEADER_SIZE));
         if (!matchesContentType(file.getContentType(), header)) {
             throw new VcaApiException(
                     HttpStatus.BAD_REQUEST,
@@ -60,17 +62,8 @@ final class VcaImageUploadValidator {
                     "VCA image bytes do not match the declared contentType."
             );
         }
-        return input;
-    }
-
-    // 검증된 이미지 스트림의 SHA-256을 계산(업로드 무결성 확인/파일 조회 키로 사용).
-    static String uploadSha256(MultipartFile file) throws IOException, NoSuchAlgorithmException {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        try (InputStream input = verifiedImageInput(file);
-             InputStream digestInput = new DigestInputStream(input, digest)) {
-            digestInput.transferTo(OutputStream.nullOutputStream());
-        }
-        return HexFormat.of().formatHex(digest.digest());
+        String sha256 = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        return new VerifiedImage(bytes, sha256);
     }
 
     // 경로 구분자를 제거해 원본 파일명에서 basename만 남긴다(경로 조작 방지).

@@ -39,17 +39,23 @@ public class RestClientConfig {
     @Bean
     public RestClient vcaAiRestClient(
             @Value("${vca.ai.base-url}") String baseUrl,
-            @Value("${vca.ai.timeout-seconds}") long timeoutSeconds
+            @Value("${vca.ai.timeout-seconds}") long timeoutSeconds,
+            @Value("${vca.ai.access-token:}") String accessToken
     ) {
         SimpleClientHttpRequestFactory requestFactory =
                 new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(10));
         requestFactory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
 
-        return RestClient.builder()
+        RestClient.Builder builder = RestClient.builder()
                 .baseUrl(baseUrl)
-                .requestFactory(requestFactory)
-                .build();
+                .requestFactory(requestFactory);
+        // vca-ai가 클러스터 밖(RunPod 등)에 있어 access-token이 설정된 경우에만
+        // 헤더를 붙인다 - 값이 비어있으면 vca-ai 쪽도 검증을 건너뛰므로 안 붙여도 된다.
+        if (accessToken != null && !accessToken.isBlank()) {
+            builder = builder.defaultHeader("X-VCA-Access-Token", accessToken);
+        }
+        return builder.build();
     }
 
     @Bean
