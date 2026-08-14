@@ -19,12 +19,6 @@ phases:
         git status
         git log --oneline -5 || true
         git rev-parse HEAD
-        git rev-parse HEAD^ || true
-        git rev-parse --is-shallow-repository || true
-        echo "===== GIT DEBUG ====="
-        git status
-        git log --oneline -5 || true
-        git rev-parse HEAD
         git rev-parse --is-shallow-repository || true
 
         echo "===== ENSURE GIT HISTORY ====="
