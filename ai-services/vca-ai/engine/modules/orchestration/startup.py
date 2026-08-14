@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
@@ -321,8 +322,22 @@ def _stage_runners(
     return StartupStageRunners()
 
 
+# VCA_FAULTHANDLER=1이면 SIGUSR1을 받았을 때 현재 모든 스레드의 파이썬
+# 스택을 stderr에 덤프하도록 등록한다. py-spy/gdb 같은 ptrace 기반 도구가
+# 막힌 컨테이너(SYS_PTRACE capability 없음)에서도 외부에서 `kill -USR1 <pid>`
+# 로 이 프로세스가 지금 어디서 멈춰 있는지 확인할 수 있다.
+def _register_faulthandler_if_enabled() -> None:
+    if not os.environ.get("VCA_FAULTHANDLER"):
+        return
+    import faulthandler
+    import signal
+
+    faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True)
+
+
 def main() -> int:
     """Entrypoint for `python -m modules.orchestration.startup`."""
+    _register_faulthandler_if_enabled()
     return run(tuple(sys.argv[1:]))
 
 

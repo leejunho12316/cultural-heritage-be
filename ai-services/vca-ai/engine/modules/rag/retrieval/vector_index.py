@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import isfinite, sqrt
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
+
+import numpy as np
 
 from modules.rag.evidence.citations import CorpusCitation
 from modules.rag.retrieval.retrieval import RetrievalSnippet
 from modules.shared import ContractValidationError
 
 if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
     from modules.rag.corpus.document_index import DocumentChunk
 
 type FloatVector = tuple[float, ...]
@@ -40,8 +44,19 @@ class VectorIndex:
     """In-memory exact cosine index with citation-bearing chunk metadata."""
 
     chunks: tuple[DocumentChunk, ...]
+    # 생성 시점(빌드 경로든, 캐시에서 읽는 경로든, 테스트에서 직접 생성하는
+    # 경로든 전부 __post_init__을 거친다)에 numpy 배열로 정규화된다. 타입은
+    # 호출부 호환을 위해 FloatMatrix로 유지하지만 런타임 값은 항상
+    # NDArray[np.float32]다 - vector_retrieve의 코사인 유사도 계산을 행렬곱
+    # 한 번으로 끝내기 위함(청크마다 파이썬 루프로 내적을 돌리면 코퍼스가
+    # 클 때 쿼리 하나당 수십 초가 걸렸다).
     embeddings: FloatMatrix
     model_id: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "embeddings", np.asarray(self.embeddings, dtype=np.float32)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,12 +112,25 @@ def vector_retrieve(
         raise ContractValidationError(field, reason)
     query = embedder.embed_query(query_text)
     _validate_vector(query)
-    score_values = tuple(_dot(embedding, query) for embedding in index.embeddings)
+    embeddings = cast("NDArray[np.float32]", index.embeddings)
+    query_array = np.asarray(query, dtype=np.float32)
+    if embeddings.shape[1] != query_array.shape[0]:
+        field = "embedding_vector"
+        reason = "query and passage dimensions must match"
+        raise ContractValidationError(field, reason)
+    # 벡터가 이미 정규화되어 있으므로(embed_passages/embed_query가 항상
+    # 정규화된 벡터를 반환) 단순 내적이 곧 코사인 유사도다. 코퍼스 전체에
+    # 대한 내적을 청크마다 파이썬 루프로 도는 대신 행렬곱 한 번(BLAS)으로
+    # 계산한다.
+    score_values = embeddings @ query_array
     ranked_indices = tuple(
-        sorted(range(len(index.chunks)), key=lambda item: (-score_values[item], item))
+        sorted(
+            range(len(index.chunks)),
+            key=lambda item: (-float(score_values[item]), item),
+        )
     )
     return tuple(
-        _snippet(index.chunks[item], score_values[item], query_text)
+        _snippet(index.chunks[item], float(score_values[item]), query_text)
         for item in ranked_indices[:top_k]
     )
 
@@ -176,16 +204,3 @@ def _validate_vector(vector: FloatVector) -> None:
         field = "embedding_vector"
         reason = "must contain finite dimensions"
         raise ContractValidationError(field, reason)
-
-
-# 두 벡터가 이미 정규화되어 있으므로(embed_passages/embed_query가 항상
-# 정규화된 벡터를 반환) 단순 내적이 곧 코사인 유사도가 된다.
-def _dot(left: FloatVector, right: FloatVector) -> float:
-    if len(left) != len(right):
-        field = "embedding_vector"
-        reason = "query and passage dimensions must match"
-        raise ContractValidationError(field, reason)
-    return sum(
-        left_value * right_value
-        for left_value, right_value in zip(left, right, strict=True)
-    )

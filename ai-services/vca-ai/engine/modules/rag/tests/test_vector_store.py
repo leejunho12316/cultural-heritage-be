@@ -161,7 +161,7 @@ def test_read_vector_index_artifacts_reuses_matching_persisted_index(
 
     # Then: the persisted embeddings are reused without re-embedding.
     assert result is not None
-    assert result.embeddings == index.embeddings
+    assert np.array_equal(result.embeddings, index.embeddings)
     assert result.model_id == index.model_id
     assert result.chunks == index.chunks
 
@@ -248,4 +248,4 @@ def test_vector_index_cache_survives_lone_surrogate_snippet_text(
 
     # Then: hashing does not raise and the persisted index is reused.
     assert result is not None
-    assert result.embeddings == surrogate_index.embeddings
+    assert np.array_equal(result.embeddings, surrogate_index.embeddings)

@@ -153,10 +153,12 @@ def _read_embeddings(
     if array.shape != (expected_rows, expected_dimension):
         message = "persisted vector index embeddings shape mismatch"
         raise ValueError(message)
-    # array.tolist() converts the whole matrix to native Python floats in one
-    # C-level pass instead of boxing each element through a Python loop.
-    rows = cast("list[list[float]]", array.tolist())
-    return tuple(tuple(row) for row in rows)
+    # VectorIndex.__post_init__ normalizes embeddings to a numpy array on
+    # construction regardless of what's passed in, so returning the loaded
+    # array as-is (instead of round-tripping through .tolist() into Python
+    # tuples here, just to be converted straight back to numpy a moment
+    # later) skips a redundant O(rows*dimension) conversion pass.
+    return cast("FloatMatrix", array)
 
 
 def _corpus_hash(chunks: tuple[DocumentChunk, ...]) -> str:
