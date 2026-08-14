@@ -38,10 +38,10 @@ public class UserService {
 
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByLoginId(request.getLoginId())
-                .orElseThrow(() -> new IllegalArgumentException("가입되지 않은 아이디입니다."));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
-        if (!passwordMatches) {
-            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+        if (!bCryptPasswordEncoder.matches(request.getPassword(), user.getPassword())) {
+        throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
         String token = jwtTokenProvider.createToken(
@@ -54,7 +54,7 @@ public class UserService {
                 user.getLoginId(),
                 user.getEmail(),
                 user.getNickname(),
-                user.getRole().name()
+                user.getRole()
         );
     }
 

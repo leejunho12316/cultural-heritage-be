@@ -83,6 +83,7 @@ phases:
   build:
     commands:
       - |
+        set -e
         echo "===== BUILD CHANGED SERVICES ====="
 
         if [ "$BUILD_BACKEND" = "true" ]; then
@@ -108,6 +109,7 @@ phases:
   post_build:
     commands:
       - |
+        set -e
         echo "===== PUSH CHANGED SERVICES ====="
 
         SERVICES=""
