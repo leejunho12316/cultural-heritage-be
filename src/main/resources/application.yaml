@@ -55,6 +55,11 @@ xray:
     callback-token: ${XRAY_STITCH_CALLBACK_TOKEN:}
     finalization-wait-seconds: ${XRAY_FINALIZATION_WAIT_SECONDS:300}
 
+jwt:
+  issuer: ${JWT_ISSUER:vora}
+  secret-key: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
 app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:3000,https://vora-heritage.click}

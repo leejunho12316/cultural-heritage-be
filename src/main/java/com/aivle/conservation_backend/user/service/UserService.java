@@ -33,36 +33,12 @@ public class UserService {
 
         String encodedPassword = bCryptPasswordEncoder.encode(request.getPassword());
 
-        System.out.println(
-                "[SIGNUP DEBUG] loginId=" + request.getLoginId()
-                + ", rawLength=" + request.getPassword().length()
-                + ", encodedLength=" + encodedPassword.length()
-                + ", immediateMatches="
-                + bCryptPasswordEncoder.matches(
-                        request.getPassword(),
-                        encodedPassword
-                )
-        );
-
         return userRepository.save(request.toEntity(encodedPassword)).getId();
     }
 
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByLoginId(request.getLoginId())
                 .orElseThrow(() -> new IllegalArgumentException("가입되지 않은 아이디입니다."));
-
-        boolean passwordMatches =
-                bCryptPasswordEncoder.matches(
-                        request.getPassword(),
-                        user.getPassword()
-                );
-
-        System.out.println(
-                "[LOGIN DEBUG] loginId=" + request.getLoginId()
-                + ", rawLength=" + request.getPassword().length()
-                + ", encodedLength=" + user.getPassword().length()
-                + ", matches=" + passwordMatches
-        );
 
         if (!passwordMatches) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
