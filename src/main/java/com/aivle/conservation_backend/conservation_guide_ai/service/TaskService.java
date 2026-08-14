@@ -15,9 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,7 +27,6 @@ import java.util.UUID;
 @Service
 public class TaskService {
 
-    private static final DateTimeFormatter KST_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final ConservationGuideAiClient client;
@@ -39,7 +37,7 @@ public class TaskService {
     public ConservationGuideAiResponseDto startTask(String taskId, ConservationGuideAiStartRequestDto request) {
         ConservationGuideAiResponseDto response = client.startTask(taskId, request);
 
-        String now = nowKst();
+        OffsetDateTime now = nowKst();
         Task task = taskRepository.findById(taskId).orElseGet(() -> Task.builder()
                 .taskId(taskId)
                 .createdDate(now)
@@ -62,7 +60,7 @@ public class TaskService {
     public ConservationGuideAiResponseDto resumeTask(String taskId, ConservationGuideAiResumeRequestDto request) {
         ConservationGuideAiResponseDto response = client.resumeTask(taskId, request);
 
-        String now = nowKst();
+        OffsetDateTime now = nowKst();
         Task task = taskRepository.findById(taskId).orElseGet(() -> Task.builder()
                 .taskId(taskId)
                 .createdDate(now)
@@ -109,7 +107,7 @@ public class TaskService {
     // AI 응답을 Task 엔티티에 반영.
     // - waiting_for_input: 진행중 상태로 표시하고, FE가 이어서 resume할 수 있도록 마지막 interrupt를 저장.
     // - completed: 최종 상태(결과/문서경로)를 저장하고 interrupt는 비운다.
-    private void applyAiResponse(Task task, ConservationGuideAiResponseDto response, String now) {
+    private void applyAiResponse(Task task, ConservationGuideAiResponseDto response, OffsetDateTime now) {
         boolean completed = "completed".equals(response.status());
 
         if (completed) {
@@ -137,7 +135,7 @@ public class TaskService {
         return null;
     }
 
-    private String nowKst() {
-        return ZonedDateTime.now(KST).format(KST_FORMAT);
+    private OffsetDateTime nowKst() {
+        return OffsetDateTime.now(KST);
     }
 }

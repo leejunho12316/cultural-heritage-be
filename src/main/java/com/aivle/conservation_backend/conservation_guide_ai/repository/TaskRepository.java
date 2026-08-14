@@ -11,7 +11,5 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     // 유물(artifact) 기준으로 가장 최근에 시작/갱신된 작업을 찾는다.
     // taskId는 FE React Context에만 살아있어 새로고침하면 사라지므로,
     // artifactId(URL 파라미터로 항상 남아있음)로 복구할 때 쓴다.
-    // createdDate는 "yyyy-MM-dd'T'HH:mm:ssXXX" 형태의 문자열이라
-    // 사전순 정렬이 곧 시간순 정렬과 같다.
     Optional<Task> findFirstByArtifact_IdOrderByCreatedDateDesc(UUID artifactId);
 }

@@ -3,6 +3,7 @@ package com.aivle.conservation_backend.conservation_guide_ai.dto;
 import com.aivle.conservation_backend.conservation_guide_ai.domain.Task;
 import com.aivle.conservation_backend.conservation_guide_ai.domain.TaskStatus;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -18,8 +19,8 @@ public record TaskDetailResponseDto(
         Map<String, Object> currentInterrupt,
         Map<String, Object> results,
         Map<String, Object> documentPath,
-        String createdDate,
-        String lastEditedDate
+        OffsetDateTime createdDate,
+        OffsetDateTime lastEditedDate
 ) {
     public static TaskDetailResponseDto from(Task task) {
         return new TaskDetailResponseDto(
