@@ -60,7 +60,7 @@ class TransformersQwenBackend:
 
     def observe(self, request: QwenBackendRequest) -> BackendResponse:
         """Generate untrusted visual JSON and ordered input-view cache evidence."""
-        # Keep package imports available without the optional vision dependency group.
+        # 선택적 vision dependency group 없이도 패키지 import가 가능하도록 유지한다.
         import torch  # noqa: PLC0415
 
         inputs = self.processor.apply_chat_template(

@@ -20,7 +20,9 @@ from app.schemas import (
 from app.services.assessment_models import AssessmentProgress
 from app.services.assessment_runs import (
     AssessmentId,
+    InputImageDownloadError,
     InputImageFolder,
+    InputImageUrl,
     AssessmentReport,
     AssessmentRun,
     InvalidAssessmentRunIdError,
@@ -55,7 +57,15 @@ def create_run(request: AssessmentRunCreateRequest) -> AssessmentRunResponse:
         run = create_assessment_run(
             AssessmentId(request.assessmentId),
             ProjectName(request.projectName),
-            InputImageFolder(request.inputImageFolder),
+            None if request.inputImageFolder is None else InputImageFolder(request.inputImageFolder),
+            input_image_urls=(
+                None
+                if not request.inputImageUrls
+                else tuple(
+                    InputImageUrl(file_name=image.fileName, url=image.url)
+                    for image in request.inputImageUrls
+                )
+            ),
             resume_from_project_name=(
                 None
                 if request.resumeFromProjectName is None
@@ -67,7 +77,7 @@ def create_run(request: AssessmentRunCreateRequest) -> AssessmentRunResponse:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
         ) from error
-    except (VcaRunFailedError, VcaRuntimeSettingsError) as error:
+    except (VcaRunFailedError, VcaRuntimeSettingsError, InputImageDownloadError) as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(error),

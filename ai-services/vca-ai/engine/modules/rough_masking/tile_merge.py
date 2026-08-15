@@ -1,25 +1,24 @@
-"""Pre-RAG tile-boundary merge for rough_masking candidates.
+"""rough_masking 후보들에 대한, RAG 이전 단계의 타일 경계 병합.
 
-T5 of the original spec (`context/text-prompt-segmentation-rag-pipeline.md:353`,
-`.omo/plans/artifact-visual-inspection-pipeline.md`) grouped candidates before
-RAG using only pre-RAG attributes (seed prompt, seed lane, source object,
-geometry) so that a single physical anomaly split across a tile boundary gets
-exactly one RAG query instead of one per tile fragment. This module revives
-that step narrowly: it never looks at RAG evidence (there is none yet at this
-point in the pipeline - `rag`/`visual_cue_generation` read rough_masking's
-output directly, per `EXECUTED_STAGE_NAMES`), and only merges pairs that come
-from the *same* object, the *same* seed lane, the *same* seed prompt, but
-*different* tiles, with overlapping bboxes.
+원본 스펙(`context/text-prompt-segmentation-rag-pipeline.md:353`,
+`.omo/plans/artifact-visual-inspection-pipeline.md`)의 T5는, 타일 경계로
+쪼개진 하나의 물리적 이상 소견이 타일 조각 수만큼이 아니라 정확히 RAG
+쿼리 1개만 받도록, RAG 이전 속성(seed prompt, seed lane, source object,
+geometry)만으로 RAG 이전에 후보들을 그룹핑했다. 이 모듈은 그 단계를 좁은
+범위로 되살린다: RAG 근거는 전혀 보지 않으며(파이프라인의 이 시점에는
+아직 RAG 근거가 없다 - `EXECUTED_STAGE_NAMES` 기준으로 `rag`/
+`visual_cue_generation`은 rough_masking의 출력을 직접 읽는다), *같은*
+object, *같은* seed lane, *같은* seed prompt에서 나왔지만 *다른* 타일이고
+bbox가 겹치는 쌍만 병합한다.
 
-Unlike the old (removed) `pre_rag.py`, nothing is "suppressed" and no parent
-is picked by size or lane priority - a merged group's mask/bbox is the pixel
-*union* of its members, and that union is what continues into
-`visual_cue_generation`/`rag`/`prompt_generating`/`mask_refining` as if it
-were an ordinary accepted candidate. Members are marked `accepted: false`
-(with `reject_reason: "merged_into_tile_group"`) in their original
-records.json rows so every existing reader (`read_rough_records`,
-`rough_qwen_candidates`) sees the merged candidate exactly once, with no
-downstream code changes required.
+예전의 (제거된) `pre_rag.py`와 달리, 아무것도 "억제(suppress)"하지 않고
+크기나 lane 우선순위로 부모를 고르지도 않는다 - 병합된 그룹의 마스크/bbox는
+구성원들의 픽셀 *합집합*이며, 이 합집합은 마치 평범한 accepted 후보인 것처럼
+그대로 `visual_cue_generation`/`rag`/`prompt_generating`/`mask_refining`으로
+이어진다. 구성원들은 원래의 records.json 행에서 `accepted: false`
+(`reject_reason: "merged_into_tile_group"`)로 표시되므로, 기존의 모든
+리더(`read_rough_records`, `rough_qwen_candidates`)는 다운스트림 코드 변경
+없이 병합된 후보를 정확히 한 번씩만 보게 된다.
 """
 
 from __future__ import annotations

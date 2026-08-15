@@ -1,12 +1,12 @@
-"""Display-only environment diagnostics for the FE's system-info footer.
+"""FE의 system-info 푸터를 위한, 표시 전용 환경 진단.
 
-vca-ai's own process never imports torch/transformers - the VCA engine runs
-as a separate `uv run` subprocess (see assessment_runs.py), possibly on a
-bare host (native GPU/MPS) rather than in this container. So to report the
-actual device/library/model versions the engine resolves to, this shells
-out to `modules.orchestration.system_info` in that same uv environment and
-parses its JSON stdout. The result is cached in-process since it can't
-change while this service keeps running.
+vca-ai 자신의 프로세스는 torch/transformers를 전혀 import하지 않는다 - VCA
+엔진은 (assessment_runs.py 참고) 별도의 `uv run` 서브프로세스로 실행되며,
+이 컨테이너가 아니라 베어 호스트(네이티브 GPU/MPS)에서 돌 수도 있다.
+그래서 엔진이 실제로 확정한 디바이스/라이브러리/모델 버전을 보고하려면,
+같은 uv 환경의 `modules.orchestration.system_info`를 셸아웃으로 실행하고
+그 JSON stdout을 파싱한다. 이 서비스가 계속 실행되는 동안 결과가 바뀔 수
+없으므로 프로세스 내부에 캐싱된다.
 """
 
 from __future__ import annotations

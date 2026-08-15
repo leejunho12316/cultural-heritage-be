@@ -123,9 +123,9 @@ def _parent_child(
 def _pairs(
     candidates: tuple[AnomalyCandidate, ...],
 ) -> tuple[tuple[AnomalyCandidate, AnomalyCandidate], ...]:
-    # Bbox geometry (overlap prefilter) is only meaningful within one image's
-    # pixel coordinate space - never compare candidates from different
-    # images, or unrelated images could be "merged" by geometric coincidence.
+    # Bbox geometry(겹침 사전 필터)는 하나의 이미지 픽셀 좌표 공간 안에서만
+    # 의미가 있다 - 서로 다른 이미지의 후보끼리는 절대 비교하지 마라, 안 그러면
+    # 서로 무관한 이미지들이 우연한 기하학적 일치로 "병합"될 수 있다.
     return tuple(
         (left, right)
         for index, left in enumerate(candidates)

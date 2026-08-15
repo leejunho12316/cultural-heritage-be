@@ -2,7 +2,7 @@
 
 Visual Condition Assessment(VCA) v2는 유물 이미지 입력을 받아 전처리, 거친 마스크 생성, 시각 단서/RAG, 프롬프트 생성, 마스크 정제, 이상 그룹핑, 정적 리포트 생성을 순서대로 실행하는 로컬 파이프라인입니다.
 
-## Canonical Startup
+## 표준 실행 방법
 
 전체 파이프라인은 orchestration startup CLI를 통해 실행합니다.
 
@@ -17,21 +17,21 @@ uv run python -m modules.orchestration.startup <project_name> <input_image_folde
   [--db-url URL]
 ```
 
-Help:
+도움말:
 
 ```bash
 uv run python -m modules.orchestration.startup --help
 ```
 
-Default storage is filesystem-only. `--storage-mode rdb` enables an optional PostgreSQL dual-write and requires `--artifact-id` plus `--db-url` or `VCA_DATABASE_URL`. The current startup writer persists one `artifact + assessment_run` snapshot only. `uploaded_image`, `assessment_report`, and `report_pdf_job` are target ERD tables for the Spring VCA/API persistence layer, and the current startup writer does not populate image, report, or PDF rows. Final reports are JSONB-backed through `assessment_report.report_json` rather than normalized `report_*` rows. Stage receipts, intermediate payloads, and local artifacts remain filesystem-only; the startup snapshot stores only run progress plus the input folder, output root, and image count configuration.
+기본 저장 방식은 파일시스템 전용입니다. `--storage-mode rdb`를 쓰면 선택적으로 PostgreSQL 이중 쓰기를 켤 수 있고, 이 경우 `--artifact-id`와 `--db-url`(또는 `VCA_DATABASE_URL`)이 필요합니다. 현재 startup writer는 `artifact + assessment_run` 스냅샷 한 건만 기록합니다. `uploaded_image`, `assessment_report`, `report_pdf_job`은 Spring VCA/API 영속성 레이어가 목표로 하는 ERD 테이블이며, 현재 startup writer는 image/report/PDF 행을 채우지 않습니다. 최종 리포트는 정규화된 `report_*` 행이 아니라 `assessment_report.report_json`의 JSONB로 저장됩니다. 스테이지별 receipt, 중간 페이로드, 로컬 아티팩트는 여전히 파일시스템 전용이며, startup 스냅샷은 실행 진행 상황과 입력 폴더/출력 루트/이미지 개수 설정만 저장합니다.
 
-The Spring in-memory VCA MVP defaults to `SIGNED_PUT`. Local development without a signed upload verifier must explicitly set `VCA_LOCAL_DIRECT_COMPLETE_ENABLED=true`; `DIRECT_COMPLETE` is local/test-only and should not be used as the production upload path.
+Spring 인메모리 VCA MVP는 기본값이 `SIGNED_PUT`입니다. signed upload verifier 없이 로컬 개발을 할 때는 `VCA_LOCAL_DIRECT_COMPLETE_ENABLED=true`를 명시적으로 설정해야 합니다. `DIRECT_COMPLETE`는 로컬/테스트 전용이며 프로덕션 업로드 경로로 쓰면 안 됩니다.
 
-The FE-facing VCA API draft is documented in [`docs/vca-api-contract.md`](docs/vca-api-contract.md).
+FE용 VCA API 초안 문서는 [`docs/vca-api-contract.md`](docs/vca-api-contract.md)에 있습니다.
 
-## Stage Order
+## 스테이지 순서
 
-The startup runner executes stages in this order:
+startup runner는 다음 순서로 스테이지를 실행합니다.
 
 1. `preprocessing`
 2. `rough_masking`
@@ -42,24 +42,24 @@ The startup runner executes stages in this order:
 7. `anomaly_grouping`
 8. `report_generating`
 
-Each stage writes under `output/<stage>/<project_name>` unless the stage-specific request supplies a narrower output path. The startup receipt is written to `output/result/<project_name>/receipts/startup.json`.
+각 스테이지는 스테이지별 요청이 더 좁은 출력 경로를 지정하지 않는 한 `output/<stage>/<project_name>` 아래에 결과를 씁니다. startup receipt는 `output/result/<project_name>/receipts/startup.json`에 기록됩니다.
 
-## Stage Summary
+## 스테이지 요약
 
-| Stage | Input | Main output |
+| 스테이지 | 입력 | 주요 출력 |
 |---|---|---|
-| `preprocessing` | Raw image folder | Input and real preprocessing manifests plus detector/SAM2 asset roots under `output/preprocessing/<project_name>` |
-| `rough_masking` | Preprocessing manifest and object assets | Rough mask candidate assets and records under `output/rough_masking/<project_name>` |
-| `visual_cue_generation` | Preprocessing and rough-mask artifacts | Optional Qwen bridge visual cue artifacts used by RAG |
-| `rag` | Rough records, local corpus, optional visual cues | Query/evidence JSONL files, visual concept cards, and RAG manifest under `output/rag/<project_name>` |
-| `prompt_generating` | RAG concept cards/evidence | `rag_refinement_prompt_variants.jsonl` and prompt manifest under `output/prompt_generating/<project_name>` |
-| `mask_refining` | Prompt variants, rough masks, preprocessing assets, model cache | `refined_records.jsonl`, `skips.jsonl`, manifest, and per-group refined records under `output/mask_refining/<project_name>` |
-| `anomaly_grouping` | Refined mask records and RAG evidence | `anomaly_grouping_result.json` and `report_trace_source.json` |
-| `report_generating` | Anomaly trace source | Trace report, final report, metadata, and verification receipts under `output/report_generating/<project_name>` |
+| `preprocessing` | 원본 이미지 폴더 | `output/preprocessing/<project_name>` 아래의 입력/실제 전처리 매니페스트와 detector/SAM2 에셋 루트 |
+| `rough_masking` | 전처리 매니페스트와 객체 에셋 | `output/rough_masking/<project_name>` 아래의 거친 마스크 후보 에셋과 레코드 |
+| `visual_cue_generation` | 전처리 및 rough-mask 아티팩트 | RAG가 쓰는 선택적 Qwen 브릿지 시각 단서 아티팩트 |
+| `rag` | rough 레코드, 로컬 코퍼스, 선택적 시각 단서 | `output/rag/<project_name>` 아래의 쿼리/근거 JSONL 파일, 시각 개념 카드, RAG 매니페스트 |
+| `prompt_generating` | RAG 개념 카드/근거 | `output/prompt_generating/<project_name>` 아래의 `rag_refinement_prompt_variants.jsonl`과 프롬프트 매니페스트 |
+| `mask_refining` | 프롬프트 변형, 거친 마스크, 전처리 에셋, 모델 캐시 | `output/mask_refining/<project_name>` 아래의 `refined_records.jsonl`, `skips.jsonl`, 매니페스트, 그룹별 정제 레코드 |
+| `anomaly_grouping` | 정제된 마스크 레코드와 RAG 근거 | `anomaly_grouping_result.json`과 `report_trace_source.json` |
+| `report_generating` | anomaly trace source | `output/report_generating/<project_name>` 아래의 trace 리포트, 최종 리포트, 메타데이터, 검증 receipt |
 
-## Standalone Runner Help
+## 독립 실행 모듈 도움말
 
-These modules are direct CLI entrypoints and support `--help`:
+아래 모듈은 CLI로 직접 실행 가능하며 `--help`를 지원합니다.
 
 ```bash
 uv run python -m modules.orchestration.startup --help
@@ -70,34 +70,25 @@ uv run python -m modules.report_generating.runner --help
 uv run python -m modules.report_generating.browser_qa --help
 ```
 
-`modules/*/startup_runner.py` files are orchestration adapter modules. They are called in-process by `modules.orchestration.startup` and are not standalone command-line runners.
+`modules/*/startup_runner.py` 파일은 orchestration adapter(orchestration 어댑터) 모듈입니다. `modules.orchestration.startup`이 프로세스 내부에서 호출하는 용도이며, 독립 실행형 커맨드라인 러너가 아닙니다.
 
-## Model Cache And Devices
+## 모델 캐시와 디바이스
 
-Shared heavyweight model metadata lives under `models/inventory/model_inventory.json`. Model weights and snapshots remain local and are not committed. With the default model cache root, local path overrides are resolved from:
+공유 대형 모델 메타데이터는 `models/inventory/model_inventory.json` 아래에 있습니다. 모델 가중치와 스냅샷은 로컬에만 두며 커밋하지 않습니다. 기본 모델 캐시 루트를 쓸 때, 로컬 경로 오버라이드는 다음 순서로 해석됩니다.
 
-1. Process environment variables such as `VCA_MODEL_QWEN2_5_VL_VISUAL_PATH` and `VCA_MODEL_RAG_TEXT_EMBEDDING_PATH`.
-2. Project-root `.models` entries.
-3. `local_dir` values in `models/inventory/model_inventory.json`.
+1. `VCA_MODEL_QWEN2_5_VL_VISUAL_PATH`, `VCA_MODEL_RAG_TEXT_EMBEDDING_PATH` 같은 프로세스 환경 변수
+2. 프로젝트 루트의 `.models` 항목
+3. `models/inventory/model_inventory.json`의 `local_dir` 값
 
-`--device auto` is allowed at startup. Real execution tries CUDA, then Apple MPS, then CPU. Explicit `--device cpu` is supported for local experiments when GPU acceleration is unavailable. When preprocessing resolves a concrete device during real execution, downstream stage requests inherit that device. Dry runs avoid model loading and use filesystem artifacts/receipts to verify wiring.
+startup 시점에는 `--device auto`를 쓸 수 있습니다. 실제 실행 시 CUDA, Apple MPS, CPU 순서로 시도합니다. GPU 가속을 쓸 수 없는 로컬 실험을 위해 명시적으로 `--device cpu`도 지원합니다. 전처리가 실제 실행 중 구체적인 디바이스를 확정하면, 이후 스테이지 요청들은 그 디바이스를 그대로 물려받습니다. dry run은 모델 로딩을 피하고 연결 상태 검증을 위해 파일시스템 아티팩트/receipt만 사용합니다.
 
-When the pipeline runs through Docker `vca-ai`, Spring passes
-`VCA_MODEL_CACHE_ROOT` to `--model-cache-root`. The local compose default is
-`/opt/vca-models/models`, backed by a named volume. `vca-ai` copies
-`models/inventory/model_inventory.json` there on startup. If
-`VCA_BOOTSTRAP_MODELS=true`, container startup also downloads Hugging Face
-snapshots into that cache before serving requests; otherwise only dry-run and
-already-cached real runs are expected to work.
+파이프라인이 Docker `vca-ai`를 통해 실행될 때는 Spring이 `VCA_MODEL_CACHE_ROOT`를 `--model-cache-root`로 전달합니다. 로컬 compose 기본값은 named volume이 뒷받침하는 `/opt/vca-models/models`입니다. `vca-ai`는 시작 시 `models/inventory/model_inventory.json`을 그 위치로 복사합니다. `VCA_BOOTSTRAP_MODELS=true`이면 컨테이너 기동 시 요청을 받기 전에 Hugging Face 스냅샷도 그 캐시로 다운로드합니다. 그렇지 않으면 dry run과 이미 캐시된 실제 실행만 정상 동작한다고 가정합니다.
 
-The RAG stage uses the `rag.text_embedding` inventory entry for local/offline
-vector retrieval. The expected default snapshot is
-`intfloat/multilingual-e5-small` at revision
-`fd1525a9fd15316a2d503bf26ab031a61d056e98`.
+RAG 스테이지는 로컬/오프라인 벡터 검색을 위해 `rag.text_embedding` 인벤토리 항목을 사용합니다. 기본으로 기대하는 스냅샷은 revision `fd1525a9fd15316a2d503bf26ab031a61d056e98`의 `intfloat/multilingual-e5-small`입니다.
 
-## Development Checks
+## 개발 시 점검 항목
 
-Common local checks:
+로컬에서 흔히 하는 점검:
 
 ```bash
 uv run ruff check modules
@@ -106,4 +97,4 @@ uv run pytest modules -q
 git diff --check
 ```
 
-These checks should not download model weights, probe GPU devices, run Qwen, or touch the source document corpus.
+이 점검들은 모델 가중치를 내려받거나, GPU 디바이스를 탐지하거나, Qwen을 실행하거나, 원본 문서 코퍼스를 건드리면 안 됩니다.

@@ -1,30 +1,31 @@
-"""Tile-boundary merge - a narrowed revival of the removed pre_rag.py.
+"""타일 경계 병합 - 제거된 pre_rag.py를 좁은 범위로 되살린 것.
 
-The original pre_rag.py grouped any candidates that overlapped within the
-same (source_object_id, source_view_id, seed_prompt) bucket, with no concept
-information available yet (it ran pre-RAG). That let it merge two genuinely
-different anomalies that just happened to be close together. It was removed
-this session in favor of a single merge pass in relations.py, gated on
-concept/descriptor match (not just geometry).
+원래 pre_rag.py는 concept 정보가 아직 없는 상태(RAG 이전에 실행됐으므로)로,
+같은 (source_object_id, source_view_id, seed_prompt) 버킷 안에서 겹치는
+후보라면 뭐든 그룹핑했다. 그러다 보니 우연히 가까이 있을 뿐인, 실제로는
+서로 다른 두 이상 소견을 병합해버릴 수 있었다. 이번 세션에서 이걸 제거하고
+relations.py의 단일 병합 패스로 대체했는데, 이건 (geometry뿐 아니라)
+concept/descriptor 일치 여부로 게이팅된다.
 
-That fix left one real gap: rough_masking can split a single physical
-anomaly across the overlap region of two adjacent ranked tiles (T4 tiling,
-overlap ratio 0.33). Each tile-side fragment gets its own independent RAG
-query, so relations.py's concept-match gate only merges them back together
-if both fragments happen to receive *consistent* evidence - if one gets
-"crack" and the other gets nothing (or something else), they stay as two
-separate findings describing the same real damage.
+그 수정은 진짜 빈틈 하나를 남겼다: rough_masking은 인접한 두 랭킹 타일이
+겹치는 영역(T4 타일링, overlap ratio 0.33)에서 하나의 물리적 이상 소견을
+쪼갤 수 있다. 각 타일 쪽 조각은 각자 독립적인 RAG 쿼리를 받으므로,
+relations.py의 concept-match 게이트는 두 조각이 우연히 *일관된* 근거를
+받았을 때만 다시 하나로 합친다 - 한쪽은 "crack"을 받고 다른 쪽은 아무것도
+(또는 다른 걸) 받지 못하면, 같은 실제 손상을 설명하는 두 개의 별도
+finding으로 남는다.
 
-This module closes that gap narrowly: it merges a candidate pair only when
-both come from *different* tiles (source_tile_view_id set and unequal) of
-the *same* object and their bboxes overlap - never same-tile pairs (that is
-relations.py's job, with real concept evidence), never candidates without a
-tile origin (a whole-object-crop candidate overlaps nearly everything in its
-object and would cause runaway merging). It runs before relations.py, on the
-same AnomalyCandidate shape (masks already restored to original-image
-coordinates by mask_refining, so bboxes from different tiles are directly
-comparable) - so by the time relations.py's concept-gated pass runs, a
-tile-split anomaly is already a single candidate with a consistent identity.
+이 모듈은 그 빈틈을 좁은 범위로 메운다: 후보 쌍이 *같은* object의
+*서로 다른* 타일(source_tile_view_id가 설정돼 있고 서로 다름)에서 왔고
+bbox가 겹칠 때만 병합한다 - 같은 타일 쌍은 절대 병합하지 않고(그건 실제
+concept 근거를 가진 relations.py의 일이다), 타일 출처가 없는 후보도 절대
+병합하지 않는다(object crop 전체를 대상으로 한 후보는 자기 object의 거의
+모든 것과 겹치므로 통제 불능의 연쇄 병합을 일으킬 것이다). relations.py보다
+먼저, 같은 AnomalyCandidate 형태(마스크는 이미 mask_refining이 원본 이미지
+좌표로 복원해뒀으므로 서로 다른 타일의 bbox를 바로 비교할 수 있다)에 대해
+실행된다 - 그래서 relations.py의 concept 게이팅 패스가 실행될 때쯤에는,
+타일로 쪼개졌던 이상 소견이 이미 일관된 identity를 가진 후보 하나로
+합쳐져 있다.
 """
 
 from __future__ import annotations

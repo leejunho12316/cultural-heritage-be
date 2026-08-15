@@ -29,6 +29,13 @@ class SystemInfoResponse(BaseModel):
     models: tuple[SystemInfoModelResponse, ...] = ()
 
 
+class InputImageUrlRequest(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    fileName: str = Field(min_length=1, max_length=255)
+    url: str = Field(min_length=1, max_length=4096)
+
+
 class AssessmentRunCreateRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -42,7 +49,10 @@ class AssessmentRunCreateRequest(BaseModel):
         max_length=160,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$",
     )
-    inputImageFolder: str = Field(min_length=1, max_length=4096)
+    # 둘 중 정확히 하나만 채워진다: inputImageFolder는 공유 마운트 경로가 있는 로컬 폴백용,
+    # inputImageUrls는 S3 기반 저장소용(vca-ai가 이 URL들로 이미지를 직접 내려받는다).
+    inputImageFolder: str | None = Field(default=None, min_length=1, max_length=4096)
+    inputImageUrls: tuple[InputImageUrlRequest, ...] | None = None
     resumeFromProjectName: str | None = Field(
         default=None,
         min_length=1,
@@ -108,10 +118,10 @@ class AssessmentFindingResponse(BaseModel):
     descriptor: str | None = None
     citations: tuple[AssessmentFindingCitationResponse, ...] = ()
     bbox: AssessmentFindingBboxResponse | None = None
-    # Vectorized mask outlines in original-image pixel space - (x, y) point
-    # pairs, one polygon per disconnected mask fragment (real masks are
-    # often multi-component). The mask is the standard segmentation signal;
-    # bbox above is kept only for auxiliary/legacy display.
+    # 원본 이미지 픽셀 공간의 벡터화된 마스크 윤곽선 - (x, y) 점 쌍이며,
+    # 끊어진 마스크 조각마다 폴리곤 하나씩(실제 마스크는 다중 컴포넌트인
+    # 경우가 흔함). 마스크가 기준이 되는 세그멘테이션 신호이고; 위의 bbox는
+    # 보조/레거시 표시용으로만 남아 있다.
     polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
 
 

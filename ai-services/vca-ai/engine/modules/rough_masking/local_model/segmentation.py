@@ -60,18 +60,32 @@ def load_rgb_image(image_path: Path) -> Image.Image:
         return source_image.convert("RGB")
 
 
+# object-view + tile-view마다(런당 최대 수백 회) load_sam2_predictor가 다시
+# 호출되므로, (모델 디렉터리, 디바이스) 단위로 프로세스 수명 동안 predictor를
+# 재사용한다. set_image()는 predictor당 이미지마다 새로 호출하도록 설계된
+# API이므로 재사용해도 안전하다.
+_SAM2_PREDICTOR_CACHE: dict[tuple[str, str], SAM2ImagePredictor] = {}
+
+
 def load_sam2_predictor(settings: LocalInferenceSettings) -> SAM2ImagePredictor:
-    """Load SAM2 from the inventory directory without Hugging Face helpers."""
+    """Load SAM2 from the inventory directory without Hugging Face helpers, reused across calls."""
+    sam2_dir = settings.sam2_entry.local_dir
+    cache_key = (str(sam2_dir), settings.device)
+    cached = _SAM2_PREDICTOR_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     from sam2.build_sam import build_sam2
     from sam2.sam2_image_predictor import SAM2ImagePredictor
 
-    sam2_dir = settings.sam2_entry.local_dir
     sam2_model = build_sam2(
         "sam2_hiera_l.yaml",
         str(sam2_dir / "sam2_hiera_large.pt"),
         device=settings.device,
     )
-    return SAM2ImagePredictor(sam2_model)
+    predictor = SAM2ImagePredictor(sam2_model)
+    _SAM2_PREDICTOR_CACHE[cache_key] = predictor
+    return predictor
 
 
 def _encode_artifacts(

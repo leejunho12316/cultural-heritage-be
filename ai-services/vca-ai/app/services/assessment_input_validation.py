@@ -7,7 +7,7 @@ from app.services.assessment_models import InputImageFolder, ProjectName
 
 
 _PROJECT_NAME_PATTERN: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
-_SUPPORTED_IMAGE_SUFFIXES: Final = frozenset(
+SUPPORTED_IMAGE_SUFFIXES: Final = frozenset(
     {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
 )
 
@@ -54,7 +54,7 @@ def validate_input_image_folder(
     if not input_directory.is_dir():
         raise InvalidInputImageFolderError(str(input_image_folder), "folder does not exist")
     if not any(
-        child.is_file() and child.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES
+        child.is_file() and child.suffix.lower() in SUPPORTED_IMAGE_SUFFIXES
         for child in input_directory.iterdir()
     ):
         raise InvalidInputImageFolderError(

@@ -27,10 +27,12 @@ from app.services.assessment_models import (
     RunTimeoutSeconds,
 )
 from app.services.assessment_input_validation import (
+    SUPPORTED_IMAGE_SUFFIXES,
     is_valid_project_name,
     validate_input_image_folder,
     validate_project_name,
 )
+from app.services.remote_io import RemoteIoError, download
 from app.services.vca_artifacts import load_vca_report
 
 
@@ -98,6 +100,20 @@ class VcaRuntimeSettingsError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
+class InputImageUrl:
+    file_name: str
+    url: str
+
+
+@dataclass(frozen=True, slots=True)
+class InputImageDownloadError(Exception):
+    reason: str
+
+    def __str__(self) -> str:
+        return f"Failed to download VCA assessment input images: {self.reason}"
+
+
+@dataclass(frozen=True, slots=True)
 class VcaRuntimeSettings:
     shared_storage_root: Path
     engine_root: Path
@@ -112,8 +128,9 @@ class VcaRuntimeSettings:
 def create_assessment_run(
     assessment_id: AssessmentId,
     project_name: ProjectName,
-    input_image_folder: InputImageFolder,
+    input_image_folder: InputImageFolder | None = None,
     *,
+    input_image_urls: tuple[InputImageUrl, ...] | None = None,
     resume_from_project_name: ProjectName | None = None,
 ) -> AssessmentRun:
     """run을 등록하고 파이프라인을 백그라운드로 실행한다.
@@ -121,6 +138,12 @@ def create_assessment_run(
     subprocess가 시작되는 즉시 반환하며, 호출자는 수십 분 걸리는 실제
     실행이 끝날 때까지 기다리지 않고 get_assessment_progress()로 단계별
     상태를 폴링한다.
+
+    input_image_folder와 input_image_urls는 둘 중 정확히 하나만 채워진다.
+    전자는 공유 마운트 경로가 있는 로컬 폴백(Spring이 이미 파일을 그
+    경로에 갖다놓았다고 신뢰)이고, 후자는 S3 기반 저장소용으로, 여기서
+    직접 각 URL을 이 프로세스의 로컬 임시 디렉터리로 내려받은 뒤 그
+    디렉터리를 입력으로 쓴다(EFS 등 공유 볼륨이 필요 없다).
 
     resume_from_project_name은 Spring이 같은 artifact의 가장 최근 FAILED
     run(이미지 구성이 이번 run과 정확히 같음을 이미 확인한 뒤)을 넘겨줄 때만
@@ -132,9 +155,14 @@ def create_assessment_run(
     """
     settings = runtime_settings_from_env()
     validate_project_name(project_name)
-    input_directory = validate_input_image_folder(
-        input_image_folder, settings.shared_storage_root
-    )
+    if input_image_urls:
+        input_directory = _download_input_images(
+            project_name, input_image_urls, settings.shared_storage_root
+        )
+    else:
+        input_directory = validate_input_image_folder(
+            input_image_folder, settings.shared_storage_root
+        )
     run = AssessmentRun(
         run_id=AssessmentRunId(
             f"{_RUN_PREFIX}{assessment_id}{_RUN_PROJECT_SEPARATOR}{project_name}"
@@ -149,6 +177,33 @@ def create_assessment_run(
         _clear_project_output(assessment_id, project_name, settings)
     _launch_background(run, input_directory, settings, resume_from_stage)
     return run
+
+
+# input_image_urls로 받은 이미지들을 이 프로세스의 로컬 임시 디렉터리로
+# 내려받는다(project_name별로 새로 만들고, 이전 내용이 있으면 지운다).
+# create_assessment_run()이 inputImageFolder 대신 inputImageUrls를 받았을
+# 때만 호출한다.
+def _download_input_images(
+    project_name: ProjectName,
+    input_image_urls: tuple[InputImageUrl, ...],
+    shared_storage_root: Path,
+) -> Path:
+    shared_root = shared_storage_root.resolve()
+    input_directory = (shared_root / project_name / "input").resolve()
+    if not input_directory.is_relative_to(shared_root):
+        raise InputImageDownloadError("resolved input directory escapes the shared storage root")
+    try:
+        if input_directory.exists():
+            shutil.rmtree(input_directory)
+        input_directory.mkdir(parents=True, exist_ok=True)
+        for image in input_image_urls:
+            file_name = Path(image.file_name).name
+            if Path(file_name).suffix.lower() not in SUPPORTED_IMAGE_SUFFIXES:
+                raise InputImageDownloadError(f"unsupported image file extension: {file_name}")
+            download(image.url, input_directory / file_name)
+    except RemoteIoError as error:
+        raise InputImageDownloadError(str(error)) from error
+    return input_directory
 
 
 def _launch_background(
@@ -563,7 +618,7 @@ def _resume_plan(
                 resume_from_stage=stage_name, completed_stage_names=tuple(completed)
             )
         completed.append(stage_name)
-    return None  # every stage already completed - nothing failed, nothing to resume
+    return None  # 모든 스테이지가 이미 완료됨 - 실패한 것도, 재개할 것도 없음
 
 
 # _prepare_resume에서 호출된다. 완료된 스테이지들의 산출물 디렉터리와

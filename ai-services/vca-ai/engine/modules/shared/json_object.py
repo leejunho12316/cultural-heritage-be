@@ -140,11 +140,11 @@ def _unicode_escape(text: str, position: int, field: str) -> tuple[int, int]:
 
 
 def _low_surrogate_pair(text: str, position: int, high: int) -> tuple[int, int]:
-    # JSON strings encode astral-plane characters (code points above U+FFFF)
-    # as a UTF-16 surrogate pair: two \uXXXX escapes that must be recombined
-    # into one code point. Recombining them here - rather than emitting each
-    # escape as its own chr() - is what keeps a lone (unpaired) surrogate
-    # from ever reaching downstream hashing/tokenization consumers.
+    # JSON 문자열은 astral-plane 문자(U+FFFF보다 큰 코드포인트)를 UTF-16
+    # 서로게이트 페어로 인코딩한다: \uXXXX 이스케이프 2개를 다시 하나의
+    # 코드포인트로 합쳐야 한다. 각 이스케이프를 따로 chr()로 만드는 대신
+    # 여기서 미리 합쳐두는 게, 짝이 없는(unpaired) 서로게이트가 이후의
+    # 해싱/토큰화 소비자에게 그대로 넘어가는 걸 막는 방법이다.
     if text[position : position + 2] != "\\u" or len(text) < position + 6:
         return high, position
     low_hexadecimal = text[position + 2 : position + 6]

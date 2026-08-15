@@ -23,13 +23,13 @@ from modules.shared import PathSafetyError
 DOCUMENT_CORPUS_ID = "document_sweep_260pdf_253text"
 MANIFEST_FILENAME = "nrich_preservation_manifest.jsonl"
 
-# Some PDFs embed a custom font encoding pdfminer cannot resolve to Unicode;
-# it then falls back to decoding raw glyph codes as Mac OS Roman bytes,
-# producing well-formed but wrong characters (bullets, math operators,
-# accented Latin) at a density real Korean/English technical prose never
-# reaches. Calibrated against the real document corpus: genuinely garbled
-# documents measured 15-34%, the next-highest legitimate document (heavy
-# with italicized Latin species names) measured 4.3%.
+# 일부 PDF는 pdfminer가 유니코드로 해석할 수 없는 커스텀 폰트 인코딩을
+# 담고 있다; 그러면 pdfminer는 원본 글리프 코드를 Mac OS Roman 바이트로
+# 디코딩하는 것으로 폴백하는데, 이 결과 실제 한국어/영어 기술 문서에서는
+# 절대 나오지 않는 밀도로 형식은 멀쩡하지만 잘못된 문자(불릿, 수학 연산자,
+# 악센트 붙은 라틴 문자)가 만들어진다. 실제 문서 코퍼스로 보정한 값:
+# 실제로 깨진 문서는 15-34%로 측정됐고, 그다음으로 높았던 정상 문서(이탤릭체
+# 라틴어 종명이 많은 문서)는 4.3%였다.
 _GARBLED_TEXT_RATIO_THRESHOLD: Final = 0.08
 _MAC_ROMAN_HIGH_BYTE_CHARACTERS: Final = frozenset(
     bytes(range(0x80, 0x100)).decode("mac_roman")
@@ -78,12 +78,12 @@ class PdfTextExtractor:
 
 @dataclass(frozen=True, slots=True)
 class DocumentCorpusConfig:
-    """Configuration for read-only source corpus adaptation.
+    """읽기 전용 소스 코퍼스 어댑테이션 설정.
 
-    `source_root` has no built-in default - callers must supply it explicitly
-    (the startup path requires the VCA_DOCUMENT_CORPUS_DIR environment
-    variable via `startup_document_source_root()`) so this never silently
-    falls back to a path that only exists on one developer's machine.
+    `source_root`는 내장 기본값이 없다 - 호출자가 반드시 명시적으로 줘야
+    한다(startup 경로에서는 `startup_document_source_root()`를 통해
+    VCA_DOCUMENT_CORPUS_DIR 환경 변수가 필요하다). 그래야 특정 개발자의
+    컴퓨터에만 존재하는 경로로 조용히 폴백하는 일이 절대 없다.
     """
 
     source_root: Path
@@ -224,9 +224,10 @@ def _is_contained(candidate: Path, root: Path) -> bool:
 
 
 def _normalize_text(text: str) -> str:
-    # pdfminer can emit lone UTF-16 surrogates for some broken PDF fonts/
-    # encodings. Strip them here, once, so every downstream consumer
-    # (hashing, JSON writes, tokenization) only ever sees valid Unicode.
+    # pdfminer는 일부 깨진 PDF 폰트/인코딩에 대해 짝이 없는 UTF-16
+    # 서로게이트를 만들어낼 수 있다. 모든 다운스트림 소비자(해싱, JSON
+    # 쓰기, 토큰화)가 항상 유효한 유니코드만 보도록, 여기서 딱 한 번
+    # 제거한다.
     sanitized = text.encode("utf-8", errors="ignore").decode("utf-8")
     return " ".join(sanitized.split())
 

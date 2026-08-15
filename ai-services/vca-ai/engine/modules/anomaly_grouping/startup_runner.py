@@ -156,10 +156,11 @@ def _optional_jsonl_objects(path: Path) -> tuple[JsonObject, ...]:
 def _citation_details_by_id(
     retrieval_rows: tuple[JsonObject, ...],
 ) -> dict[str, JsonObject]:
-    """Return the highest-scoring retrieval detail per citation_id.
+    """citation_id별로 가장 점수가 높은 retrieval detail을 반환한다.
 
-    Citations start non-exportable unless a matching retrieval row supplies
-    a real page number; missing/unresolved ids simply stay absent here.
+    일치하는 retrieval 행이 실제 페이지 번호를 주지 않는 한 인용은
+    non-exportable로 시작한다; 없거나 해석되지 않은 id는 여기서 그냥
+    비어 있는 채로 남는다.
     """
     details: dict[str, JsonObject] = {}
     for row in retrieval_rows:
@@ -347,10 +348,10 @@ def _cards_by_candidate(
 
 
 def _bbox(record: JsonObject) -> BoundingBox:
-    # Read the coordinate-transform-restored original-image-space bbox, not
-    # the crop-local "bbox_xyxy" mask_refining also writes for provenance -
-    # every downstream consumer of AnomalyCandidate.bbox expects real pixel
-    # coordinates on the source image.
+    # provenance용으로 mask_refining이 함께 써두는 crop 기준 로컬 "bbox_xyxy"가
+    # 아니라, 좌표 변환으로 복원된 원본 이미지 공간의 bbox를 읽는다 -
+    # AnomalyCandidate.bbox를 소비하는 모든 다운스트림은 소스 이미지 상의
+    # 실제 픽셀 좌표를 기대한다.
     values = numbers(record, "original_bbox_xyxy")
     if len(values) != _BBOX_COORDINATE_COUNT:
         raise_contract("original_bbox_xyxy", "must contain four numbers")

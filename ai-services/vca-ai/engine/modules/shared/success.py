@@ -19,12 +19,12 @@ class FinalSuccessEvaluation:
 
 @dataclass(frozen=True, slots=True)
 class FinalSuccessInput:
-    """Complete shared input needed to evaluate final pipeline success.
+    """최종 파이프라인 성공 여부를 판단하는 데 필요한 공유 입력 전체.
 
-    Every field is sourced from data the orchestrator already has or can
-    read from stage output artifacts - no field here requires instrumentation
-    that does not exist yet (see `orchestration.stage_execution` for how each
-    value is derived).
+    모든 필드는 orchestrator가 이미 갖고 있거나 스테이지 출력 아티팩트에서
+    읽을 수 있는 데이터에서 나온다 - 아직 존재하지 않는 계측을 필요로 하는
+    필드는 여기 없다(각 값이 어떻게 도출되는지는 `orchestration.stage_execution`
+    참고).
     """
 
     dry_run: bool

@@ -53,15 +53,22 @@ class LocalModelCachePolicy:
     verify_hashes: bool = True
 
 
+# build_local_model_runner는 object-view + tile-view마다(런당 최대 수백 회)
+# 다시 호출되고, 그때마다 _entry()가 같은 디렉터리를 다시 통째로 해싱한다.
+# 콘텐츠는 런 도중 바뀌지 않으므로, (key, 로컬 경로, revision) 조합을 한 번
+# 검증에 성공하면 같은 프로세스 안에서는 재해싱을 건너뛴다.
+_VERIFIED_SNAPSHOT_REVISIONS: set[tuple[str, str, str]] = set()
+
+
 def _contained(path: Path, root: Path) -> bool:
     return path == root or path.is_relative_to(root)
 
 
 def _snapshot_revision(local_dir: Path, cache_root: Path) -> str:
-    # huggingface_hub writes its own download bookkeeping (locks, ETag
-    # metadata) under a ".cache" subdirectory; it is not model content and
-    # can be regenerated with different bytes on a later download, so it
-    # must not affect the pinned content hash.
+    # huggingface_hub는 ".cache" 하위 디렉터리 아래에 자체 다운로드 기록(락,
+    # ETag 메타데이터)을 쓴다; 이건 모델 콘텐츠가 아니고 나중에 다시
+    # 다운로드하면 다른 바이트로 재생성될 수 있으므로, 고정된 콘텐츠 해시에
+    # 영향을 주면 안 된다.
     snapshot_hash = hashlib.sha256()
     files = sorted(
         candidate
@@ -122,13 +129,14 @@ def _entry(
         field = f"model_inventory.models.{key}.local_dir"
         reason = "local cache path escapes model cache root"
         raise ContractValidationError(field, reason)
-    if (
-        verify_model_hashes
-        and _snapshot_revision(local_dir, cache_root) != entry.revision
-    ):
-        field = f"model_inventory.models.{key}.revision"
-        reason = "local cache content hash mismatch"
-        raise ContractValidationError(field, reason)
+    if verify_model_hashes:
+        verification_key = (key, str(local_dir), entry.revision)
+        if verification_key not in _VERIFIED_SNAPSHOT_REVISIONS:
+            if _snapshot_revision(local_dir, cache_root) != entry.revision:
+                field = f"model_inventory.models.{key}.revision"
+                reason = "local cache content hash mismatch"
+                raise ContractValidationError(field, reason)
+            _VERIFIED_SNAPSHOT_REVISIONS.add(verification_key)
     return entry
 
 

@@ -90,20 +90,19 @@ def tile_size_and_history(
     lane: DetectorLane,
     target: int,
 ) -> tuple[float, tuple[float, ...], str]:
-    """Choose scale spans or the low-confidence largest-object fallback.
+    """scale span을 고르거나, 신뢰도가 낮으면 largest-object 폴백을 쓴다.
 
-    Scale-aware sizing only ever tries the single largest span (the most
-    physically-faithful tile size for the lane) - it never steps down through
-    smaller span multiples. Halving a tile size roughly quadruples the tile
-    count in 2D, so a smaller discrete span almost never lands near `target`;
-    it either still undershoots or overshoots it several times over. The
-    physically-correct span is only trusted when its tile count lands within
-    `_OVERSHOOT_CEILING_MULTIPLE` of `target`; outside that band (either
-    direction - a large object paired with a small physical scale_unit_px
-    can overshoot by 10x or more) this falls back to the same direct
-    target-count formula as the low-confidence path instead of guessing at a
-    smaller scale multiple, so the result is capped near `target` rather than
-    undershooting or overshooting it.
+    scale-aware 사이징은 항상 가장 큰 span 하나만 시도한다(그 lane에 대해
+    물리적으로 가장 충실한 타일 크기다) - 더 작은 span 배수로는 절대
+    단계적으로 내려가지 않는다. 타일 크기를 절반으로 줄이면 2D에서 타일
+    개수가 대략 4배가 되므로, 더 작은 이산 span은 거의 `target` 근처에
+    떨어지지 않는다; 여전히 못 미치거나 몇 배씩 초과해버린다.
+    물리적으로 정확한 span은 타일 개수가 `target`의
+    `_OVERSHOOT_CEILING_MULTIPLE` 배수 이내에 들어올 때만 신뢰한다; 그
+    범위를 벗어나면(어느 방향이든 - 물리적 scale_unit_px가 작은데 객체가
+    크면 10배 이상 초과할 수도 있다) 더 작은 scale 배수를 추측하는 대신
+    신뢰도가 낮은 경로와 같은 직접적인 target-count 공식으로 폴백해서,
+    결과가 `target` 근처로 제한되고 못 미치거나 초과하지 않게 한다.
     """
     match request.scale_metadata.scale_confidence:
         case ScaleConfidence.HIGH | ScaleConfidence.MEDIUM:

@@ -42,6 +42,9 @@ aws:
     # blank and talks to the region default instead.
     endpoint: ${AWS_S3_ENDPOINT:}
     presign-endpoint: ${AWS_S3_PRESIGN_ENDPOINT:${AWS_S3_ENDPOINT:}}
+    # vca-ai가 컨테이너 네트워크 밖(다른 머신, 예: RunPod)에 있을 때만 필요 -
+    # 비워두면 aws.s3.endpoint를 그대로 쓴다(S3Config.internalS3Presigner 참고).
+    internal-presign-endpoint: ${AWS_S3_INTERNAL_PRESIGN_ENDPOINT:${AWS_S3_ENDPOINT:}}
     path-style-access-enabled: ${AWS_S3_PATH_STYLE_ACCESS_ENABLED:false}
 
 xray:

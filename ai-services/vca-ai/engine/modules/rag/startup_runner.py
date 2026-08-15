@@ -228,13 +228,13 @@ def _prompt_queries(
 # _materialize_missing_retrieval_artifacts가 벡터 검색에 넘길 쿼리 문자열을
 # 만들 때 호출한다. 배경/주의사항은 아래 docstring 참고.
 def _bilingual_query_text(prompt_text: str) -> str:
-    """Widen a seed-prompt query with allowlisted Korean equivalents.
+    """seed-prompt 쿼리를 allowlist에 등록된 한국어 대응어로 넓힌다.
 
-    The corpus is largely Korean-language literature; an English-only query
-    against it under-retrieves. Korean terms come only from the fixed
-    mapping-table translation of the existing allowlisted vocabulary (never
-    invented per-candidate) and are used solely to build this search string,
-    never surfaced as observed evidence or report text.
+    코퍼스는 대부분 한국어 문헌이다; 영어 전용 쿼리로 검색하면 결과가
+    부족해진다. 한국어 용어는 (후보별로 즉석에서 만들어내는 게 아니라)
+    기존 allowlist 어휘를 고정된 매핑 테이블로 번역한 것에서만 나오며,
+    오직 이 검색 문자열을 만드는 데만 쓰이고 관찰된 근거나 리포트 텍스트로는
+    절대 노출되지 않는다.
     """
     tokens = _query_tokens(prompt_text)
     observed = tuple(
@@ -374,11 +374,11 @@ def _startup_embedder(model_cache_root: Path, device: str) -> TextEmbedder:
 def _locked_corpus_vector_index(
     model_cache_root: Path, embedder: TextEmbedder
 ) -> VectorIndex:
-    """Rebuild/reuse the shared corpus vector index under a cross-process lock.
+    """프로세스 간 락 아래에서 공유 코퍼스 벡터 인덱스를 재빌드/재사용한다.
 
-    Concurrent runs against the same model cache root would otherwise race
-    on the same corpus-cache and vector-index files under
-    `model_cache_root/rag/`.
+    이 락이 없으면, 같은 모델 캐시 루트에 대한 동시 실행들이
+    `model_cache_root/rag/` 아래의 같은 corpus-cache/vector-index 파일을
+    두고 경합(race)하게 된다.
     """
     lock_path = model_cache_root / "rag" / ".materialize.lock"
     with exclusive_file_lock(model_cache_root, lock_path):

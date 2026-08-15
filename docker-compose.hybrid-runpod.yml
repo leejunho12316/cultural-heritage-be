@@ -1,0 +1,42 @@
+# vca-ai만 RunPod GPU 팟에서 bare 프로세스로 돌리고, 나머지(postgres/minio/
+# backend)는 로컬(또는 나중에는 AWS)에서 docker-compose로 돌리는 하이브리드
+# 구성. 목표 프로덕션 아키텍처(vca-ai만 RunPod, FE/BE/DB는 AWS)를 오늘
+# 로컬에서 미리 검증하기 위한 오버라이드다.
+#
+# vca-ai는 이 파일에 아예 없다 - RunPod 팟에서 scripts/pod-vca-ai-bare-start.sh로
+# Docker 없이 직접 uvicorn으로 띄운다(팟 자체가 권한 없는 컨테이너라
+# docker-compose/Docker-in-Docker를 못 쓴다).
+#
+# 이미지 핸드오프는 presigned URL로 한다(EFS 등 공유 볼륨 없이 Spring이 vca-ai에
+# 이미지를 건네주는 기존 메커니즘, app/services/remote_io.py 참고) - 로컬에서는
+# 진짜 인터넷에 뜬 S3가 없으므로, MinIO를 SSH reverse tunnel로 팟에 노출해서
+# presigned URL이 팟에서도 실제로 다운로드되게 한다(scripts/hybrid-runpod-tunnel.sh).
+#
+#   docker compose --profile local --no-deps \
+#     -f docker-compose.yml -f docker-compose.hybrid-runpod.yml \
+#     up -d postgres minio minio-init conservation-backend
+#
+# --no-deps가 필요한 이유: docker-compose.yml의 conservation-backend가
+# vca-ai/pottery-inspection-ai/xray-ai/conservation-guide-ai도
+# depends_on: service_started로 걸어놔서, --no-deps 없이 up하면 이 하이브리드
+# 구성에 없는 vca-ai까지 같이 띄우려 든다.
+
+services:
+  conservation-backend:
+    environment:
+      # 팟의 vca-ai를 SSH local forward로 맥북 호스트의 이 포트에 터널링해둔다
+      # (hybrid-runpod-tunnel.sh). host.docker.internal은 macOS/Windows
+      # Docker Desktop에서 컨테이너가 호스트를 가리키는 표준 이름이다.
+      VCA_AI_BASE_URL: http://host.docker.internal:${VCA_AI_TUNNEL_LOCAL_PORT:-18000}
+      # 백엔드 자신이 MinIO에 업로드/버킷 조작할 때 쓰는 엔드포인트 - 같은
+      # 맥북 docker 네트워크 안이니 그대로 컨테이너 내부 호스트명을 쓴다.
+      AWS_S3_ENDPOINT: http://minio:9000
+      # 브라우저(FE)가 직접 따라갈 업로드 presigned URL - FE도 같은 맥북에서 뜨므로
+      # localhost:9000이 그대로 맞는다.
+      AWS_S3_PRESIGN_ENDPOINT: http://localhost:9000
+      # vca-ai(팟)가 직접 따라갈 다운로드 presigned URL - 팟의 localhost:9000을
+      # 맥북의 실제 MinIO로 SSH reverse tunnel 해뒀으므로(hybrid-runpod-tunnel.sh),
+      # 팟 입장에서 "localhost:9000"이 곧 이 맥북의 MinIO가 된다. 브라우저용과
+      # 값은 같지만 각자 다른 머신에서 열리므로 별도 프로퍼티로 분리돼 있다.
+      AWS_S3_INTERNAL_PRESIGN_ENDPOINT: http://localhost:9000
+      AWS_S3_PATH_STYLE_ACCESS_ENABLED: "true"

@@ -1,9 +1,10 @@
-"""Pure path/array-based mask pixel operations shared across pipeline stages.
+"""파이프라인 스테이지 전체가 공유하는, 순수 path/array 기반 마스크 픽셀 연산.
 
-Extracted from `modules.anomaly_grouping.geometry` so that upstream stages
-(e.g. `rough_masking`) can union/write mask pixels without importing a
-downstream stage module. These functions take plain `Path`s and arrays only -
-no dependency on any stage's candidate/mask-reference dataclasses.
+업스트림 스테이지(예: `rough_masking`)가 다운스트림 스테이지 모듈을
+import하지 않고도 마스크 픽셀을 합치거나 쓸 수 있도록
+`modules.anomaly_grouping.geometry`에서 분리해냈다. 이 함수들은 순수
+`Path`와 배열만 받으며, 어떤 스테이지의 candidate/mask-reference
+데이터클래스에도 의존하지 않는다.
 """
 
 from __future__ import annotations

@@ -24,10 +24,10 @@ ANOMALY_GROUPING_RESULT_SCHEMA: Final = "anomaly_grouping_result_v1"
 
 
 class RelationClass(StrEnum):
-    """Closed relation classes owned by anomaly grouping.
+    """anomaly grouping이 소유하는, 고정된 관계 클래스 집합.
 
-    The first three all trigger a mask-union merge (see relations.py); only
-    CO_LOCATED_DISTINCT_ANOMALY keeps both candidates separate.
+    앞의 세 개는 모두 마스크 합집합 병합을 트리거한다(relations.py 참고);
+    CO_LOCATED_DISTINCT_ANOMALY만 두 후보를 계속 별개로 유지한다.
     """
 
     SAME_ANOMALY_DUPLICATE = "same_anomaly_duplicate"
@@ -38,11 +38,11 @@ class RelationClass(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class BoundingBox:
-    """Positive-area xyxy bounding box.
+    """면적이 양수인 xyxy 바운딩 박스.
 
-    Auxiliary/derived geometry only - the mask is the standard. bbox exists
-    for cheap pairwise prefiltering and for consumers that have not moved to
-    mask geometry yet.
+    보조/파생 geometry일 뿐이다 - 기준(standard)은 마스크다. bbox는 저비용
+    pairwise 사전 필터링을 위해, 그리고 아직 마스크 geometry로 옮겨가지 않은
+    소비자들을 위해 존재한다.
     """
 
     x_min: float
@@ -68,12 +68,13 @@ class BoundingBox:
 
 @dataclass(frozen=True, slots=True)
 class MaskReference:
-    """Content-addressed reference to a segmentation mask PNG on disk.
+    """디스크에 있는 세그멘테이션 마스크 PNG를 콘텐츠 주소로 가리키는 참조.
 
-    `path` is an absolute filesystem path (not root-relative) so every
-    consumer can load it without also needing to know which stage's output
-    root it came from - rough_masking, mask_refining, and anomaly_grouping's
-    own materialized union masks all produce these the same way.
+    `path`는 (루트 상대 경로가 아니라) 절대 파일시스템 경로이므로, 모든
+    소비자는 이게 어느 스테이지의 output root에서 나왔는지 몰라도 그대로
+    로드할 수 있다 - rough_masking, mask_refining, 그리고
+    anomaly_grouping 자체가 materialize한 합집합 마스크 모두 이걸 같은
+    방식으로 만들어낸다.
     """
 
     path: str
@@ -158,20 +159,20 @@ class RelationGroup:
 
 @dataclass(frozen=True, slots=True)
 class CandidateRelationResult:
-    """Per-candidate keep/absorb result after relation merge.
+    """관계 병합 이후의, 후보별 keep/absorb 결과.
 
-    A kept candidate always carries the mask downstream stages should use:
-    its own original mask when it was never merged, or the pixel union of
-    its whole merge group when it is a merged group's canonical id. `bbox`
-    and `polygons` are both *derived from that same mask* (not the original
-    detector bbox), so display/report code never has to choose which one is
-    authoritative - `polygons` are the vectorized outlines the FE renders,
-    one per disconnected mask fragment (real masks are often multi-component
-    - e.g. scattered corrosion spots - so a single polygon would either drop
-    minor fragments or falsely bridge the gaps between them), bbox stays for
-    auxiliary/legacy display. An absorbed (kept=False) candidate has none of
-    these anymore - its pixels live on in the group's union, referenced via
-    inherited_parent_candidate_id.
+    kept(유지된) 후보는 항상 다운스트림 스테이지가 써야 할 마스크를
+    갖고 있다: 한 번도 병합되지 않았다면 자기 자신의 원본 마스크를, 병합된
+    그룹의 canonical id라면 그 병합 그룹 전체의 픽셀 합집합을 갖는다.
+    `bbox`와 `polygons`는 둘 다 (원래 detector bbox가 아니라) *바로 그
+    마스크에서 파생*되므로, 표시/리포트 코드는 어느 쪽이 기준인지 고를
+    필요가 없다 - `polygons`는 FE가 렌더링하는 벡터화된 윤곽선이며 끊어진
+    마스크 조각마다 하나씩 있다(실제 마스크는 다중 컴포넌트인 경우가
+    흔하다 - 예: 흩어진 부식 반점들 - 그래서 폴리곤 하나로만 그리면 작은
+    조각들이 빠지거나 그 사이 간격이 잘못 이어져 버린다), bbox는 보조/레거시
+    표시용으로 남아 있다. absorbed(kept=False)된 후보는 더 이상 이런 걸 하나도
+    갖지 않는다 - 그 픽셀은 그룹의 합집합 안에 계속 남아 있으며,
+    inherited_parent_candidate_id로 참조된다.
     """
 
     candidate_id: CandidateId

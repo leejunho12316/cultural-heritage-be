@@ -133,14 +133,14 @@ class PostRefinementQwenEvidenceFactory(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class AcceptedRefinedCandidate:
-    """Accepted refined mask candidate fields exported to startup consumers.
+    """startup 소비자에게 내보내는, accepted된 refined mask 후보 필드.
 
-    `mask` is the refined SAM2 mask restored to original-image pixel space
-    (see runner._restore_original_mask) - it is the mask anomaly_grouping
-    should use as ground truth. It is None only when the original image
-    dimensions were unavailable and restoration could not be performed; that
-    case is a rough_masking mask fallback for the startup layer to handle,
-    not a mask_refining concern.
+    `mask`는 원본 이미지 픽셀 공간으로 복원된 refined SAM2 마스크다
+    (runner._restore_original_mask 참고) - anomaly_grouping이 ground
+    truth로 써야 할 마스크가 바로 이거다. 원본 이미지 크기를 알 수 없어서
+    복원을 수행할 수 없었을 때만 None이 되며, 그 경우는 startup 레이어가
+    처리할 rough_masking 마스크 폴백 상황이지 mask_refining이 신경 쓸
+    문제가 아니다.
     """
 
     candidate_id: str

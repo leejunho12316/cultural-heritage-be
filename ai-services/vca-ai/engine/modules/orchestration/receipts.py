@@ -237,11 +237,11 @@ def _progress_payload(
 def _write_startup_progress(
     output_root: Path, payload: _StartupProgressPayload
 ) -> None:
-    """Overwrite the in-flight progress snapshot atomically.
+    """진행 중인 progress 스냅샷을 원자적으로 덮어쓴다.
 
-    Called after every stage transition so a concurrent reader (the vca-ai
-    adapter polling on behalf of the frontend) always sees either the
-    previous complete snapshot or the new one, never a partial write.
+    모든 스테이지 전환 후에 호출되므로, 동시에 읽는 쪽(프론트엔드를 대신해
+    폴링하는 vca-ai 어댑터)은 항상 이전의 완전한 스냅샷이나 새 스냅샷 둘 중
+    하나만 보게 되며, 부분적으로 쓰인 상태를 보는 일은 없다.
     """
     progress_path = _startup_progress_path(output_root)
     temporary = progress_path.with_suffix(f"{progress_path.suffix}.tmp")

@@ -441,9 +441,10 @@ def _restore_original_mask(
     transform = assets.view.coordinate_transform
     if transform is None:
         return None
-    # PIL/numpy stay out of this module's top-level imports so importing the
-    # CLI without running a real refinement never pulls in image runtimes
-    # (see test_cli_import_does_not_load_model_or_image_runtimes).
+    # PIL/numpy를 이 모듈의 top-level import에 두지 않는 이유는, 실제
+    # refinement를 실행하지 않고 CLI만 import할 때 이미지 런타임을 절대
+    # 끌어오지 않게 하기 위해서다(test_cli_import_does_not_load_model_or_image_runtimes
+    # 참고).
     import numpy as np  # noqa: PLC0415
     from PIL import Image  # noqa: PLC0415
 
@@ -473,10 +474,10 @@ def _restore_original_mask(
 
 
 def _shared_asset_root(asset_root: Path) -> Path:
-    # asset_root is the preprocessing run root (output/preprocessing/<run>);
-    # Qwen evidence needs one root that also contains this stage's own
-    # output tree (output/mask_refining/<run>/...), so every asset path can
-    # be expressed without ".." traversal. output/ is that common ancestor.
+    # asset_root는 preprocessing 실행 루트(output/preprocessing/<run>)다;
+    # Qwen evidence는 이 스테이지 자신의 출력 트리(output/mask_refining/<run>/...)도
+    # 함께 포함하는 루트 하나가 필요하다. 그래야 모든 asset 경로를 ".."
+    # 순회 없이 표현할 수 있다. output/이 바로 그 공통 조상이다.
     return asset_root.parent.parent
 
 
@@ -535,11 +536,12 @@ def _rebased_candidate(
 def default_post_refinement_qwen_evidence_factory(
     asset_root: Path, model_cache_root: Path, device: str
 ) -> PostRefinementQwenEvidenceFactory:
-    """Build a factory that loads the Qwen renderer/backend once and reuses them.
+    """Qwen renderer/backend를 한 번만 로드해 재사용하는 factory를 만든다.
 
-    Imports are local: this module (and the CLI that uses it) must stay
-    importable without pulling in PIL/torch/transformers until a real
-    refinement run actually needs post-refinement Qwen evidence.
+    import는 지역(local)으로 한다: 이 모듈(과 이걸 쓰는 CLI)은 실제
+    refinement 실행이 post-refinement Qwen evidence를 진짜로 필요로 하기
+    전까지는 PIL/torch/transformers를 끌어오지 않고도 import 가능한 상태를
+    유지해야 한다.
     """
     from modules.mask_refining import (  # noqa: PLC0415
         PillowQwenViewRenderer,

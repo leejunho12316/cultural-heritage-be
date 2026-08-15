@@ -1,0 +1,21 @@
+# BE가 vca-ai와 MinIO(S3)를 둘 다 원격(RunPod GPU 팟)에 위탁된 걸로 보고
+# 부르게 하는 오버레이입니다. docker-compose.local-vca.override.yml(같은
+# 맥북에서 네이티브로 돌리는 vca-ai를 보는 것)과는 목적이 다릅니다 - 여기는
+# 아예 다른 네트워크(RunPod)에 있는 vca-ai/MinIO를 호출합니다.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.remote-vca.override.yml \
+#     up -d --build conservation-backend
+#
+# vca-ai가 RunPod에 있으면 BE가 로컬 MinIO에 만드는 presigned URL이
+# vca-ai한테는 안 닿으므로(localhost가 서로 다른 기계를 가리킴), MinIO도
+# 같은 RunPod 팟에서 같이 띄우고 AWS_S3_ENDPOINT/PRESIGN_ENDPOINT 둘 다
+# 그쪽 공개 프록시 URL로 돌린다. 이 시나리오에선 "브라우저용 presign"과
+# "컨테이너 내부용 endpoint"를 나눌 이유가 없다 - BE와 MinIO 모두 서로에게
+# 외부이므로 둘 다 같은 공개 URL을 쓴다.
+services:
+  conservation-backend:
+    environment:
+      VCA_AI_BASE_URL: ${VCA_AI_REMOTE_BASE_URL}
+      VCA_AI_ACCESS_TOKEN: ${VCA_AI_ACCESS_TOKEN}
+      AWS_S3_ENDPOINT: ${VCA_S3_REMOTE_BASE_URL}
+      AWS_S3_PRESIGN_ENDPOINT: ${VCA_S3_REMOTE_BASE_URL}

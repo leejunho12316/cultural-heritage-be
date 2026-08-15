@@ -245,7 +245,7 @@ def _webp_dimensions(contents: bytes) -> tuple[int, int] | None:
         dimensions = _webp_chunk_dimensions(fourcc, contents[payload_start:payload_end])
         if dimensions is not None:
             return dimensions
-        # RIFF chunks are padded to an even byte count.
+        # RIFF 청크는 짝수 바이트 수로 패딩된다.
         index = payload_end + (chunk_size % 2)
     return None
 

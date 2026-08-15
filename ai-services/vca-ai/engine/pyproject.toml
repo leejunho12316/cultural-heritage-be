@@ -35,6 +35,12 @@ vision = [
 
 [tool.uv]
 package = false
+# groundingdino-py가 opencv-python(GUI 포함판, libxcb 등 X11 라이브러리 필요)을
+# 전이적으로 요구해서, 우리가 명시한 opencv-python-headless와 같은 cv2
+# 네임스페이스를 두고 충돌한다. 이 override로 opencv-python 요구를 무력화해
+# headless만 설치되게 한다 - anomaly_grouping이 쓰는 cv2 API(findContours,
+# arcLength)는 순수 수치 연산이라 GUI 바인딩이 애초에 필요 없다.
+override-dependencies = ["opencv-python; python_version < '0'"]
 
 [tool.basedpyright]
 typeCheckingMode = "all"

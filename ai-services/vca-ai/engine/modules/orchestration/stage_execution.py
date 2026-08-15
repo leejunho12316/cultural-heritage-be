@@ -113,11 +113,11 @@ def execute_startup_stages(
     active_request = request
     executed_stage_names = EXECUTED_STAGE_NAMES
     if request.resume_from_stage is not None:
-        # vca-ai only sets resume_from_stage after copying a prior failed
-        # run's completed-stage output directories (and its startup.json)
-        # into this run's own output_root - trust that receipt for the
-        # stages before resume_from_stage instead of re-running them, and
-        # start real execution at the first stage that never finished.
+        # vca-ai는 이전에 실패한 실행의 완료된 스테이지 출력 디렉터리(와 그
+        # startup.json)를 이번 실행 자신의 output_root로 복사한 뒤에만
+        # resume_from_stage를 설정한다 - resume_from_stage 이전 스테이지들은
+        # 다시 실행하지 않고 그 receipt를 그대로 신뢰하며, 실제 실행은 한
+        # 번도 끝나지 않은 첫 스테이지부터 시작한다.
         stages.extend(
             read_prior_completed_stages(request.output_root, request.resume_from_stage)
         )

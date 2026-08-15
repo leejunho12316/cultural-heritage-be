@@ -88,16 +88,23 @@ public class S3Config {
         return builder.build();
     }
 
-    // 백엔드 컨테이너(vca-ai)가 직접 따라갈 presigned URL용. 브라우저용
-    // presign-endpoint가 아니라 항상 컨테이너 네트워크 endpoint(aws.s3.endpoint)를
-    // 쓴다 - 로컬 MinIO에서는 "http://minio:9000"처럼 docker-compose 서비스명으로
-    // 다른 컨테이너에서도 닿는 주소, 실제 AWS에서는 endpoint가 비어있어 위
-    // s3Presigner와 동일하게 동작한다(오버라이드 없음).
+    // 백엔드 컨테이너와 같은 네트워크에 있는 vca-ai(같은 docker-compose 안, 또는 실제
+    // AWS에서 같은 VPC 안)가 직접 따라갈 presigned URL용. 기본값은 컨테이너 네트워크
+    // endpoint(aws.s3.endpoint) - 로컬 MinIO에서는 "http://minio:9000"처럼
+    // docker-compose 서비스명으로 다른 컨테이너에서도 닿는 주소, 실제 AWS에서는
+    // endpoint가 비어있어 위 s3Presigner와 동일하게 동작한다.
+    //
+    // aws.s3.internal-presign-endpoint를 따로 주면 그 값이 우선한다 - vca-ai가 아예
+    // 다른 머신(RunPod GPU 팟 등)에 있어 컨테이너 네트워크 endpoint 자체가 안 닿을 때
+    // 쓴다. 예: 로컬 MinIO를 SSH reverse tunnel로 그 팟의 localhost:9000에 노출해두고
+    // 이 값을 http://localhost:9000으로 주면, presigned URL을 그 팟에서 열었을 때
+    // 터널을 타고 이 맥북의 MinIO에 닿는다(docker-compose.hybrid-runpod.yml 참고).
     @Bean
     public S3Presigner internalS3Presigner(
             @Value("${aws.region:ap-northeast-2}") String region,
             AwsCredentialsProvider credentialsProvider,
             @Value("${aws.s3.endpoint:}") String endpoint,
+            @Value("${aws.s3.internal-presign-endpoint:${aws.s3.endpoint:}}") String internalPresignEndpoint,
             @Value("${aws.s3.path-style-access-enabled:false}") boolean pathStyleAccessEnabled
     ) {
         var builder = S3Presigner.builder()
@@ -106,8 +113,11 @@ public class S3Config {
                 .serviceConfiguration(S3Configuration.builder()
                         .pathStyleAccessEnabled(pathStyleAccessEnabled)
                         .build());
-        if (StringUtils.hasText(endpoint)) {
-            builder.endpointOverride(URI.create(endpoint));
+        String endpointForInternalPresignedUrls = StringUtils.hasText(internalPresignEndpoint)
+                ? internalPresignEndpoint
+                : endpoint;
+        if (StringUtils.hasText(endpointForInternalPresignedUrls)) {
+            builder.endpointOverride(URI.create(endpointForInternalPresignedUrls));
         }
         return builder.build();
     }
