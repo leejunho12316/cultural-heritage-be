@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -33,6 +34,7 @@ public class InspectionResultPotteryController {
     private final InspectionResultPotteryRepository inspectionResultPotteryRepository;
 
     @PostMapping
+    @Transactional
     public ResponseEntity<InspectionResultPotteryResponseDto> save(
             @PathVariable UUID artifactId,
             @PathVariable UUID assessmentRunId,
@@ -49,6 +51,9 @@ public class InspectionResultPotteryController {
                         aiResult.detail()
                 )
         );
+
+        run.markCompleted();
+        assessmentRunRepository.save(run);
 
         return ResponseEntity.ok(InspectionResultPotteryResponseDto.from(saved));
     }
