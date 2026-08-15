@@ -1368,7 +1368,7 @@ class VcaControllerTest {
     }
 
     @Test
-    void createsPdfAfterSyncingAiStatusWithoutPriorReportOrArtifactPoll() throws Exception {
+    void createsPdfAfterSyncingAiStatusThatAlsoCachesTheReportOnFirstCompletion() throws Exception {
         VcaAiGateway gateway = new VcaAiGateway() {
             @Override
             public VcaAiSystemInfo getSystemInfo() {
@@ -1402,7 +1402,23 @@ class VcaControllerTest {
 
             @Override
             public VcaAiAssessmentReport getAssessmentReport(String runId) {
-                throw new AssertionError("Report must not be fetched while creating a PDF job.");
+                // syncRunWithAi now fetches and caches the report itself the
+                // moment it observes a run transition to COMPLETED (whatever
+                // triggered the sync) - vca-ai only keeps a completed run's
+                // output on the GPU pod's own local disk, and that disk is
+                // gone the moment the pod is recreated, so this DB copy is
+                // the only durable record once vca-ai forgets. This test
+                // used to assert the opposite (report must NOT be fetched
+                // here); a real run losing its only-ever-viewed-once report
+                // to a pod restart is what changed that.
+                return new VcaAiAssessmentReport(
+                        runId,
+                        runId.replace("vca-ai-", ""),
+                        "COMPLETED",
+                        "Gateway generated VCA report.",
+                        List.of(),
+                        sampleRagArtifacts()
+                );
             }
         };
         VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
@@ -1609,6 +1625,95 @@ class VcaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.images[0].imageId").value(uploadedImageId))
                 .andExpect(jsonPath("$.findings[0].imageId").value(uploadedImageId));
+    }
+
+    @Test
+    void reportSurvivesGatewayBecomingUnreachableAfterItWasCachedOnFirstCompletion() throws Exception {
+        // vca-ai keeps a completed run's output only on the GPU pod's own
+        // local disk (not any durable store) - if the pod gets recreated
+        // after a run completes, that output is gone even though the run
+        // legitimately succeeded. The only way a report survives that is if
+        // Spring captures it into its own DB the moment it first observes
+        // COMPLETED (syncRunWithAi), and getReport then serves that cached
+        // copy without needing a live vca-ai call at all. This simulates
+        // the pod going unreachable right after that first capture.
+        VcaSharedStorage sharedStorage = new VcaSharedStorage(tempDirectory.toString(), "/shared/vca");
+        boolean[] gatewayReachable = {true};
+        VcaAiGateway gateway = new VcaAiGateway() {
+            @Override
+            public VcaAiSystemInfo getSystemInfo() {
+                return new VcaAiSystemInfo("test-os", "3.13", "cpu", Map.of(), List.of());
+            }
+
+            @Override
+            public VcaAiAssessmentRun createAssessmentRun(
+                    String assessmentId, String projectName, String inputImageFolder,
+                    List<VcaAiGateway.InputImageUrl> inputImageUrls,
+                    String resumeFromProjectName
+            ) {
+                return new VcaAiAssessmentRun("vca-ai-" + assessmentId, assessmentId, "RUNNING");
+            }
+
+            @Override
+            public VcaAiAssessmentRun getAssessmentStatus(String runId) {
+                if (!gatewayReachable[0]) {
+                    throw new AssertionError(
+                            "Status must not be polled once the report is already cached."
+                    );
+                }
+                return new VcaAiAssessmentRun(runId, runId.replace("vca-ai-", ""), "COMPLETED");
+            }
+
+            @Override
+            public VcaAiAssessmentRun cancelAssessmentRun(String runId) {
+                throw new AssertionError("Cancel must not be called in this test.");
+            }
+
+            @Override
+            public VcaAiAssessmentReport getAssessmentReport(String runId) {
+                if (!gatewayReachable[0]) {
+                    throw new AssertionError("Report must not be re-fetched once cached.");
+                }
+                return new VcaAiAssessmentReport(
+                        runId,
+                        runId.replace("vca-ai-", ""),
+                        "COMPLETED",
+                        "Gateway generated VCA report.",
+                        List.of(),
+                        null
+                );
+            }
+        };
+        MockMvc gatewayMvc = mvc(new VcaService(true, gateway, sharedStorage));
+        String artifactId = createArtifact(gatewayMvc, "resilient report artifact");
+        MockMultipartFile file = new MockMultipartFile("file", "front.jpg", "image/jpeg", JPEG_BYTES);
+        gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", artifactId).file(file))
+                .andExpect(status().isCreated());
+        MvcResult runResult = gatewayMvc.perform(post("/api/vca/{artifactId}/runs", artifactId))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String assessmentRunId = JsonPath.read(
+                runResult.getResponse().getContentAsString(), "$.assessmentRunId"
+        );
+
+        // When: an artifact poll (as FE does regularly) observes the run
+        // transitioning to COMPLETED for the first time - this is what
+        // caches the report, independent of anyone ever opening it.
+        gatewayMvc.perform(get("/api/vca/{artifactId}", artifactId))
+                .andExpect(status().isOk());
+
+        // And: vca-ai/the pod becomes unreachable afterward.
+        gatewayReachable[0] = false;
+
+        // Then: the report is still readable from the cache captured
+        // during that poll, with no live gateway call needed.
+        gatewayMvc.perform(get(
+                        "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
+                        artifactId,
+                        assessmentRunId
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"));
     }
 
     private static String sha256(byte[] bytes) throws NoSuchAlgorithmException {

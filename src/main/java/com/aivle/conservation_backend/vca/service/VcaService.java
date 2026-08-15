@@ -906,16 +906,25 @@ public class VcaService {
         });
     }
 
-    // 리포트 조회. AI 모드에서는 vca-ai에서 매번 최신 리포트를 받아와 저장하고,
-    // 데모 모드에서는 최초 조회 시점에 COMPLETED로 전환하며 캐시된 리포트를 반환한다.
+    // 리포트 조회. vca-ai는 중간 산출물을 팟 로컬 디스크에 두고(속도 우선), 팟이
+    // 재생성되면 그 로컬 디스크는 통째로 사라진다 - 그래서 완료된 리포트는 한 번
+    // 받아오면 곧바로 이쪽 DB(reportStore)가 유일하게 신뢰할 수 있는 사본이 된다.
+    // 캐시가 이미 있으면 vca-ai/팟이 지금 살아있는지와 무관하게 그 사본을 그대로
+    // 돌려준다(도자기 검사 상태만 최신값으로 다시 합쳐서). 캐시가 없을 때만(최초
+    // 조회, 또는 syncRunWithAi가 완료 직후 자동 저장하기 전 사이의 좁은 창)
+    // vca-ai에 살아있는 연결이 필요하다. 데모 모드는 원래부터 캐시 우선이었다.
     public synchronized ReportResponse getReport(
             String artifactId,
             String assessmentRunId
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
         AssessmentRun run = requireRun(artifact, assessmentRunId);
-        syncRunWithAi(artifact, run);
         if (vcaAiGateway.isPresent()) {
+            ReportResponse cached = findReport(run.getId());
+            if (cached != null) {
+                return withPotteryInspectionState(cached, run);
+            }
+            syncRunWithAi(artifact, run);
             if (!"COMPLETED".equals(run.getStatus())) {
                 throw new VcaApiException(
                         HttpStatus.CONFLICT,
@@ -923,11 +932,10 @@ public class VcaService {
                         "The assessment report is not ready."
                 );
             }
-            VcaAiAssessmentReport aiReport = vcaAiGateway.get().getAssessmentReport(run.getAiRunId());
-            ReportResponse report = toReport(artifact, run, aiReport);
-            saveReport(run, report);
-            return report;
+            ensureReportReady(artifact, run);
+            return withPotteryInspectionState(findReport(run.getId()), run);
         }
+        syncRunWithAi(artifact, run);
         if (!"COMPLETED".equals(run.getStatus())) {
             Instant now = Instant.now();
             run.setStatus("COMPLETED");
@@ -1335,11 +1343,15 @@ public class VcaService {
 
     // vca-ai에서 run의 최신 상태를 가져와 로컬 엔티티에 반영. getReport/createPdfJob/
     // preparePotteryInspection/advanceDemoRuns 등 여러 곳에서 공통으로 호출되는 동기화 지점.
-    // 이 호출로 run이 방금 처음 COMPLETED로 전환됐다면, 도자기 재질에 한해 도자기 검사를
-    // 사용자 조작 없이 곧바로 이어서 실행한다(아래 autoTriggerPotteryInspectionIfApplicable).
-    // 반환값은 "이 호출 안에서 도자기 검사를 자동으로 이미 실행했는가"이다 -
-    // preparePotteryInspection이 이 값을 보고, 방금 자동으로 막 끝낸 검사를
-    // 수동 트리거 경로가 곧바로 또 한 번 중복 실행하지 않게 막는다.
+    // 이 호출로 run이 방금 처음 COMPLETED로 전환됐다면, (1) 재질과 무관하게 리포트를
+    // 곧바로 이쪽 DB에 받아 저장하고(vca-ai가 팟 로컬 디스크에만 들고 있는 산출물은
+    // 팟이 재생성되면 사라지므로, 완료 직후 바로 받아두지 않으면 아무도 조회하기
+    // 전에 pod가 내려갔을 때 영영 사라진다 - 실제로 이렇게 리포트 하나를 잃고 나서
+    // 추가한 동작이다), (2) 도자기 재질에 한해 도자기 검사도 이어서 실행한다(아래
+    // autoTriggerPotteryInspectionIfApplicable). 반환값은 "이 호출 안에서 도자기
+    // 검사를 자동으로 이미 실행했는가"이다 - preparePotteryInspection이 이 값을
+    // 보고, 방금 자동으로 막 끝낸 검사를 수동 트리거 경로가 곧바로 또 한 번
+    // 중복 실행하지 않게 막는다.
     private boolean syncRunWithAi(VcaArtifactEntity artifact, AssessmentRun run) {
         if (vcaAiGateway.isEmpty() || run.getAiRunId() == null) {
             return false;
@@ -1352,6 +1364,7 @@ public class VcaService {
         artifactStore.save(artifact);
         boolean justCompleted = !wasCompleted && "COMPLETED".equals(run.getStatus());
         if (justCompleted) {
+            ensureReportReady(artifact, run);
             autoTriggerPotteryInspectionIfApplicable(artifact, run);
         }
         return justCompleted;
