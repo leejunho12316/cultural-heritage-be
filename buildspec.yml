@@ -8,156 +8,63 @@ env:
 phases:
   pre_build:
     commands:
+      - set -e
       - echo "===== ECR LOGIN ====="
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - echo "IMAGE_TAG=$IMAGE_TAG"
-
-      - |
-        echo "===== GIT DEBUG ====="
-        git status
-        git log --oneline -5 || true
-        git rev-parse HEAD
-        git rev-parse --is-shallow-repository || true
-
-        echo "===== ENSURE GIT HISTORY ====="
-
-        if ! git rev-parse HEAD^ >/dev/null 2>&1; then
-          echo "Previous commit not available. Fetching from GitHub..."
-
-          git fetch --depth=10 \
-            https://github.com/BigProject09/cultural-heritage-be.git \
-            main
-        fi
-
-        echo "===== DETECT CHANGED FILES ====="
-
-        if git rev-parse HEAD^ >/dev/null 2>&1; then
-          CHANGED_FILES="$(git diff --name-only HEAD^ HEAD)"
-        else
-          echo "No previous commit available. Running full build."
-          CHANGED_FILES="__FULL_BUILD__"
-        fi
-
-        BUILD_BACKEND=false
-        BUILD_GUIDE=false
-        BUILD_XRAY=false
-        BUILD_POTTERY=false
-        BUILD_REPORT=false
-        APPLY_K8S=false
-
-        if git rev-parse HEAD^ >/dev/null 2>&1; then
-          CHANGED_FILES="$(git diff --name-only HEAD^ HEAD)"
-        else
-          echo "No previous commit available. Running full build."
-          CHANGED_FILES="__FULL_BUILD__"
-        fi
-
-        echo "$CHANGED_FILES"
-
-        if [ "$CHANGED_FILES" = "__FULL_BUILD__" ]; then
-          BUILD_BACKEND=true
-          BUILD_GUIDE=true
-          BUILD_XRAY=true
-          BUILD_POTTERY=true
-          BUILD_REPORT=true
-          APPLY_K8S=true
-        else
-          if echo "$CHANGED_FILES" | grep -Eq '^(src/|build\.gradle$|settings\.gradle$|gradle/|gradlew$|gradlew\.bat$|Dockerfile$|\.dockerignore$)'; then
-            BUILD_BACKEND=true
-          fi
-
-          if echo "$CHANGED_FILES" | grep -Eq '^ai-services/conservation-guide-ai/'; then
-            BUILD_GUIDE=true
-          fi
-
-          if echo "$CHANGED_FILES" | grep -Eq '^ai-services/xray-ai/'; then
-            BUILD_XRAY=true
-          fi
-
-          if echo "$CHANGED_FILES" | grep -Eq '^ai-services/pottery-inspection-ai/'; then
-            BUILD_POTTERY=true
-          fi
-
-          if echo "$CHANGED_FILES" | grep -Eq '^ai-services/report-ai/'; then
-            BUILD_REPORT=true
-          fi
-
-          if echo "$CHANGED_FILES" | grep -Eq '^k8s/'; then
-            APPLY_K8S=true
-          fi
-        fi
-
-        echo "===== BUILD PLAN ====="
-        echo "backend=$BUILD_BACKEND"
-        echo "guide=$BUILD_GUIDE"
-        echo "xray=$BUILD_XRAY"
-        echo "pottery=$BUILD_POTTERY"
-        echo "report=$BUILD_REPORT"
-        echo "apply_k8s=$APPLY_K8S"
 
   build:
     commands:
       - |
         set -e
-        echo "===== BUILD CHANGED SERVICES ====="
 
-        if [ "$BUILD_BACKEND" = "true" ]; then
-          docker build -t conservation-backend:$IMAGE_TAG .
-        fi
+        echo "===== BUILD ALL SERVICES ====="
 
-        if [ "$BUILD_GUIDE" = "true" ]; then
-          docker build -t conservation-guide-ai:$IMAGE_TAG ai-services/conservation-guide-ai
-        fi
+        docker build \
+          -t conservation-backend:$IMAGE_TAG \
+          .
 
-        if [ "$BUILD_XRAY" = "true" ]; then
-          docker build -t xray-ai:$IMAGE_TAG ai-services/xray-ai
-        fi
+        docker build \
+          -t conservation-guide-ai:$IMAGE_TAG \
+          ai-services/conservation-guide-ai
 
-        if [ "$BUILD_POTTERY" = "true" ]; then
-          docker build -t pottery-inspection-ai:$IMAGE_TAG ai-services/pottery-inspection-ai
-        fi
+        docker build \
+          -t xray-ai:$IMAGE_TAG \
+          ai-services/xray-ai
 
-        if [ "$BUILD_REPORT" = "true" ]; then
-          docker build -t report-ai:$IMAGE_TAG ai-services/report-ai
-        fi
+        docker build \
+          -t pottery-inspection-ai:$IMAGE_TAG \
+          ai-services/pottery-inspection-ai
+
+        docker build \
+          -t report-ai:$IMAGE_TAG \
+          ai-services/report-ai
 
   post_build:
     commands:
       - |
         set -e
-        echo "===== PUSH CHANGED SERVICES ====="
 
-        SERVICES=""
+        echo "===== PUSH ALL SERVICES ====="
 
-        if [ "$BUILD_BACKEND" = "true" ]; then
-          SERVICES="$SERVICES conservation-backend"
-        fi
-
-        if [ "$BUILD_GUIDE" = "true" ]; then
-          SERVICES="$SERVICES conservation-guide-ai"
-        fi
-
-        if [ "$BUILD_XRAY" = "true" ]; then
-          SERVICES="$SERVICES xray-ai"
-        fi
-
-        if [ "$BUILD_POTTERY" = "true" ]; then
-          SERVICES="$SERVICES pottery-inspection-ai"
-        fi
-
-        if [ "$BUILD_REPORT" = "true" ]; then
-          SERVICES="$SERVICES report-ai"
-        fi
+        SERVICES="
+        conservation-backend
+        conservation-guide-ai
+        xray-ai
+        pottery-inspection-ai
+        report-ai
+        "
 
         for svc in $SERVICES; do
-          echo "Pushing $svc"
+          echo "===== PUSH $svc ====="
 
-          docker tag $svc:$IMAGE_TAG \
+          docker tag \
+            $svc:$IMAGE_TAG \
             $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:$IMAGE_TAG
 
-          docker tag $svc:$IMAGE_TAG \
+          docker tag \
+            $svc:$IMAGE_TAG \
             $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:latest
 
           docker push \
@@ -168,9 +75,13 @@ phases:
         done
 
       - |
+        set -e
+
         echo "===== KUBERNETES SETUP ====="
 
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        curl -LO \
+          "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
         chmod +x kubectl
         mv kubectl /usr/local/bin/
 
@@ -179,25 +90,32 @@ phases:
           --region $AWS_REGION
 
       - |
-        if [ "$APPLY_K8S" = "true" ]; then
-          echo "Applying k8s/app.yaml"
-          kubectl apply -f k8s/app.yaml
-        fi
+        set -e
+
+        echo "===== APPLY KUBERNETES MANIFEST ====="
+
+        kubectl apply -f k8s/app.yaml
 
       - |
-        echo "===== RESTART CHANGED DEPLOYMENTS ====="
+        set -e
 
-        for svc in $SERVICES; do
-          echo "Restarting $svc"
-          kubectl rollout restart deployment/$svc
-        done
+        echo "===== RESTART ALL DEPLOYMENTS ====="
+
+        kubectl rollout restart deployment/conservation-backend
+        kubectl rollout restart deployment/conservation-guide-ai
+        kubectl rollout restart deployment/xray-ai
+        kubectl rollout restart deployment/pottery-inspection-ai
+        kubectl rollout restart deployment/report-ai
 
       - |
+        set -e
+
         echo "===== WAIT FOR ROLLOUT ====="
 
-        for svc in $SERVICES; do
-          kubectl rollout status deployment/$svc --timeout=10m
-        done
+        kubectl rollout status deployment/conservation-backend --timeout=10m
+        kubectl rollout status deployment/conservation-guide-ai --timeout=10m
+        kubectl rollout status deployment/xray-ai --timeout=10m
+        kubectl rollout status deployment/pottery-inspection-ai --timeout=10m
+        kubectl rollout status deployment/report-ai --timeout=10m
 
-      - |
-        echo "===== DEPLOY COMPLETE ====="
+      - echo "===== DEPLOY COMPLETE ====="

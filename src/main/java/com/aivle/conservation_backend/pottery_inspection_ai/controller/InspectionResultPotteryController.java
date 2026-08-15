@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.pottery_inspection_ai.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.pottery_inspection_ai.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.InspectionResultPotteryResponseDto;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
@@ -31,6 +32,7 @@ import java.util.UUID;
 public class InspectionResultPotteryController {
 
     private final AssessmentRunRepository assessmentRunRepository;
+    private final ArtifactAccessService artifactAccessService;
     private final InspectionResultPotteryRepository inspectionResultPotteryRepository;
 
     @PostMapping
@@ -73,6 +75,7 @@ public class InspectionResultPotteryController {
     }
 
     private AssessmentRun requireRun(UUID artifactId, UUID assessmentRunId) {
+        artifactAccessService.requireArtifact(artifactId);
         return assessmentRunRepository.findByIdAndArtifactId(assessmentRunId, artifactId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "VCA 실행을 찾을 수 없습니다: " + assessmentRunId));

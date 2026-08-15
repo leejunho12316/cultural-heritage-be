@@ -31,11 +31,25 @@ _VISUAL_SYSTEM_PROMPT = """당신은 문화유산 보존처리 보고서를 작�
 - 육안조사에서 확인된 손상·문양 판단을 반영하세요.
 - 근거 없는 내용을 추가하지 마세요."""
 
-_XRAY_SYSTEM_PROMPT = """당신은 문화유산 보존처리 보고서를 작성하는 전문가입니다.
-아래 X-ray 조사 결과를 바탕으로, 정식 보존처리 보고서 "처리 전 상태조사"
-섹션 중 X-ray 조사 부분 문장을 작성하세요.
+_XRAY_SYSTEM_PROMPT = """당신은 문화유산 보존과학·보존처리 보고서를 작성하는 전문가입니다.
+아래 자료는 최종 결합 X-ray, AI 이상영역 탐지, 전문가 검수 결과를 바탕으로
+작성된 X-ray 상태조사 문안과 검수 영역 목록입니다. 이를 근거로 정식
+보존처리 보고서의 "처리 전 상태조사 - X-ray 조사" 부분을 작성하세요.
 
-- X-ray에서 확인된 확정 이상영역(위치·소견)을 반영하세요.
+작성 원칙:
+- 제공된 X-ray 상태조사 문안을 1차 근거로 삼고, 검수 영역 목록으로 교차 확인하세요.
+- 단순히 "이상영역이 확인되었다"고 끝내지 말고, 어느 위치를 어떤 이유로
+  후속 확인해야 하는지 실무자가 이해할 수 있게 서술하세요.
+- 전문가 검수에서 DAMAGE로 포함된 영역은 '이상으로 포함한 검토 영역'으로
+  표현하고, 물리적 결함 종류나 원인을 확정하지 마세요.
+- 위치·사용자 소견이 제공되면 반드시 반영하고, 제공되지 않은 세부사항은
+  만들어내지 마세요.
+- 결합 경계·중첩·보간 영향 가능성, 원본 조각 대조 필요성이 원문에 있으면
+  해당 불확실성도 유지하세요.
+- 최종 보고서에서 활용할 수 있도록 조사 결과, 주요 검토 영역, 후속 확인사항이
+  자연스럽게 이어지는 2~4개 문단으로 작성하세요.
+- AI 한계 문구를 길게 반복하지 말고, 마지막에 전문가 최종 확인이 필요하다는
+  점만 간결하게 남기세요.
 - 근거 없는 내용을 추가하지 마세요."""
 
 
@@ -69,9 +83,10 @@ def pre_investigation_node(state: State) -> dict[str, Any]:
     # X-ray 데이터(문안 또는 확정 이상영역)가 하나라도 있을 때만 이 part를 만든다.
     if xray_report_text or damage_regions:
         region_lines = "\n".join(
-            f"- {r.get('region_code', '')}: {r.get('position', '')} / {r.get('user_note', '')}"
+            f"- 영역 {r.get('region_code', '')} | 위치: {r.get('position') or '미기재'} | "
+            f"전문가 소견: {r.get('user_note') or '미기재'}"
             for r in damage_regions
-        ) or "(확정된 이상영역 없음)"
+        ) or "(전문가 검수에서 이상으로 포함한 영역 없음)"
 
         xray_section = build_section_via_llm(
             system_prompt=_XRAY_SYSTEM_PROMPT,
@@ -79,7 +94,7 @@ def pre_investigation_node(state: State) -> dict[str, Any]:
 [X-ray 상태조사 문안]
 {xray_report_text or "(없음)"}
 
-[X-ray 확정 이상영역 ({len(damage_regions)}건)]
+[전문가 검수에서 이상으로 포함한 X-ray 영역 ({len(damage_regions)}건)]
 {region_lines}
 """,
             rag_query="보존처리 보고서 처리 전 상태조사 X-ray 이상영역 판단",

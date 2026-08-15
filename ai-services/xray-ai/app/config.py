@@ -169,7 +169,7 @@ LLM_MAX_OUTPUT_TOKENS = int(
 # 모델 판단에 맡겨져 결과가 흔들린다.
 # 보낼 건수와 지시 건수를 일치시킨다.
 
-# summary: PPT 삽입용 요약본, 1500자 내외
+# 실무자용 X-ray 상태조사 요약문
 LLM_SUMMARY_TOP_ASSEMBLED = int(
     os.getenv("XRAY_LLM_SUMMARY_TOP_ASSEMBLED", "5")
 )
@@ -180,19 +180,6 @@ LLM_SUMMARY_TOP_FRAGMENT = int(
 
 LLM_SUMMARY_MAX_TOKENS = int(
     os.getenv("XRAY_LLM_SUMMARY_MAX_TOKENS", "4000")
-)
-
-# detailed: 공식 기록용 상세본, 9개 절
-LLM_DETAILED_TOP_ASSEMBLED = int(
-    os.getenv("XRAY_LLM_DETAILED_TOP_ASSEMBLED", "12")
-)
-
-LLM_DETAILED_TOP_FRAGMENT = int(
-    os.getenv("XRAY_LLM_DETAILED_TOP_FRAGMENT", "10")
-)
-
-LLM_DETAILED_MAX_TOKENS = int(
-    os.getenv("XRAY_LLM_DETAILED_MAX_TOKENS", "10000")
 )
 
 # API 요청 크기 제한을 위한 이미지 축소 기준

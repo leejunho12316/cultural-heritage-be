@@ -57,6 +57,16 @@ public class WebSecurityConfig {
                                 "/api/notices/**"
                         ).hasRole("ADMIN")
 
+                        // 유물/AI 워크스페이스는 로그인 사용자만 접근
+                        .requestMatchers("/api/artifacts/**").authenticated()
+                        .requestMatchers("/api/vca/**").authenticated()
+                        .requestMatchers("/api/reports/**").authenticated()
+
+                        // X-Ray health/callback은 인프라 및 AI callback 용도로 예외
+                        .requestMatchers(HttpMethod.GET, "/api/xray/health").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/xray/stitch/callback").permitAll()
+                        .requestMatchers("/api/xray/**").authenticated()
+
                         // 회원 탈퇴는 로그인 필요
                         .requestMatchers(
                                 HttpMethod.DELETE,
