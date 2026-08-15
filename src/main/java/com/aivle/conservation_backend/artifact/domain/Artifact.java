@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.aivle.conservation_backend.user.domain.User;
+
 @Entity
 @Table(name = "artifacts")
 @Getter
@@ -19,6 +21,10 @@ public class Artifact {
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "artifact_id", updatable = false, nullable = false)
     private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User owner;
 
     @Column(nullable = false, length = 200)
     private String name;
@@ -58,6 +64,7 @@ public class Artifact {
 
     @Builder
     public Artifact(
+            User owner,
             String name,
             String category,
             String material,
@@ -68,6 +75,7 @@ public class Artifact {
             String bondingArea,
             String treatmentPurpose
     ) {
+        this.owner = owner;
         this.name = name;
         this.category = category;
         this.material = material;

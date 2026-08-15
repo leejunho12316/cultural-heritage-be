@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.xray_api.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.xray_api.dto.XrayFinalLayoutRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayJobResponse;
 import com.aivle.conservation_backend.xray_api.dto.XrayJobStatusResponse;
@@ -39,9 +40,11 @@ import java.util.stream.IntStream;
 public class XrayStitchController {
 
     private final XrayStitchService stitchService;
+    private final ArtifactAccessService artifactAccessService;
 
-    public XrayStitchController(XrayStitchService stitchService) {
+    public XrayStitchController(XrayStitchService stitchService, ArtifactAccessService artifactAccessService) {
         this.stitchService = stitchService;
+        this.artifactAccessService = artifactAccessService;
     }
 
     /** New FE flow: obtain presigned PUT URLs, then upload directly to S3. */
@@ -51,6 +54,7 @@ public class XrayStitchController {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<PrepareResponse> prepare(@RequestBody PrepareRequest request) {
+        artifactAccessService.requireArtifact(request.artifactId());
         return ResponseEntity.status(HttpStatus.CREATED).body(stitchService.prepare(request));
     }
 
@@ -68,6 +72,7 @@ public class XrayStitchController {
             @RequestParam("colorFiles") List<MultipartFile> colorFiles,
             @RequestParam("xrayFiles") List<MultipartFile> xrayFiles
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         return ResponseEntity.accepted().body(
                 stitchService.createJob(artifactId, colorFiles, xrayFiles)
         );
@@ -82,6 +87,7 @@ public class XrayStitchController {
             @PathVariable String jobId,
             @RequestBody StartRequest request
     ) {
+        artifactAccessService.requireXrayJob(jobId);
         return ResponseEntity.accepted().body(
                 stitchService.start(jobId, request.colorFileName(), request.xrayFileNames())
         );
@@ -101,6 +107,7 @@ public class XrayStitchController {
 
     @GetMapping(value = "/jobs/{jobId}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<XrayJobStatusResponse> getStatus(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         return ResponseEntity.ok(stitchService.getLocalJobStatus(jobId));
     }
 
@@ -109,17 +116,20 @@ public class XrayStitchController {
     public ResponseEntity<XrayJobStatusResponse> getStatusByArtifactId(
             @PathVariable String artifactId
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         return ResponseEntity.ok(stitchService.getLocalJobStatusByArtifactId(artifactId));
     }
 
     @PostMapping(value = "/jobs/{jobId}/reconcile", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ReconcileResponse> reconcile(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         return ResponseEntity.ok(stitchService.reconcile(jobId));
     }
 
     // Presigned URL endpoints used by the S3-native FE.
     @GetMapping(value = "/jobs/{jobId}/result-url", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UrlResponse> getResultUrl(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         XrayJobStatusResponse job = stitchService.getLocalJobStatus(jobId);
         return ResponseEntity.ok(new UrlResponse(
                 stitchService.getAssembledUrl(jobId),
@@ -129,6 +139,7 @@ public class XrayStitchController {
 
     @GetMapping(value = "/jobs/{jobId}/layout-url", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UrlResponse> getLayoutUrl(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         XrayJobStatusResponse job = stitchService.getLocalJobStatus(jobId);
         return ResponseEntity.ok(new UrlResponse(
                 stitchService.getLayoutUrl(jobId),
@@ -138,6 +149,7 @@ public class XrayStitchController {
 
     @GetMapping(value = "/jobs/{jobId}/sources", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SourceResponse> getSourceUrls(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         List<String> fileNames = stitchService.getOrderedXraySourceFileNames(jobId);
         List<String> urls = stitchService.getOrderedXraySourceUrls(jobId);
         List<SourceTarget> sources = IntStream.range(0, fileNames.size())
@@ -148,6 +160,7 @@ public class XrayStitchController {
 
     @GetMapping(value = "/jobs/{jobId}/report", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UrlResponse> getReportUrl(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         XrayJobStatusResponse job = stitchService.getLocalJobStatus(jobId);
         return ResponseEntity.ok(new UrlResponse(
                 stitchService.getReportUrl(jobId),
@@ -157,6 +170,7 @@ public class XrayStitchController {
 
     @GetMapping(value = "/jobs/{jobId}/result/final-url", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UrlResponse> getFinalResultUrl(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         XrayJobStatusResponse job = stitchService.requireFinalizedJob(jobId);
         return ResponseEntity.ok(new UrlResponse(
                 stitchService.getFinalAssembledUrl(jobId),
@@ -167,16 +181,19 @@ public class XrayStitchController {
     // Current-main compatibility: actual layout JSON and image bytes.
     @GetMapping(value = "/jobs/{jobId}/layout", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> getLayout(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         return ResponseEntity.ok(stitchService.getLayout(jobId));
     }
 
     @GetMapping(value = "/jobs/{jobId}/result", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<Resource> getResultImage(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         return imageResponse(stitchService.getResult(jobId), "assembled-xray.png");
     }
 
     @GetMapping(value = "/jobs/{jobId}/result/final", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<Resource> getFinalResultImage(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         return imageResponse(stitchService.getFinalResult(jobId), "assembled-xray-final.png");
     }
 
@@ -189,11 +206,13 @@ public class XrayStitchController {
             @PathVariable String jobId,
             @RequestBody XrayFinalLayoutRequest request
     ) {
+        artifactAccessService.requireXrayJob(jobId);
         return ResponseEntity.ok(stitchService.saveFinalLayout(jobId, request));
     }
 
     @GetMapping(value = "/jobs/{jobId}/layout/final", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> getFinalLayout(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
         return ResponseEntity.ok(stitchService.getFinalLayout(jobId));
     }
 

@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.report_ai.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.report_ai.client.ReportAiClient;
 import com.aivle.conservation_backend.report_ai.dto.DocxRequestDto;
 import com.aivle.conservation_backend.report_ai.dto.GenerateReportRequestDto;
@@ -54,6 +55,7 @@ public class ReportAiController {
     private final ArtifactSourceAdapter artifactSourceAdapter;
     private final ConservationGuideSourceAdapter conservationGuideSourceAdapter;
     private final ReportDocumentService reportDocumentService;
+    private final ArtifactAccessService artifactAccessService;
 
     /**
      * 생성 직후 report_json만 먼저 저장한다.
@@ -65,6 +67,7 @@ public class ReportAiController {
             @PathVariable UUID artifactId,
             @RequestBody SaveReportRequestDto request
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reportDocumentService.saveJson(artifactId, request));
     }
@@ -81,6 +84,7 @@ public class ReportAiController {
             @PathVariable UUID artifactId,
             @RequestBody SaveReportRequestDto request
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reportDocumentService.save(artifactId, request));
     }
@@ -88,6 +92,7 @@ public class ReportAiController {
     /** 이 유물의 가장 최근 저장 보고서를 조회한다 (게시판 등에서 재조회용). */
     @GetMapping("/{artifactId}")
     public ResponseEntity<ReportDocumentResponseDto> latest(@PathVariable UUID artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
         return ResponseEntity.ok(reportDocumentService.findLatest(artifactId));
     }
 
@@ -101,6 +106,7 @@ public class ReportAiController {
      */
     @GetMapping("/{artifactId}/relic-info-source")
     public ResponseEntity<Map<String, Object>> relicInfoSource(@PathVariable String artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
         return artifactSourceAdapter.resolve(artifactId)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.ok(Map.of()));
@@ -118,6 +124,7 @@ public class ReportAiController {
      */
     @GetMapping("/{artifactId}/xray-source")
     public ResponseEntity<Map<String, Object>> xraySource(@PathVariable String artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
         return xraySourceAdapter.resolve(artifactId)
                 .map(source -> ResponseEntity.ok(Map.<String, Object>of(
                         "xray_report_text", source.reportText() == null ? "" : source.reportText(),
@@ -139,6 +146,7 @@ public class ReportAiController {
      */
     @GetMapping("/{artifactId}/pottery-source")
     public ResponseEntity<Map<String, Object>> potterySource(@PathVariable String artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
         return potterySourceAdapter.resolve(artifactId)
                 .map(source -> ResponseEntity.ok(source.asMap()))
                 .orElseGet(() -> ResponseEntity.ok(Map.of(
@@ -159,6 +167,7 @@ public class ReportAiController {
      */
     @GetMapping("/{artifactId}/conservation-guide-source")
     public ResponseEntity<Map<String, Object>> conservationGuideSource(@PathVariable String artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
         return conservationGuideSourceAdapter.resolve(artifactId)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.ok(Map.of()));
@@ -167,12 +176,14 @@ public class ReportAiController {
     /** report_json만 생성한다. */
     @PostMapping("/generate")
     public ResponseEntity<Map<String, Object>> generate(@RequestBody GenerateReportRequestDto request) {
+        artifactAccessService.requireArtifact(request.artifactId());
         return ResponseEntity.ok(reportAiClient.generateReport(request));
     }
 
     /** report_json 생성 + .docx 변환을 한 번에 한다 (데모/직접 테스트용). */
     @PostMapping("/generate/docx")
     public ResponseEntity<ByteArrayResource> generateDocx(@RequestBody GenerateReportRequestDto request) {
+        artifactAccessService.requireArtifact(request.artifactId());
         byte[] docx = reportAiClient.generateReportDocx(request);
         return docxResponse(request.artifactId(), docx);
     }
@@ -180,6 +191,7 @@ public class ReportAiController {
     /** 이미 생성/저장된 report_json을 .docx로 변환만 한다 (LLM 재호출 없음). */
     @PostMapping("/docx")
     public ResponseEntity<ByteArrayResource> toDocx(@RequestBody DocxRequestDto request) {
+        artifactAccessService.requireArtifact(request.artifactId());
         byte[] docx = reportAiClient.reportToDocx(request);
         return docxResponse(request.artifactId(), docx);
     }

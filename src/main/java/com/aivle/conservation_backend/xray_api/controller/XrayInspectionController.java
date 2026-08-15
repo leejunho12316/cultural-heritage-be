@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.xray_api.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.xray_api.client.XrayAnomalyClient;
 import com.aivle.conservation_backend.xray_api.dto.AnalysisTarget;
 import com.aivle.conservation_backend.xray_api.dto.XrayDetectionResponse;
@@ -42,15 +43,18 @@ public class XrayInspectionController {
     private final XrayAnomalyClient xrayAnomalyClient;
     private final XrayDefectMappingService xrayDefectMappingService;
     private final XrayStitchService xrayStitchService;
+    private final ArtifactAccessService artifactAccessService;
 
     public XrayInspectionController(
             XrayAnomalyClient xrayAnomalyClient,
             XrayDefectMappingService xrayDefectMappingService,
-            XrayStitchService xrayStitchService
+            XrayStitchService xrayStitchService,
+            ArtifactAccessService artifactAccessService
     ) {
         this.xrayAnomalyClient = xrayAnomalyClient;
         this.xrayDefectMappingService = xrayDefectMappingService;
         this.xrayStitchService = xrayStitchService;
+        this.artifactAccessService = artifactAccessService;
     }
 
     /**
@@ -82,6 +86,7 @@ public class XrayInspectionController {
             @PathVariable String jobId,
             @RequestParam(value = "confidence", required = false) Double confidence
     ) {
+        artifactAccessService.requireXrayJob(jobId);
         xrayStitchService.requireFinalizedJob(jobId);
         return ResponseEntity.ok(
                 xrayAnomalyClient.detectUrl(
@@ -102,6 +107,7 @@ public class XrayInspectionController {
             @PathVariable String jobId,
             @RequestParam(value = "confidence", required = false) Double confidence
     ) {
+        artifactAccessService.requireXrayJob(jobId);
         List<String> fileNames = xrayStitchService.getOrderedXraySourceFileNames(jobId);
         List<String> urls = xrayStitchService.getOrderedXraySourceUrls(jobId);
         List<Integer> sourceIndexes = IntStream.range(0, fileNames.size()).boxed().toList();
@@ -178,6 +184,7 @@ public class XrayInspectionController {
             @PathVariable String jobId,
             @RequestBody XrayDefectMappingRequest request
     ) {
+        artifactAccessService.requireXrayJob(jobId);
         xrayStitchService.requireFinalizedJob(jobId);
         return ResponseEntity.ok(
                 xrayDefectMappingService.mapDefects(jobId, request)

@@ -10,6 +10,8 @@ import java.util.UUID;
 public class ArtifactResponse {
 
     private final UUID artifactId;
+    private final Long ownerUserId;
+    private final String ownerLoginId;
 
     private final String name;
     private final String category;
@@ -31,6 +33,8 @@ public class ArtifactResponse {
             String representativeImageUrl
     ) {
         this.artifactId = artifact.getId();
+        this.ownerUserId = artifact.getOwner() == null ? null : artifact.getOwner().getId();
+        this.ownerLoginId = artifact.getOwner() == null ? null : artifact.getOwner().getLoginId();
 
         this.name = artifact.getName();
         this.category = artifact.getCategory();
