@@ -3,6 +3,7 @@ package com.aivle.conservation_backend.artifact.service;
 import com.aivle.conservation_backend.artifact.domain.Artifact;
 import com.aivle.conservation_backend.artifact.dto.AddArtifactRequest;
 import com.aivle.conservation_backend.artifact.dto.ArtifactResponse;
+import com.aivle.conservation_backend.artifact.dto.ArtifactPublicResponse;
 import com.aivle.conservation_backend.artifact.dto.UpdateArtifactRequest;
 import com.aivle.conservation_backend.artifact.repository.ArtifactRepository;
 import com.aivle.conservation_backend.conservation_guide_ai.domain.Task;
@@ -76,6 +77,22 @@ public class ArtifactService {
 
         return artifacts.stream()
                 .map(this::toResponse)
+                .toList();
+    }
+
+    public List<ArtifactResponse> findMine() {
+        User currentUser = artifactAccessService.currentUser();
+        return artifactRepository.findAllByOwner_IdOrderByUpdatedAtDesc(currentUser.getId())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public List<ArtifactPublicResponse> findPublic() {
+        artifactAccessService.currentUser();
+        return artifactRepository.findAll(Sort.by(Sort.Direction.DESC, "updatedAt"))
+                .stream()
+                .map(this::toPublicResponse)
                 .toList();
     }
 
@@ -237,5 +254,15 @@ public class ArtifactService {
         }
 
         return new ArtifactResponse(artifact, imageUrl);
+    }
+
+    private ArtifactPublicResponse toPublicResponse(Artifact artifact) {
+        String imageUrl = null;
+
+        if (artifact.getRepresentativeImageKey() != null) {
+            imageUrl = photoStorageService.presignedUrl(artifact.getRepresentativeImageKey());
+        }
+
+        return new ArtifactPublicResponse(artifact, imageUrl);
     }
 }
