@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.main import app
-from app.services import assessment_runs
+from app.services import assessment_runs, vca_process
 
 
 client = TestClient(app)
@@ -196,7 +196,7 @@ def test_assessment_report_when_kept_candidates_exist(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates the run and retrieves its report
     created = client.post(
@@ -269,7 +269,7 @@ def test_assessment_report_translates_engine_image_id_to_uploaded_file_sha256(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates the run and retrieves its report.
     created = client.post(
@@ -305,7 +305,7 @@ def test_assessment_report_keeps_engine_image_id_when_manifest_is_missing(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates the run and retrieves its report.
     created = client.post(
@@ -353,7 +353,7 @@ def test_assessment_report_with_populated_multi_fragment_polygons(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates the run and retrieves its report.
     created = client.post(
@@ -386,7 +386,7 @@ def test_assessment_report_when_no_anomaly_candidates_exist(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring retrieves the completed run's report
     created = client.post(

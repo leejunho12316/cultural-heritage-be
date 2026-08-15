@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.main import app
-from app.services import assessment_runs
+from app.services import assessment_runs, vca_process
 
 
 client = TestClient(app)
@@ -79,7 +79,7 @@ def test_assessment_run_when_created_in_default_full_mode(
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
     monkeypatch.setenv("VCA_RUN_TIMEOUT_SECONDS", "600")
     monkeypatch.setenv("VCA_DRY_RUN_TIMEOUT_SECONDS", "120")
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates an assessment run
     response = client.post(
@@ -118,7 +118,7 @@ def test_assessment_run_when_optional_engine_settings_are_configured(
     monkeypatch.setenv("VCA_DEVICE", "cpu")
     monkeypatch.setenv("VCA_MAX_IMAGES", "2")
     monkeypatch.setenv("VCA_MODEL_CACHE_ROOT", "/opt/vca-models/models")
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates a run
     response = client.post(
@@ -191,7 +191,7 @@ def test_assessment_run_resumes_from_prior_failed_run_when_stages_completed(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates the next run for the same artifact, pointing back
     # at the prior failed run's project name.
@@ -255,7 +255,7 @@ def test_assessment_run_falls_back_to_full_run_when_resume_source_is_missing(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring still asks to resume from a nonexistent prior project.
     response = client.post(
@@ -293,7 +293,7 @@ def test_assessment_run_when_local_unverified_model_hashes_are_allowed(
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
     monkeypatch.setenv("VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES", "true")
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates a run through the local adapter.
     response = client.post(
@@ -328,7 +328,7 @@ def test_assessment_run_when_dry_run_mode_is_explicitly_configured(
     monkeypatch.setenv("VCA_RUN_MODE", "dry-run")
     monkeypatch.setenv("VCA_DEVICE", "cuda")
     monkeypatch.setenv("VCA_MAX_IMAGES", "2")
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates a dry-run assessment
     response = client.post(
@@ -361,7 +361,7 @@ def test_assessment_run_when_real_startup_exits_non_zero(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates a real assessment run
     response = client.post(
@@ -388,7 +388,7 @@ def test_assessment_run_when_cancelled_reports_cancelled_by_user_reason(
     input_folder = create_input_folder(shared_root)
     engine_root = tmp_path / "vca_v2"
     run_id = "vca-artifact-123~artifact-123-run-123"
-    assessment_runs._cancelled_run_ids.add(run_id)
+    vca_process._cancelled_run_ids.add(run_id)
 
     def fake_run(
         command: list[str], *, cwd: Path, timeout: int, run_id: str
@@ -398,7 +398,7 @@ def test_assessment_run_when_cancelled_reports_cancelled_by_user_reason(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     try:
         # When: Spring creates the run that gets cancelled mid-flight.
@@ -411,10 +411,10 @@ def test_assessment_run_when_cancelled_reports_cancelled_by_user_reason(
         # not the raw subprocess stderr.
         assert response.status_code == 202
         assert response.json()["status"] == "FAILED"
-        assert assessment_runs._CANCELLED_BY_USER_REASON in response.json()["failureReason"]
+        assert vca_process._CANCELLED_BY_USER_REASON in response.json()["failureReason"]
         assert "Terminated" not in response.json()["failureReason"]
     finally:
-        assessment_runs._cancelled_run_ids.discard(run_id)
+        vca_process._cancelled_run_ids.discard(run_id)
 
 
 def test_cancel_run_signals_the_active_process_group(
@@ -430,21 +430,21 @@ def test_cancel_run_signals_the_active_process_group(
             return None
 
     monkeypatch.setattr(
-        assessment_runs.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
+        vca_process.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
     )
-    assessment_runs._mark_cancellable("run-cancel-1", RunningProcess())
+    vca_process._mark_cancellable("run-cancel-1", RunningProcess())
 
     try:
         # When: the run is cancelled.
-        cancelled = assessment_runs.cancel_run("run-cancel-1")
+        cancelled = vca_process.cancel_run("run-cancel-1")
 
         # Then: SIGTERM reaches the process group and the run is remembered
-        # as cancelled so _run_vca() can report a clean reason.
+        # as cancelled so run_vca() can report a clean reason.
         assert cancelled is True
-        assert killed_groups == [(24680, assessment_runs.signal.SIGTERM)]
-        assert assessment_runs._was_cancelled("run-cancel-1") is True
+        assert killed_groups == [(24680, vca_process.signal.SIGTERM)]
+        assert vca_process._was_cancelled("run-cancel-1") is True
     finally:
-        assessment_runs._forget_cancellable("run-cancel-1")
+        vca_process._forget_cancellable("run-cancel-1")
 
 
 def test_cancel_run_is_a_no_op_when_no_process_is_tracked(
@@ -454,11 +454,11 @@ def test_cancel_run_is_a_no_op_when_no_process_is_tracked(
     # this adapter instance did not launch it).
     killed_groups: list[tuple[int, int]] = []
     monkeypatch.setattr(
-        assessment_runs.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
+        vca_process.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
     )
 
     # When/Then: cancelling reports nothing to cancel and signals nobody.
-    assert assessment_runs.cancel_run("run-never-started") is False
+    assert vca_process.cancel_run("run-never-started") is False
     assert killed_groups == []
 
 
@@ -475,16 +475,16 @@ def test_cancel_run_is_a_no_op_once_the_process_already_exited(
             return 0
 
     monkeypatch.setattr(
-        assessment_runs.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
+        vca_process.os, "killpg", lambda pid, sig: killed_groups.append((pid, sig))
     )
-    assessment_runs._mark_cancellable("run-cancel-2", FinishedProcess())
+    vca_process._mark_cancellable("run-cancel-2", FinishedProcess())
 
     try:
         # When/Then: cancelling an already-finished run signals nothing.
-        assert assessment_runs.cancel_run("run-cancel-2") is False
+        assert vca_process.cancel_run("run-cancel-2") is False
         assert killed_groups == []
     finally:
-        assessment_runs._forget_cancellable("run-cancel-2")
+        vca_process._forget_cancellable("run-cancel-2")
 
 
 def test_cancel_run_endpoint_returns_current_run_status(
@@ -529,7 +529,7 @@ def test_run_command_when_timeout_kills_process_group(
             self.communicate_calls += 1
             if timeout == 1:
                 raise subprocess.TimeoutExpired(["uv"], 1)
-            if timeout == assessment_runs._PROCESS_TERMINATION_GRACE_SECONDS:
+            if timeout == vca_process._PROCESS_TERMINATION_GRACE_SECONDS:
                 raise subprocess.TimeoutExpired(["uv"], timeout)
             return "", ""
 
@@ -555,20 +555,20 @@ def test_run_command_when_timeout_kills_process_group(
     def fake_killpg(pid: int, sig: int) -> None:
         killed_groups.append((pid, sig))
 
-    monkeypatch.setattr(assessment_runs.subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(assessment_runs.os, "killpg", fake_killpg)
+    monkeypatch.setattr(vca_process.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(vca_process.os, "killpg", fake_killpg)
 
     # When/Then: the timeout is re-raised after killing the whole process group.
     with pytest.raises(subprocess.TimeoutExpired):
-        assessment_runs._run_command(
+        vca_process._run_command(
             ["uv"],
             cwd=tmp_path,
             timeout=1,
             run_id="test-run",
         )
     assert killed_groups == [
-        (12345, assessment_runs.signal.SIGTERM),
-        (12345, assessment_runs.signal.SIGKILL),
+        (12345, vca_process.signal.SIGTERM),
+        (12345, vca_process.signal.SIGKILL),
     ]
 
 
@@ -602,7 +602,7 @@ def test_assessment_run_when_stage_outputs_are_stale(
     engine_root = tmp_path / "vca_v2"
     project_name = "artifact-123-run-123"
     sibling_name = "artifact-456-run-456"
-    for stage in assessment_runs._ENGINE_OUTPUT_STAGES:
+    for stage in assessment_runs.ENGINE_OUTPUT_STAGES:
         for name, content in ((project_name, "stale"), (sibling_name, "keep")):
             output_directory = engine_root / "output" / stage / name
             output_directory.mkdir(parents=True)
@@ -616,7 +616,7 @@ def test_assessment_run_when_stage_outputs_are_stale(
 
     monkeypatch.setenv("VCA_SHARED_STORAGE_ROOT", str(shared_root))
     monkeypatch.setenv("VCA_ENGINE_ROOT", str(engine_root))
-    monkeypatch.setattr(assessment_runs, "_run_command", fake_run)
+    monkeypatch.setattr(vca_process, "_run_command", fake_run)
 
     # When: Spring creates an internal assessment run for that project
     response = client.post(
@@ -626,7 +626,7 @@ def test_assessment_run_when_stage_outputs_are_stale(
 
     # Then: only the current project's stale output directories are cleared
     assert response.status_code == 202
-    for stage in assessment_runs._ENGINE_OUTPUT_STAGES:
+    for stage in assessment_runs.ENGINE_OUTPUT_STAGES:
         assert not (engine_root / "output" / stage / project_name).exists()
         assert (engine_root / "output" / stage / sibling_name).exists()
 

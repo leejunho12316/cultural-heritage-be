@@ -1,7 +1,24 @@
 from dataclasses import dataclass
-from typing import NewType
+from typing import Final, NewType
 
 from app.services.vca_rag_artifacts import VcaRagArtifacts
+
+
+# modules.orchestration.startup이 이 순서대로 output/<stage>/<project_name>
+# 디렉터리를 만드는 파이프라인 스테이지 이름들. assessment_runs(재실행 전
+# 산출물 삭제)와 vca_resume(어디까지 재사용 가능한지 판단) 양쪽에서 쓰는
+# 공유 상수라서, 둘 중 어느 쪽에도 속하지 않는 이 모델 계층에 둔다.
+ENGINE_OUTPUT_STAGES: Final = (
+    "preprocessing",
+    "rough_masking",
+    "visual_cue_generation",
+    "rag",
+    "prompt_generating",
+    "mask_refining",
+    "anomaly_grouping",
+    "report_generating",
+    "result",
+)
 
 
 AssessmentId = NewType("AssessmentId", str)
