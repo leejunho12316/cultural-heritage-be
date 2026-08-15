@@ -56,6 +56,20 @@ public class ReportAiController {
     private final ReportDocumentService reportDocumentService;
 
     /**
+     * 생성 직후 report_json만 먼저 저장한다.
+     * DOCX 생성/사진 수집은 사용자가 실제로 저장하기를 눌렀을 때 수행하므로
+     * 페이지 재진입 시 기존 미리보기를 빠르게 복원할 수 있다.
+     */
+    @PostMapping("/{artifactId}/save-json")
+    public ResponseEntity<ReportDocumentResponseDto> saveJson(
+            @PathVariable UUID artifactId,
+            @RequestBody SaveReportRequestDto request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(reportDocumentService.saveJson(artifactId, request));
+    }
+
+    /**
      * 미리보기까지 끝난 report_json을 .docx로 변환해 S3에 영구 저장하고,
      * 그 결과를 DB(report_document)에 기록한다 (LLM 재호출 없음).
      *
