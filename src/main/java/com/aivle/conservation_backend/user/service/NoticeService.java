@@ -7,8 +7,10 @@ import com.aivle.conservation_backend.user.dto.NoticeResponse;
 import com.aivle.conservation_backend.user.dto.UpdateNoticeRequest;
 import com.aivle.conservation_backend.user.repository.NoticeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -43,7 +45,8 @@ public class NoticeService {
     public NoticeResponse findById(Long id) {
         Notice notice = noticeRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
                                 "존재하지 않는 공지사항입니다. id=" + id
                         )
                 );
@@ -55,7 +58,8 @@ public class NoticeService {
     public NoticeResponse update(Long id, UpdateNoticeRequest request) {
         Notice notice = noticeRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
                                 "존재하지 않는 공지사항입니다. id=" + id
                         )
                 );
@@ -73,7 +77,8 @@ public class NoticeService {
     public void delete(Long id) {
         Notice notice = noticeRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
                                 "존재하지 않는 공지사항입니다. id=" + id
                         )
                 );

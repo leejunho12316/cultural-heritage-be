@@ -25,10 +25,10 @@ public class UserService {
 
     public Long save(AddUserRequest request) {
         if (userRepository.findByLoginId(request.getLoginId()).isPresent()) {
-            throw new IllegalArgumentException("이미 사용 중인 아이디입니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다.");
         }
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
         }
 
         String encodedPassword = bCryptPasswordEncoder.encode(request.getPassword());
@@ -38,10 +38,16 @@ public class UserService {
 
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByLoginId(request.getLoginId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "아이디 또는 비밀번호가 일치하지 않습니다."
+                ));
 
         if (!bCryptPasswordEncoder.matches(request.getPassword(), user.getPassword())) {
-        throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "아이디 또는 비밀번호가 일치하지 않습니다."
+            );
         }
 
         String token = jwtTokenProvider.createToken(
