@@ -214,13 +214,6 @@ public class XrayInspectionController {
             String material,
 
             @RequestParam(
-                    value = "report_style",
-                    required = false,
-                    defaultValue = "summary"
-            )
-            String reportStyle,
-
-            @RequestParam(
                     value = "assembled",
                     required = false
             )
@@ -242,7 +235,6 @@ public class XrayInspectionController {
                 regions,
                 artifactType,
                 material,
-                reportStyle,
                 assembled,
                 fragments,
                 rgbImages
