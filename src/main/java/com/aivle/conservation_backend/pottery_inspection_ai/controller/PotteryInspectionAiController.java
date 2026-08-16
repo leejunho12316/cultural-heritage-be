@@ -1,7 +1,9 @@
 package com.aivle.conservation_backend.pottery_inspection_ai.controller;
 
 import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
+import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionJobResponseDto;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
+import com.aivle.conservation_backend.pottery_inspection_ai.service.PotteryInspectionJobService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -9,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Map;
+import java.util.UUID;
 
 @RequiredArgsConstructor
 @RestController
@@ -17,14 +19,9 @@ import java.util.Map;
 public class PotteryInspectionAiController {
 
     private final PotteryInspectionAiClient client;
+    private final PotteryInspectionJobService jobService;
 
-    /**
-     * 기존 동기 방식. 사진에 문양이 여러 개면 확정된 문양별 상태조사까지
-     * 순차로 이어져서 60초를 넘길 수 있고, 그동안 이 요청을 붙들고 있는
-     * ALB가 유휴 타임아웃(기본 60초)으로 끊어 504가 나는 경우가 있었다.
-     * 새로 만드는 곳에서는 아래 /jobs(접수 후 폴링) 방식을 쓰는 걸
-     * 권장한다 - 이 엔드포인트는 하위 호환을 위해 남겨둔다.
-     */
+    /** 기존 동기 방식. 하위 호환을 위해 유지한다. */
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<Object> inspect(
             @RequestParam("image") MultipartFile image,
@@ -43,35 +40,42 @@ public class PotteryInspectionAiController {
         }
     }
 
-    /** 분석을 백그라운드로 접수하고 {job_id, status}를 즉시 반환한다. */
+    /**
+     * 새 육안조사를 접수한다. assessment_run 생성, 원본 S3 저장, FastAPI job
+     * 접수를 모두 Spring이 관리하므로 FE는 jobId를 localStorage에 저장하지 않는다.
+     */
     @PostMapping(path = "/jobs", consumes = "multipart/form-data")
-    public ResponseEntity<Object> createJob(
+    public ResponseEntity<PotteryInspectionJobResponseDto> createJob(
+            @RequestParam("artifact_id") UUID artifactId,
             @RequestParam("image") MultipartFile image,
             @RequestParam(name = "n_calls", defaultValue = "3") int nCalls,
             @RequestParam(name = "use_vlm_pattern", defaultValue = "true") boolean useVlmPattern,
             @RequestParam(name = "treat_as_single_artifact", defaultValue = "false") boolean treatAsSingleArtifact
     ) {
-        try {
-            Map<String, Object> result =
-                    client.createInspectionJob(image, nCalls, useVlmPattern, treatAsSingleArtifact);
-            return ResponseEntity.status(202).body(result);
-        } catch (RestClientResponseException e) {
-            return ResponseEntity.status(e.getStatusCode())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(e.getResponseBodyAsString());
-        }
+        PotteryInspectionJobResponseDto result = jobService.createJob(
+                artifactId,
+                image,
+                nCalls,
+                useVlmPattern,
+                treatAsSingleArtifact
+        );
+        return ResponseEntity.accepted().body(result);
     }
 
-    /** job 상태를 폴링한다. FE가 보통 1~2초 간격으로 반복 호출한다. */
-    @GetMapping("/jobs/{jobId}")
-    public ResponseEntity<Object> getJob(@PathVariable String jobId) {
-        try {
-            Map<String, Object> result = client.getInspectionJob(jobId);
-            return ResponseEntity.ok(result);
-        } catch (RestClientResponseException e) {
-            return ResponseEntity.status(e.getStatusCode())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(e.getResponseBodyAsString());
-        }
+    /** artifactId 기준 가장 최근 육안조사 작업을 복원한다. */
+    @GetMapping("/jobs/latest")
+    public ResponseEntity<PotteryInspectionJobResponseDto> getLatestJob(
+            @RequestParam("artifact_id") UUID artifactId
+    ) {
+        return ResponseEntity.ok(jobService.getLatestJob(artifactId));
+    }
+
+    /** 특정 assessment run의 서버 영속 상태를 조회한다. */
+    @GetMapping("/jobs/{assessmentRunId}")
+    public ResponseEntity<PotteryInspectionJobResponseDto> getJob(
+            @PathVariable UUID assessmentRunId,
+            @RequestParam("artifact_id") UUID artifactId
+    ) {
+        return ResponseEntity.ok(jobService.getJob(artifactId, assessmentRunId));
     }
 }
