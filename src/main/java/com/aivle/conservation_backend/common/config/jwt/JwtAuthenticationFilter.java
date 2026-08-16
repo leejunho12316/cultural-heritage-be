@@ -82,15 +82,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String authorizationHeader =
                 request.getHeader(AUTHORIZATION_HEADER);
 
-        if (authorizationHeader == null
-                || !authorizationHeader.startsWith(BEARER_PREFIX)) {
-            return null;
+        if (authorizationHeader != null && authorizationHeader.startsWith(BEARER_PREFIX)) {
+            String token = authorizationHeader
+                    .substring(BEARER_PREFIX.length())
+                    .trim();
+            if (!token.isBlank()) {
+                return token;
+            }
         }
 
-        String token = authorizationHeader
-                .substring(BEARER_PREFIX.length())
-                .trim();
+        // <img src>/PDF 다운로드 링크는 Authorization 헤더를 붙일 수 없다 -
+        // VcaAccessTokenInterceptor가 X-VCA-Access-Token에 대해 이미 쓰고 있는
+        // "이 두 GET 미디어 경로에 한해 쿼리 파라미터 허용" 패턴을 JWT에도
+        // 그대로 적용한다. 의도적으로 범위를 좁혀둔 예외이니 다른 경로로
+        // 넓히지 말 것.
+        if (isMediaGatewayQueryTokenEligible(request)) {
+            String queryToken = request.getParameter("access_token");
+            if (queryToken != null && !queryToken.isBlank()) {
+                return queryToken;
+            }
+        }
 
-        return token.isBlank() ? null : token;
+        return null;
+    }
+
+    // VcaAccessTokenInterceptor.isMediaGatewayPath와 동일한 화이트리스트(이미지
+    // 파일 다운로드/리포트 PDF 다운로드 두 GET 경로만) - 두 인증 레이어가
+    // 어긋나지 않도록 같은 경로 집합을 그대로 맞춘다.
+    private boolean isMediaGatewayQueryTokenEligible(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String path = request.getRequestURI();
+        return path.matches("^/api/vca/[^/]+/files/sha256/[A-Fa-f0-9]{64}$")
+                || path.matches("^/api/vca/[^/]+/report-pdf-jobs/[^/]+/download$");
     }
 }

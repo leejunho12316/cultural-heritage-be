@@ -178,6 +178,10 @@ services:
       VCA_AI_BASE_URL: ${VCA_AI_BASE_URL:-http://vca-ai:8000}
       VCA_AI_TIMEOUT_SECONDS: "3900"
       VCA_ACCESS_TOKEN: ${VCA_ACCESS_TOKEN:?VCA_ACCESS_TOKEN is required for /api/vca}
+      # application.yaml의 jwt.secret-key(${JWT_SECRET})는 기본값이 없어
+      # 이 값이 없으면 컨테이너가 기동조차 못 한다. 로컬 개발용 기본값만
+      # 두고, 운영 배포에서는 .env/시크릿으로 반드시 덮어쓴다.
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-jwt-secret-change-me}
       VCA_SHARED_STORAGE_ROOT: /shared/vca/input-store
       VCA_SHARED_STORAGE_CONTAINER_ROOT: /vca_v2/output/input
       VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
