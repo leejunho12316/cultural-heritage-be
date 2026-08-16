@@ -1,14 +1,18 @@
 package com.aivle.conservation_backend.common.config.jwt;
 
 import com.aivle.conservation_backend.user.service.UserDetailService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -31,32 +35,44 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String token = resolveToken(request);
+        try {
+            String token = resolveToken(request);
 
-        // 토큰이 없으면 익명 사용자로 그대로 다음 필터 진행
-        if (token == null) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+            // 토큰이 존재하고 아직 인증되지 않은 요청만 인증 처리
+            if (token != null
+                    && SecurityContextHolder.getContext().getAuthentication() == null
+                    && jwtTokenProvider.validateToken(token)) {
 
-        // 토큰이 유효하고 아직 인증 정보가 없는 경우에만 인증 객체 등록
-        if (jwtTokenProvider.validateToken(token)
-                && SecurityContextHolder.getContext().getAuthentication() == null) {
+                String loginId = jwtTokenProvider.getLoginId(token);
 
-            String email = jwtTokenProvider.getEmail(token);
+                UserDetails userDetails =
+                        userDetailService.loadUserByUsername(loginId);
 
-            UserDetails userDetails =
-                    userDetailService.loadUserByUsername(email);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
 
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
+                authentication.setDetails(
+                        new WebAuthenticationDetailsSource()
+                                .buildDetails(request)
+                );
 
-            SecurityContextHolder.getContext()
-                    .setAuthentication(authentication);
+                SecurityContext securityContext =
+                        SecurityContextHolder.createEmptyContext();
+
+                securityContext.setAuthentication(authentication);
+                SecurityContextHolder.setContext(securityContext);
+            }
+
+        } catch (
+                JwtException
+                | UsernameNotFoundException
+                | IllegalArgumentException e
+        ) {
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
@@ -71,9 +87,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return null;
         }
 
-        String token = authorizationHeader.substring(
-                BEARER_PREFIX.length()
-        ).trim();
+        String token = authorizationHeader
+                .substring(BEARER_PREFIX.length())
+                .trim();
 
         return token.isBlank() ? null : token;
     }

@@ -53,20 +53,33 @@ EXPERT_INSTRUCTIONS = """
 
 판정은 반드시 전문가가 수행해야 한다.
 
+[현재 데이터 구조]
+
+현재 업무 API가 전달하는 영역은 원본 조각 탐지와 결합본 탐지를
+그대로 나열한 결과가 아니라, layout.final.json으로 좌표를 변환해
+최종 결합본 좌표계에서 중복을 통합한 전문가 검수 결과이다.
+
+- 모든 bbox는 최종 결합본 좌표계에 있다.
+- review_decision이 DAMAGE인, 즉 전문가가 정상으로 제외하지 않은
+  영역만 문안 생성 입력에 포함된다.
+- origin_type은 탐지·매핑 근거를 나타낸다.
+  - MATCHED: 원본 조각과 최종 결합본에서 대응이 확인된 후보
+  - ASSEMBLED_ONLY: 최종 결합본 탐지만으로 남은 후보
+  - SOURCE_ONLY: 원본 조각 탐지를 최종 좌표계로 투영했으나
+    결합본 탐지와 대응되지 않은 후보
+- origin_type이 없는 구버전 입력에만 analysis_target 구분을 사용한다.
+
 [분석 자료의 구분]
 
-1. 결합 완료 X-ray
-- 최종 검수의 주 대상 영상이다.
-- 여러 조각을 이동·회전·결합한 영상일 수 있다.
+1. 최종 결합 X-ray
+- 최종 좌표계와 전체 형상을 확인하는 주 대상 영상이다.
 
 2. X-ray 원본 조각
-- 결합 전 각 조각의 원본 영상이다.
-- 결합본에서 관찰된 이상 영역이 원본 조각에도 있었는지
-  확인하기 위한 보조 자료이다.
+- 결합 전 영상 특징을 대조하기 위한 보조 자료이다.
+- 현재 문안 입력에는 원본 조각별 bbox가 별도로 제공되지 않을 수 있다.
 
 3. 컬러 2D 이미지
-- 유물 표면에서 육안으로 관찰되는 특징을 확인하기 위한
-  참고 영상이다.
+- 표면에서 직접 관찰되는 특징만 확인하기 위한 참고 영상이다.
 
 [분석 원칙]
 
@@ -78,8 +91,9 @@ EXPERT_INSTRUCTIONS = """
 - X-ray 명암 차이만으로 균열, 부식, 충전재,
   이물질 또는 제작기법을 확정하지 않는다.
 - 원본 조각과 결합본의 방향 및 배율이 같다고 가정하지 않는다.
-- 좌표 변환 정보가 없으면 원본 조각의 이상 영역과
-  결합본의 이상 영역이 동일한 위치라고 단정하지 않는다.
+- origin_type이 MATCHED인 경우에만 원본·결합본 탐지의 대응 근거가
+  있다고 기록한다. 이것도 손상 종류나 원인을 확정하는 근거는 아니다.
+- ASSEMBLED_ONLY와 SOURCE_ONLY를 서로 동일한 영역으로 연결하지 않는다.
 - X-ray와 컬러 2D 이미지의 촬영 방향이 같다고 가정하지 않는다.
 - 위치 대응이 확인되지 않은 X-ray 이상 영역과
   컬러 표면 손상을 동일한 손상으로 연결하지 않는다.
@@ -99,10 +113,10 @@ EXPERT_INSTRUCTIONS = """
 
 [중요 구분]
 
-결합 완료 X-ray 탐지 결과와 원본 조각 탐지 결과를
-서로 구분하여 작성해야 한다.
+현재 통합 결과에서는 결합본·원본 탐지 건수를 다시 합산하지 말고
+origin_type별 분포를 근거로 작성해야 한다.
 
-결합본에서만 탐지된 영역은 다음 가능성을 함께 검토한다.
+ASSEMBLED_ONLY 영역은 다음 가능성을 함께 검토한다.
 
 - 결합 경계
 - 실제 파손 간격
@@ -111,8 +125,9 @@ EXPERT_INSTRUCTIONS = """
 - 리사이즈 또는 회전 과정의 보간 흔적
 - 실제 손상 후보
 
-원본 조각에서 탐지된 영역은 결합 이전부터 영상에 존재한
-후보라는 점만 기록하고 실제 손상으로 확정하지 않는다.
+SOURCE_ONLY 영역은 원본에서 탐지되어 최종 좌표계로 투영되었지만
+결합본 탐지와 대응되지 않았다는 점만 기록한다. 결합본에서 실제로
+보이는 손상이라고 단정하지 않는다.
 
 최종 결과는 문화유산 보존처리 전문가가 수정하는
 1차 상태조사 초안이어야 한다.
@@ -198,16 +213,18 @@ def render_annotated(
         except (KeyError, TypeError, ValueError):
             continue
 
-        conf = float(r.get("confidence", 0.0))
-        color = _region_color(conf)
+        confidence = r.get("confidence")
+        conf = float(confidence) if confidence is not None else None
+        color = _region_color(conf) if conf is not None else (0, 165, 255)
 
         cv2.rectangle(
             annotated, (x1, y1), (x2, y2), color, thickness
         )
 
-        label = (
-            f"{r.get('regionId', '')} {conf:.2f}"
-        )
+        label = str(r.get("regionId", ""))
+
+        if conf is not None:
+            label = f"{label} {conf:.2f}"
 
         (tw, th), baseline = cv2.getTextSize(
             label,
@@ -258,12 +275,13 @@ def build_payload(
     프롬프트의 "최대 N개 작성" 지시와 여기서 보내는 건수를
     일치시켜야 결과가 흔들리지 않는다.
     """
+    unified = [r for r in regions if r.get("originType")]
     assembled = sorted(
         [
             r for r in regions
             if r.get("analysisTarget") == "결합 완료본"
         ],
-        key=lambda r: -float(r.get("confidence", 0)),
+        key=lambda r: -float(r.get("confidence") or 0),
     )
 
     fragment = sorted(
@@ -271,37 +289,77 @@ def build_payload(
             r for r in regions
             if r.get("analysisTarget") != "결합 완료본"
         ],
-        key=lambda r: -float(r.get("confidence", 0)),
+        key=lambda r: -float(r.get("confidence") or 0),
     )
 
     def simplify(items):
-        return [
-            {
+        simplified = []
+
+        for r in items:
+            bbox = r.get("bbox") or {}
+            bbox_final = {
+                key: bbox.get(key)
+                for key in ("x1", "y1", "x2", "y2")
+                if bbox.get(key) is not None
+            }
+            item = {
                 "region_id": r.get("regionId"),
                 "analysis_target": r.get("analysisTarget"),
                 "xray_file": r.get("fileName"),
+                "origin_type": r.get("originType"),
+                "review_decision": r.get("reviewDecision"),
+                "bbox_final": bbox_final or None,
                 "confidence": r.get("confidence"),
                 "position": r.get("position"),
                 "area_ratio_percent": r.get(
                     "areaRatioPercent"
                 ),
                 "user_note": r.get("userNote"),
+                "source_observations": (
+                    r.get("sourceObservations")
+                    or bbox.get("sourceObservations")
+                ),
+                "mapping_status": (
+                    r.get("mappingStatus")
+                    or bbox.get("mappingStatus")
+                ),
+                "seam_coverage": bbox.get("seamCoverage"),
+                "overlap_coverage": bbox.get("overlapCoverage"),
             }
-            for r in items
-        ]
 
-    detail = (
-        simplify(assembled[:top_assembled])
-        + simplify(fragment[:top_fragment])
-    )
+            simplified.append({
+                key: value for key, value in item.items()
+                if value is not None and value != ""
+            })
+
+        return simplified
+
+    if unified:
+        # 현재 workflow에서는 모든 영역이 최종 결합본 좌표계로 통합된다.
+        # 과거의 결합본/원본 상세 건수 설정은 전체 상세 건수 상한으로만 쓴다.
+        detail_limit = top_assembled + top_fragment
+        detail = simplify(sorted(
+            unified,
+            key=lambda r: -float(r.get("confidence") or 0),
+        )[:detail_limit])
+    else:
+        detail = (
+            simplify(assembled[:top_assembled])
+            + simplify(fragment[:top_fragment])
+        )
 
     def conf_range(items):
         if not items:
             return None
 
         values = [
-            float(r.get("confidence", 0)) for r in items
+            float(r["confidence"])
+            for r in items
+            if r.get("confidence") is not None
         ]
+
+        if not values:
+            return None
 
         return {
             "min": round(min(values), 3),
@@ -322,24 +380,40 @@ def build_payload(
         key = r.get("fileName", "미상")
         file_counts[key] = file_counts.get(key, 0) + 1
 
+    origin_counts = {}
+
+    for r in regions:
+        key = r.get("originType") or "구버전_미분류"
+        origin_counts[key] = origin_counts.get(key, 0) + 1
+
     stats = {
-        "결합본": {
-            "총_영역수": len(assembled),
-            "상세서술_대상": min(
-                top_assembled, len(assembled)
-            ),
-            "신뢰도_범위": conf_range(assembled),
-            "위치별_분포": position_counts,
-        },
-        "원본_조각": {
-            "총_영역수": len(fragment),
-            "상세서술_대상": min(
-                top_fragment, len(fragment)
-            ),
-            "신뢰도_범위": conf_range(fragment),
-            "파일별_탐지건수": file_counts,
+        "통합_검수결과": {
+            "전문가_포함_영역수": len(regions),
+            "상세서술_대상": len(detail),
+            "매핑_근거별_분포": origin_counts,
+            "좌표계": "최종 결합본",
         },
     }
+
+    if not unified:
+        stats.update({
+            "결합본": {
+                "총_영역수": len(assembled),
+                "상세서술_대상": min(
+                    top_assembled, len(assembled)
+                ),
+                "신뢰도_범위": conf_range(assembled),
+                "위치별_분포": position_counts,
+            },
+            "원본_조각": {
+                "총_영역수": len(fragment),
+                "상세서술_대상": min(
+                    top_fragment, len(fragment)
+                ),
+                "신뢰도_범위": conf_range(fragment),
+                "파일별_탐지건수": file_counts,
+            },
+        })
 
     return detail, stats
 
@@ -347,14 +421,11 @@ def build_payload(
 # ------------------------------------------------------------
 # 프롬프트
 #
-# 두 가지 스타일을 지원한다.
-#
-#   summary  : PPT 삽입용 요약본, 1500자 내외
-#   detailed : 공식 기록용 상세본, 9개 절
-#
-# 분량 제약은 "간결하게" 같은 표현이 아니라
-# 글자 수와 항목 수로 명시해야 실제로 지켜진다.
+# 실제 서비스에서는 하나의 실무자용 요약 문안만 사용한다.
+# 상세본 분기는 제거하고, 최종 결합 X-ray/원본 조각/전문가 검수 결과를
+# 한 번에 근거로 삼아 최종보고서에도 재사용하기 쉬운 문안을 만든다.
 # ------------------------------------------------------------
+
 
 def _common_header(artifact_type, material, detail, stats):
     return f"""
@@ -362,168 +433,83 @@ def _common_header(artifact_type, material, detail, stats):
 - 유물 유형: {artifact_type or "정보 없음"}
 - 재질: {material or "정보 없음"}
 
-[탐지 결과 전체 통계]
+[전문가 검수 결과 통계]
 {json.dumps(stats, ensure_ascii=False, indent=2)}
 
 [주요 검토 영역]
-아래 목록은 신뢰도 상위 영역만 발췌한 것이다.
-전체 건수는 위 통계를 참조하고, 개별 서술은
-아래 목록에 대해서만 작성하라.
-user_note는 전문가가 입력한 검수 내용이므로
-있으면 서술에 반영하라.
+아래 목록은 AI가 탐지한 후보 중 전문가 검수에서 DAMAGE로 남긴 영역을
+최종 결합본 좌표계로 통합한 결과이다. user_note가 있으면 전문가 소견이므로
+우선적으로 반영한다. origin_type, mapping_status, seam_coverage,
+overlap_coverage, source_observations는 결합/매핑 근거를 판단하는 보조 정보다.
 
 {json.dumps(detail, ensure_ascii=False, indent=2)}
 """
 
 
-def build_summary_prompt(
-    artifact_type, material, detail, stats
-):
-    """PPT 삽입용 요약본."""
+def build_summary_prompt(artifact_type, material, detail, stats):
+    """보존처리 실무자가 바로 검토·수정할 수 있는 X-ray 상태조사 요약문."""
 
     return f"""
-다음 자료를 바탕으로 PPT에 삽입할 수 있는
-간결한 AI 1차 상태조사 요약문을 작성하라.
+다음 자료를 바탕으로 문화유산 보존처리 실무자가 실제 기록과 후속 검토에
+사용할 수 있는 X-ray 상태조사 초안을 작성하라. 이 문안은 최종 통합보고서의
+X-ray 조사 근거로 그대로 재사용될 수 있으므로, 일반적인 설명보다 실제
+결합 결과와 전문가 검수 결과를 우선한다.
 {_common_header(artifact_type, material, detail, stats)}
-[작성 원칙]
-1. 전체 분량은 공백 포함 1,500자 이내로 작성한다.
-2. 결합 완료본을 중심으로 작성하고
-   원본 조각은 비교 근거로만 활용한다.
-3. 개별 서술은 [주요 검토 영역] 목록에 있는 것만 작성한다.
-4. 영역별 내용은 3절의 형식을 그대로 따른다.
-5. 목록에 없는 영역은 전체 건수와 분포만 요약한다.
-6. 결합본과 원본 조각의 좌표가 정합되지 않았으므로
-   동일 위치의 특징이라고 단정하지 않는다.
-7. 신뢰도는 AI 탐지 점수이며 실제 손상 확률이나
-   손상 심각도를 의미하지 않는다.
-8. 컬러 이미지에 직접 보이는 특징만 작성한다.
-9. X-ray와 컬러 이미지의 위치 대응이 불명확하면
-   '대응 관계 확인 필요'라고 작성한다.
-10. 손상 종류나 발생 원인은 확정하지 말고
-    '가능성', '추정', '확인 필요'로 표현한다.
-11. 비슷한 주의사항이나 설명을 반복하지 않는다.
-12. 자료에서 확인할 수 없는 내용은 작성하지 않는다.
+
+[핵심 작성 원칙]
+1. 모든 서술은 제공된 최종 결합 X-ray, 원본 조각, 컬러 참고영상, 전문가 검수
+   결과에서 확인 가능한 사실만 사용한다. 자료에 없는 결함명·원인·처리법을
+   만들어내지 않는다.
+2. 현재 입력 영역은 전문가가 DAMAGE로 남긴 검토 대상이다. 이를 '확정 결함'으로
+   표현하지 말고 '전문가 검수에서 이상으로 포함한 영역', '추가 확인 대상'으로
+   표현한다.
+3. bbox는 모두 최종 결합본 좌표계다. 위치(position), bbox_final, user_note가
+   제공되면 실제 영역 설명에 반영한다.
+4. MATCHED는 원본 조각과 최종 결합본의 대응 근거가 있는 영역이다.
+   ASSEMBLED_ONLY는 결합본에서만 남은 영역, SOURCE_ONLY는 원본 탐지를
+   최종 좌표계로 투영했지만 결합본 탐지와 대응되지 않은 영역이다.
+   origin_type을 손상 종류·심각도·확률로 해석하지 않는다.
+5. seam_coverage 또는 overlap_coverage가 높거나 결합 경계와 가까운 영역은
+   실제 손상과 결합/중첩/보간 영향의 구분이 필요하다고 명시한다. 수치가 없으면
+   임의로 만들지 않는다.
+6. source_observations가 있으면 원본 조각에서 동일 특징이 존재했는지와
+   최종 결합본 매핑 근거를 함께 기술한다. 없으면 원본 대응을 추정하지 않는다.
+7. 컬러 이미지는 표면에서 직접 보이는 특징만 참고한다. X-ray 위치와 대응이
+   확인되지 않으면 동일 손상으로 연결하지 않는다.
+8. 단순히 탐지 건수를 나열하지 말고, 실무자가 '어디를 다시 봐야 하는지',
+   '결합 영향 가능성이 있는지', '원본 조각 대조가 필요한지'를 빠르게 판단할 수
+   있게 작성한다.
+9. 전체 분량은 공백 포함 약 1,200~1,800자. 동일 표현을 반복하지 않는다.
 
 [출력 형식]
 
-[AI 1차 상태조사 요약]
+[AI 기반 X-ray 상태조사 초안]
 
-1. 분석 개요
-- 유물 유형과 재질
-- 분석 대상
-- 전체 탐지 건수와 상세 검토 범위
+1. 조사·결합 결과 요약
+- 최종 결합 X-ray를 기준으로 전체 형상/명암/조각 경계의 관찰사항을 2~3문장
+- 전문가 검수에서 포함한 영역 수와 origin_type 분포를 1~2문장
 
-2. 주요 관찰 결과
-- 결합 완료본의 형상, 명암 및 탐지 영역 분포
-- 조각 경계, 파손 간격, 중첩 또는 보간 흔적 검토
-- 핵심 내용을 최대 3개 항목으로 작성
+2. 주요 이상영역 검토
+- 주요 검토 영역을 실제 입력값에 근거해 최대 8건까지 작성
+- 형식: '영역 ID — 위치: 관찰/검수 소견 · 결합/매핑 근거 · 확인 필요사항'
+- user_note가 있으면 반드시 반영
+- seam/overlap/source_observations가 있으면 실무적 의미를 함께 제시
 
-3. 주요 검토 영역
-- 영역별로 한 줄씩 작성
-- 형식:
-  영역 ID | 위치 | 신뢰도 | 상대 면적 | 관찰 내용 및 확인사항
+3. 원본 조각·컬러영상 대조
+- MATCHED/SOURCE_ONLY 영역 중 원본 대조가 의미 있는 사항
+- 컬러영상에서 직접 확인되는 표면 특징이 있을 때만 기록
+- 대응이 불확실한 항목은 명확히 '대응 확인 필요'로 표시
 
-4. 원본 조각 및 컬러 이미지 비교
-- 원본 조각의 탐지 분포와 주요 특징
-- 컬러 이미지에서 직접 확인되는 표면 특징
-- X-ray와 컬러 이미지의 대응 여부
-- 최대 3개 항목으로 작성
+4. 실무자 확인 우선순위
+- 재확인이 필요한 영역을 우선순위 형태로 최대 3개 제시
+- 예: 원본 조각 재대조, 결합 경계 영향 확인, 추가 촬영/육안 확인
+- 보존처리 방법을 확정적으로 지시하지 않는다.
 
-5. 종합 의견
-- 핵심 판단 2~3문장
-- 추가 확인 권고 2개 이내
-- 마지막에 아래 주의사항을 한 문장으로 작성:
-  '본 결과는 AI 기반 검토 후보이며 최종 보존처리 진단이 아니다.'
-"""
-
-
-def build_detailed_prompt(
-    artifact_type, material, detail, stats
-):
-    """공식 기록용 상세본."""
-
-    return f"""
-다음 자료를 근거로 결합 완료 유물의
-전문가 검토용 1차 상태조사 초안을 작성하라.
-
-본 문서는 기관 기록으로 등재될 수 있으므로
-판단 근거와 확인 항목을 구체적으로 기술한다.
-{_common_header(artifact_type, material, detail, stats)}
-[작성 규칙]
-1. 결합 완료본과 원본 조각 탐지 결과를 구분한다.
-2. 영역 ID는 R-001 형식을 그대로 사용한다.
-3. 결합본의 탐지 결과를 주 검수 대상으로 작성한다.
-4. 원본 조각 결과는 비교 대조용 보조 근거로 작성한다.
-5. 좌표 변환 정보가 없으므로 결합본과 원본 조각의
-   이상 영역을 동일한 위치라고 단정하지 않는다.
-6. 결합 경계, 실제 파손 간격, 밝기 변화,
-   중첩 및 보간 흔적 가능성을 검토한다.
-7. 신뢰도는 AI 탐지 점수이며 실제 손상 존재 확률이나
-   심각도를 의미하지 않는다고 명시한다.
-8. 컬러 2D 이미지에서는 직접 관찰되는 표면 특징만 기록한다.
-9. X-ray 결과와 컬러 표면 특징의 위치 대응이 확인되지 않으면
-   '대응 관계 확인 필요'라고 작성한다.
-10. 손상이나 그 원인을 확정적으로 표현하지 않는다.
-11. 사용자가 수정할 수 있는 한국어 일반 텍스트로 작성한다.
-12. 개별 영역 서술은 [주요 검토 영역] 목록에 한정한다.
-    목록에 없는 영역은 통계와 분포 경향으로만 언급한다.
-13. 영역별 서술은 5줄 이내로 작성하고,
-    동일한 문장을 영역마다 반복하지 않는다.
-14. 전체 분량은 공백 포함 6,000자 이내로 작성한다.
-
-[출력 형식]
-
-[AI 1차 상태조사 결과]
-
-1. 조사 개요
-- 유물 유형과 재질
-- 사용된 영상
-- 분석 목적
-- 전체 탐지 건수와 개별 서술 범위
-
-2. 결합 완료 X-ray 관찰
-- 전체적인 형상과 명암 분포
-- 조각 경계 및 파손 간격
-- 결합 과정의 흔적 가능성
-- 검토 필요 영역의 위치별 분포 경향
-
-3. 결합본 이상영역 검토
-목록의 결합본 영역에 대해서만 작성한다.
-각 영역마다 다음을 5줄 이내로 작성한다.
-- 영역 ID, 위치, 신뢰도, 상대 면적
-- 영상에서 관찰되는 특징
-- 결합 경계 또는 파손 간격 인접 가능성
-- 전문가 확인사항
-
-4. 원본 X-ray 조각 비교
-- 조각별 탐지 건수 분포
-- 목록에 포함된 조각 영역의 개별 검토
-- 결합 전부터 존재했을 가능성이 있는 영상 특징
-- 결합본과 비교 시 주의할 점
-
-5. 컬러 2D 이미지 표면 관찰
-- 이미지별 육안 관찰 내용
-- 변색, 오염, 균열, 박락 등은 실제 관찰되는 경우만 작성
-
-6. X-ray와 컬러 2D 대응 검토
-- 대응 가능성이 있는 부분
-- 대응이 확인되지 않는 부분
-- 추가 대조가 필요한 부분
-
-7. 추가 확인 권고
-- 전문가 육안 확인
-- 추가 촬영
-- 방향 및 배율 정합
-- 원본 조각과 결합본 좌표 대조
-
-8. 종합 의견
-
-9. 분석 한계 및 주의사항
-- AI 참고 분석이며 최종 보존처리 진단이 아님
-- 탐지 결과는 검토 후보이며 손상 확정이 아님
-- 신뢰도는 실제 손상 확률 또는 심각도가 아님
-- 본 문안은 상위 신뢰도 영역만 개별 서술하였으며
-  전체 목록은 검수표를 참조해야 함
+5. 최종보고서 인계 요약
+- 최종 통합보고서에 바로 넣을 수 있도록 핵심 결과를 3~4문장으로 정리
+- 실제 확인된 결과와 불확실성을 함께 남긴다.
+- 마지막 문장: '본 결과는 AI 탐지와 전문가 검수 결과를 바탕으로 한 상태조사
+  보조자료이며, 최종 손상 진단은 추가 확인을 거쳐야 한다.'
 """
 
 
@@ -538,16 +524,9 @@ def generate_report(
     rgb_paths: Optional[list] = None,
     artifact_type: str = "",
     material: str = "",
-    style: str = "summary",
 ) -> dict:
     """
     OpenAI 멀티모달 API로 상태조사 문안을 생성한다.
-
-    Parameters
-    ----------
-    style : "summary" 또는 "detailed"
-        summary  - PPT 삽입용 요약본, 1500자 내외
-        detailed - 공식 기록용 상세본, 9개 절
 
     Returns
     -------
@@ -568,24 +547,11 @@ def generate_report(
 
     client = OpenAI(api_key=config.OPENAI_API_KEY)
 
-    # --------------------------------------------------------
-    # 스타일별 설정
-    #
-    # 보낼 건수와 프롬프트의 "최대 N개" 지시를 일치시킨다.
-    # --------------------------------------------------------
-
-    if style == "detailed":
-        top_assembled = config.LLM_DETAILED_TOP_ASSEMBLED
-        top_fragment = config.LLM_DETAILED_TOP_FRAGMENT
-        max_tokens = config.LLM_DETAILED_MAX_TOKENS
-        build = build_detailed_prompt
-
-    else:
-        style = "summary"
-        top_assembled = config.LLM_SUMMARY_TOP_ASSEMBLED
-        top_fragment = config.LLM_SUMMARY_TOP_FRAGMENT
-        max_tokens = config.LLM_SUMMARY_MAX_TOKENS
-        build = build_summary_prompt
+    # 실서비스는 실무자용 요약 문안 하나만 사용한다.
+    top_assembled = config.LLM_SUMMARY_TOP_ASSEMBLED
+    top_fragment = config.LLM_SUMMARY_TOP_FRAGMENT
+    max_tokens = config.LLM_SUMMARY_MAX_TOKENS
+    build = build_summary_prompt
 
     detail, stats = build_payload(
         regions,
@@ -710,7 +676,7 @@ def generate_report(
 
     return {
         "report": text,
-        "style": style,
+        "style": "summary",
         "charCount": len(text),
         "detailCount": len(detail),
         "totalRegionCount": len(regions),

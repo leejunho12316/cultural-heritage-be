@@ -14,7 +14,7 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
@@ -30,6 +30,9 @@ conservation-guide-ai:
 pottery-inspection-ai:
   base-url: ${POTTERY_INSPECTION_AI_BASE_URL:http://localhost:8003}
   timeout-seconds: ${POTTERY_INSPECTION_AI_TIMEOUT_SECONDS:150}
+
+report-ai:
+  base-url: ${REPORT_AI_BASE_URL:http://localhost:8002}
 
 aws:
   region: ${AWS_REGION:ap-northeast-2}
@@ -82,9 +85,14 @@ vca:
     # 검증을 건너뜀), 외부에 노출하는 배포에서는 반드시 채울 것.
     access-token: ${VCA_AI_ACCESS_TOKEN:}
 
+jwt:
+  issuer: ${JWT_ISSUER:vora}
+  secret-key: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
 app:
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:3000}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:3000,https://vora-heritage.click}
 
 logging:
   level:

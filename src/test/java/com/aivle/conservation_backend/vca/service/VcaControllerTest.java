@@ -306,7 +306,8 @@ class VcaControllerTest {
         public PotteryInspectionResponseDto inspect(
                 org.springframework.web.multipart.MultipartFile image,
                 int nCalls,
-                boolean useVlmPattern
+                boolean useVlmPattern,
+                boolean treatAsSingleArtifact
         ) {
             calls.incrementAndGet();
             inspectedFileName = image.getOriginalFilename();
@@ -330,7 +331,8 @@ class VcaControllerTest {
         public PotteryInspectionResponseDto inspect(
                 org.springframework.web.multipart.MultipartFile image,
                 int nCalls,
-                boolean useVlmPattern
+                boolean useVlmPattern,
+                boolean treatAsSingleArtifact
         ) {
             throw new IllegalStateException("pottery service unavailable");
         }

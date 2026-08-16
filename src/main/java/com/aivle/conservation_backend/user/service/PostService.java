@@ -6,7 +6,6 @@ import com.aivle.conservation_backend.user.domain.Role;
 import com.aivle.conservation_backend.user.domain.User;
 import com.aivle.conservation_backend.user.dto.*;
 import com.aivle.conservation_backend.user.repository.PostRepository;
-import com.aivle.conservation_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,7 +20,6 @@ import org.springframework.web.server.ResponseStatusException;
 public class PostService {
 
     private final PostRepository postRepository;
-    private final UserRepository userRepository;
 
     public PostPageResponse findAll(
             PostSearchType searchType,
@@ -61,14 +59,12 @@ public class PostService {
     @Transactional
     public PostDetailResponse save(
             AddPostRequest request,
-            String email
+            User currentUser
     ) {
-        User author = findUser(email);
-
         Post post = Post.builder()
                 .title(request.getTitle())
                 .content(request.getContent())
-                .author(author)
+                .author(currentUser)
                 .build();
 
         Post savedPost = postRepository.save(post);
@@ -80,10 +76,9 @@ public class PostService {
     public PostDetailResponse update(
             Long id,
             UpdatePostRequest request,
-            String email
+            User currentUser
     ) {
         Post post = findPost(id);
-        User currentUser = findUser(email);
 
         validateOwnerOrAdmin(post, currentUser);
 
@@ -96,9 +91,8 @@ public class PostService {
     }
 
     @Transactional
-    public void delete(Long id, String email) {
+    public void delete(Long id, User currentUser) {
         Post post = findPost(id);
-        User currentUser = findUser(email);
 
         validateOwnerOrAdmin(post, currentUser);
 
@@ -111,15 +105,6 @@ public class PostService {
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
                                 "존재하지 않는 게시글입니다."
-                        ));
-    }
-
-    private User findUser(String email) {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.UNAUTHORIZED,
-                                "로그인 사용자 정보를 찾을 수 없습니다."
                         ));
     }
 

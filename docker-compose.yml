@@ -136,6 +136,22 @@ services:
       timeout: 5s
       retries: 3
 
+  report-ai:
+    build: ./ai-services/report-ai
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./ai-services/report-ai/app/documents:/code/app/documents:ro
+      - ./ai-services/report-ai/app/index:/code/app/index
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
   pottery-inspection-ai:
     build: ./ai-services/pottery-inspection-ai
     environment:
@@ -148,6 +164,7 @@ services:
       # 비활성화되므로 팀 배포 전에 모델 파일을 별도로 확인한다.
       - ./ai-services/pottery-inspection-ai/ai_hub:/srv/ai_hub
       - pottery_hf_cache:/root/.cache/huggingface
+
 
   conservation-backend:
     build: .
@@ -166,6 +183,7 @@ services:
       VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
       VCA_DOCUMENT_CORPUS_ROOT: /shared/vca/document-corpus
       POTTERY_INSPECTION_AI_BASE_URL: http://pottery-inspection-ai:8000
+      REPORT_AI_BASE_URL: http://report-ai:8000
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -200,6 +218,8 @@ services:
       vca-ai:
         condition: service_started
       pottery-inspection-ai:
+        condition: service_started
+      report-ai:
         condition: service_started
     ports:
       - "8080:8080"

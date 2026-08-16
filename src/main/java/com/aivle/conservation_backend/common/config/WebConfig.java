@@ -14,7 +14,7 @@ public class WebConfig implements WebMvcConfigurer {
     private final String[] allowedOrigins;
 
     public WebConfig(
-            @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:5174,http://localhost:3000}")
+            @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:5174,http://localhost:3000,https://vora-heritage.click}")
             String origins
     ) {
         this.allowedOrigins = Arrays.stream(origins.split(","))

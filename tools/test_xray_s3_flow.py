@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Smoke-test Spring -> S3 -> FastAPI -> callback for one X-ray job.
 
 This script tests the deployed S3-native base stitching flow. It does not
@@ -31,9 +30,14 @@ def request_json(method: str, url: str, payload: dict | None = None) -> dict:
     return json.loads(data) if data else {}
 
 
-def put_file(url: str, path: Path) -> None:
+def put_file(url: str, path: Path, headers: dict[str, str]) -> None:
     # Input presigned URLs intentionally do not sign Content-Type.
-    request = urllib.request.Request(url, data=path.read_bytes(), method="PUT")
+    request = urllib.request.Request(
+        url,
+        data=path.read_bytes(),
+        headers=headers,
+        method="PUT",
+    )
     try:
         with urllib.request.urlopen(request, timeout=300) as response:
             if not 200 <= response.status < 300:
@@ -77,10 +81,15 @@ def main() -> int:
     job_id = prepared["jobId"]
     print("prepared:", job_id)
 
-    put_file(prepared["color"]["uploadUrl"], args.color)
+    put_file(
+        prepared["color"]["uploadUrl"],
+        args.color,
+        prepared["color"]["uploadHeaders"],
+    )
     for target, source in zip(prepared["xrays"], args.xray):
-        put_file(target["uploadUrl"], source)
+        put_file(target["uploadUrl"], source, target["uploadHeaders"])
     print("S3 inputs uploaded")
+    time.sleep(5)
 
     request_json("POST", f"{base}/jobs/{job_id}/start", {
         "colorFileName": args.color.name,
@@ -98,7 +107,7 @@ def main() -> int:
         if current == "FAILED":
             print(status.get("errorMessage", "Unknown failure"), file=sys.stderr)
             return 1
-        if current in {"COMPLETED", "FINALIZING", "FINALIZED"}:
+        if current in {"STITCHED", "DETECTING", "REVIEW_READY", "COMPLETED"}:
             result = request_json("GET", f"{base}/jobs/{job_id}/result-url")
             download(result["url"], args.output)
             print("assembled result:", args.output.resolve())

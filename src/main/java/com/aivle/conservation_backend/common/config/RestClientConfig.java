@@ -59,6 +59,13 @@ public class RestClientConfig {
     }
 
     @Bean
+    public RestClient reportAiRestClient(@Value("${report-ai.base-url}") String baseUrl){
+        return RestClient.builder()
+                .baseUrl(baseUrl)
+                .build();
+    }
+
+    @Bean
     public RestClient.Builder restClientBuilder() {
         return RestClient.builder();
     }

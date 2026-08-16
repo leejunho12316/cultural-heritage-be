@@ -48,6 +48,18 @@ public final class XrayStitchDtos {
     ) {
     }
 
+    public record SourceTarget(
+            int sourceOrder,
+            String fileName,
+            String url
+    ) {
+    }
+
+    public record SourceResponse(
+            List<SourceTarget> sources
+    ) {
+    }
+
     public record ReconcileResponse(
             String jobId,
             String previousStatus,

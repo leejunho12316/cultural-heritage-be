@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface S3FileRecordRepository extends JpaRepository<S3FileRecord, UUID> {
+    List<S3FileRecord> findAllByArtifactId(UUID artifactId);
+
     List<S3FileRecord> findAllByArtifactIdAndModuleTypeAndUsageNameOrderBySourceOrderAsc(
             UUID artifactId,
             String moduleType,

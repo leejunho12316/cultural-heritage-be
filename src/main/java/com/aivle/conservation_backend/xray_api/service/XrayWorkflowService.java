@@ -88,7 +88,7 @@ public class XrayWorkflowService {
             );
         }
         stitchService.requireFinalizedJob(jobIdValue);
-        job.markDetecting();
+        job.markDetectingFragments();
         jobRepository.save(job);
 
         try {
@@ -103,6 +103,9 @@ public class XrayWorkflowService {
                     AnalysisTarget.FRAGMENT,
                     confidence
             );
+
+            job.markDetectingAssembled();
+            jobRepository.save(job);
             XrayDetectionResponse assembled = anomalyClient.detectUrl(
                     "assembled_xray.final.png",
                     stitchService.getFinalAssembledUrl(jobIdValue),
@@ -110,12 +113,15 @@ public class XrayWorkflowService {
                     confidence,
                     null
             );
+
+            job.markMapping();
+            jobRepository.save(job);
             XrayDefectMappingResponse mapping = mappingService.mapDefects(
                     jobIdValue,
                     new XrayDefectMappingRequest(fragments, assembled)
             );
 
-            List<XrayDefect> defects = buildDefects(job, assembled, mapping);
+            List<XrayDefect> defects = buildDefects(job, fragments, assembled, mapping);
             defectRepository.deleteAllByXrayJob_Id(job.getId());
             defectRepository.saveAll(defects);
 
@@ -133,6 +139,7 @@ public class XrayWorkflowService {
     public DefectListResponse getDefects(String jobIdValue) {
         XrayJob job = requireJob(jobIdValue);
         if (job.getStatus() != XrayJobStatus.REVIEW_READY
+                && job.getStatus() != XrayJobStatus.REPORTING
                 && job.getStatus() != XrayJobStatus.COMPLETED) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -175,9 +182,12 @@ public class XrayWorkflowService {
                 );
             }
             try {
-                defect.changeReviewDecision(XrayDefectReviewDecision.valueOf(
-                        update.reviewDecision().trim().toUpperCase(Locale.ROOT)
-                ));
+                defect.updateReview(
+                        XrayDefectReviewDecision.valueOf(
+                                update.reviewDecision().trim().toUpperCase(Locale.ROOT)
+                        ),
+                        update.userNote()
+                );
             } catch (IllegalArgumentException e) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
@@ -191,53 +201,62 @@ public class XrayWorkflowService {
                 .toList());
     }
 
-    @Transactional
     public ReportTextResponse generateReportText(
             String jobIdValue,
             ReportGenerateRequest request
     ) {
         XrayJob job = requireReviewReady(jobIdValue);
+        job.markReporting();
+        jobRepository.save(job);
+
         List<XrayDefect> damages = defectRepository
                 .findAllByXrayJob_IdAndReviewDecisionOrderByIdAsc(
                         job.getId(),
                         XrayDefectReviewDecision.DAMAGE
                 );
 
-        String regions = objectMapper.writeValueAsString(
-                damages.stream().map(this::toReportRegion).toList()
-        );
-        Resource assembled = namedResource(
-                s3Service.getBytes(XrayS3Keys.finalAssembled(job.getArtifactId().toString())),
-                "assembled_xray.final.png"
-        );
-        List<Resource> fragments = stitchService.getOrderedXraySourceResources(jobIdValue);
-        List<Resource> colors = List.of(stitchService.getColorReferenceResource(jobIdValue));
-        String raw = anomalyClient.generateReportResources(
-                regions,
-                request == null ? null : request.artifactType(),
-                request == null ? null : request.material(),
-                request == null ? "summary" : request.reportStyle(),
-                assembled,
-                fragments,
-                colors
-        );
+        try {
+            String regions = objectMapper.writeValueAsString(
+                    damages.stream().map(this::toReportRegion).toList()
+            );
+            Resource assembled = namedResource(
+                    s3Service.getBytes(XrayS3Keys.finalAssembled(job.getArtifactId().toString())),
+                    "assembled_xray.final.png"
+            );
+            List<Resource> fragments = prioritizeReportFragments(
+                    damages,
+                    stitchService.getOrderedXraySourceResources(jobIdValue)
+            );
+            List<Resource> colors = List.of(stitchService.getColorReferenceResource(jobIdValue));
+            String raw = anomalyClient.generateReportResources(
+                    regions,
+                    request == null ? null : request.artifactType(),
+                    request == null ? null : request.material(),
+                    assembled,
+                    fragments,
+                    colors
+            );
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = objectMapper.readValue(raw, Map.class);
-        String reportText = result.get("report") == null
-                ? null
-                : String.valueOf(result.get("report"));
-        if (reportText == null || reportText.isBlank()) {
-            throw new IllegalStateException("AI report response does not contain report text.");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = objectMapper.readValue(raw, Map.class);
+            String reportText = result.get("report") == null
+                    ? null
+                    : String.valueOf(result.get("report"));
+            if (reportText == null || reportText.isBlank()) {
+                throw new IllegalStateException("AI report response does not contain report text.");
+            }
+
+            // 생성 중 페이지를 벗어나도 재진입 시 복원할 수 있도록 AI 초안을 즉시 저장한다.
+            job.updateReportText(reportText.trim());
+            job.markReviewReady();
+            jobRepository.save(job);
+            return reportResponse(job);
+        } catch (RuntimeException e) {
+            // 문안 생성 실패가 앞 단계의 결함 검수 결과까지 무효화하지 않도록 복구한다.
+            job.markReviewReady();
+            jobRepository.save(job);
+            throw e;
         }
-
-        // AI 초안은 최종 확정 전까지 DB에 저장하지 않는다.
-        return new ReportTextResponse(
-                job.getId().toString(),
-                job.getArtifactId().toString(),
-                reportText,
-                job.getStatus().name()
-        );
     }
 
     @Transactional(readOnly = true)
@@ -295,6 +314,7 @@ public class XrayWorkflowService {
 
     private List<XrayDefect> buildDefects(
             XrayJob job,
+            XrayDetectionResponse fragments,
             XrayDetectionResponse assembled,
             XrayDefectMappingResponse mapping
     ) {
@@ -303,6 +323,22 @@ public class XrayWorkflowService {
                         .filter(region -> region.regionId() != null)
                         .collect(Collectors.toMap(
                                 XrayDetectionResponse.AnomalyRegion::regionId,
+                                Function.identity(),
+                                (first, ignored) -> first
+                        ));
+        Map<String, XrayDetectionResponse.AnomalyRegion> fragmentById =
+                safeRegions(fragments).stream()
+                        .filter(region -> region.regionId() != null)
+                        .collect(Collectors.toMap(
+                                XrayDetectionResponse.AnomalyRegion::regionId,
+                                Function.identity(),
+                                (first, ignored) -> first
+                        ));
+        Map<String, XrayDefectMappingResponse.DefectGroup> defectGroupByAssembledId =
+                safeList(mapping.defectGroups()).stream()
+                        .filter(group -> group.assembledRegionId() != null)
+                        .collect(Collectors.toMap(
+                                XrayDefectMappingResponse.DefectGroup::assembledRegionId,
                                 Function.identity(),
                                 (first, ignored) -> first
                         ));
@@ -317,19 +353,116 @@ public class XrayWorkflowService {
             XrayDefectOriginType originType = "CONFIRMED".equals(decision.status())
                     ? XrayDefectOriginType.MATCHED
                     : XrayDefectOriginType.ASSEMBLED_ONLY;
-            defects.add(XrayDefect.create(job, originType, bboxGeometry(region.bbox())));
+
+            Map<String, Object> geometry = bboxGeometry(region.bbox());
+            geometry.put("mappingStatus", decision.status());
+            geometry.put("assembledRegionId", decision.assembledRegionId());
+            geometry.put("sourceObservationCount", decision.sourceObservationCount());
+            geometry.put("seamCoverage", decision.seamCoverage());
+            geometry.put("overlapCoverage", decision.overlapCoverage());
+            if (region.confidence() != null) {
+                geometry.put("confidence", region.confidence());
+            }
+            if (region.position() != null) {
+                geometry.put("position", region.position());
+            }
+            if (region.areaRatioPercent() != null) {
+                geometry.put("areaRatioPercent", region.areaRatioPercent());
+            }
+
+            XrayDefectMappingResponse.DefectGroup group =
+                    defectGroupByAssembledId.get(decision.assembledRegionId());
+            if (group != null && group.observations() != null && !group.observations().isEmpty()) {
+                geometry.put(
+                        "sourceObservations",
+                        group.observations().stream()
+                                .map(observation -> sourceObservationPayload(observation, fragmentById))
+                                .toList()
+                );
+            }
+
+            defects.add(XrayDefect.create(job, originType, geometry));
         }
+
         for (XrayDefectMappingResponse.SourceOnlyGroup group
                 : safeList(mapping.sourceOnlyGroups())) {
-            if (group.unionBBox() != null) {
-                defects.add(XrayDefect.create(
-                        job,
-                        XrayDefectOriginType.SOURCE_ONLY,
-                        bboxGeometry(group.unionBBox())
-                ));
+            if (group.unionBBox() == null) {
+                continue;
             }
+
+            Map<String, Object> geometry = bboxGeometry(group.unionBBox());
+            geometry.put("mappingStatus", group.status());
+            geometry.put("sourceOnlyGroupId", group.groupId());
+            if (group.observations() != null && !group.observations().isEmpty()) {
+                geometry.put(
+                        "sourceObservations",
+                        group.observations().stream()
+                                .map(observation -> sourceOnlyObservationPayload(observation, fragmentById))
+                                .toList()
+                );
+            }
+            defects.add(XrayDefect.create(job, XrayDefectOriginType.SOURCE_ONLY, geometry));
         }
         return defects;
+    }
+
+    private Map<String, Object> sourceObservationPayload(
+            XrayDefectMappingResponse.SourceObservation observation,
+            Map<String, XrayDetectionResponse.AnomalyRegion> fragmentById
+    ) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("sourceRegionId", observation.sourceRegionId());
+        item.put("sourceFileName", observation.sourceFileName());
+        item.put("originalSourceIndex", observation.originalSourceIndex());
+        item.put("layoutFragmentIndex", observation.layoutFragmentIndex());
+        item.put("subfragmentIndex", observation.subfragmentIndex());
+        if (observation.transformedBBox() != null) {
+            item.put("transformedBBox", bboxGeometry(observation.transformedBBox()));
+        }
+        item.put("iou", observation.iou());
+        item.put("sourceCoverage", observation.sourceCoverage());
+        item.put("assembledCoverage", observation.assembledCoverage());
+        addOriginalObservation(item, observation.sourceRegionId(), fragmentById);
+        return item;
+    }
+
+    private Map<String, Object> sourceOnlyObservationPayload(
+            XrayDefectMappingResponse.SourceOnlyObservation observation,
+            Map<String, XrayDetectionResponse.AnomalyRegion> fragmentById
+    ) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("sourceRegionId", observation.sourceRegionId());
+        item.put("sourceFileName", observation.sourceFileName());
+        item.put("originalSourceIndex", observation.originalSourceIndex());
+        item.put("layoutFragmentIndex", observation.layoutFragmentIndex());
+        item.put("subfragmentIndex", observation.subfragmentIndex());
+        if (observation.transformedBBox() != null) {
+            item.put("transformedBBox", bboxGeometry(observation.transformedBBox()));
+        }
+        item.put("visibilityRatio", observation.visibilityRatio());
+        item.put("visibilityStatus", observation.visibilityStatus());
+        addOriginalObservation(item, observation.sourceRegionId(), fragmentById);
+        return item;
+    }
+
+    private void addOriginalObservation(
+            Map<String, Object> item,
+            String sourceRegionId,
+            Map<String, XrayDetectionResponse.AnomalyRegion> fragmentById
+    ) {
+        XrayDetectionResponse.AnomalyRegion source = fragmentById.get(sourceRegionId);
+        if (source == null) {
+            return;
+        }
+        if (source.bbox() != null) {
+            item.put("sourceGeometry", bboxGeometry(source.bbox()));
+        }
+        if (source.confidence() != null) {
+            item.put("confidence", source.confidence());
+        }
+        if (source.position() != null) {
+            item.put("position", source.position());
+        }
     }
 
     private Map<String, Object> bboxGeometry(XrayDetectionResponse.BoundingBox bbox) {
@@ -361,7 +494,62 @@ public class XrayWorkflowService {
         region.put("originType", defect.getOriginType().name());
         region.put("reviewDecision", defect.getReviewDecision().name());
         region.put("bbox", defect.getGeometry());
+        region.put("confidence", defect.getGeometry().get("confidence"));
+        region.put("position", defect.getGeometry().get("position"));
+        region.put("areaRatioPercent", defect.getGeometry().get("areaRatioPercent"));
+        region.put("mappingStatus", defect.getGeometry().get("mappingStatus"));
+        region.put("userNote", defect.getGeometry().get("userNote"));
+        region.put("sourceObservations", defect.getGeometry().get("sourceObservations"));
         return region;
+    }
+
+    private List<Resource> prioritizeReportFragments(
+            List<XrayDefect> damages,
+            List<Resource> fragments
+    ) {
+        if (fragments == null || fragments.isEmpty()) {
+            return List.of();
+        }
+
+        List<Integer> preferredIndexes = new ArrayList<>();
+        for (XrayDefect defect : damages) {
+            Object rawObservations = defect.getGeometry().get("sourceObservations");
+            if (!(rawObservations instanceof List<?> observations)) {
+                continue;
+            }
+            for (Object rawObservation : observations) {
+                if (!(rawObservation instanceof Map<?, ?> observation)) {
+                    continue;
+                }
+                Object rawIndex = observation.get("originalSourceIndex");
+                if (rawIndex == null) {
+                    continue;
+                }
+                try {
+                    int index = rawIndex instanceof Number number
+                            ? number.intValue()
+                            : Integer.parseInt(String.valueOf(rawIndex));
+                    if (index >= 0
+                            && index < fragments.size()
+                            && !preferredIndexes.contains(index)) {
+                        preferredIndexes.add(index);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // 잘못된 provenance 하나 때문에 문안 생성 전체를 실패시키지 않는다.
+                }
+            }
+        }
+
+        List<Resource> prioritized = new ArrayList<>(fragments.size());
+        for (Integer index : preferredIndexes) {
+            prioritized.add(fragments.get(index));
+        }
+        for (int index = 0; index < fragments.size(); index++) {
+            if (!preferredIndexes.contains(index)) {
+                prioritized.add(fragments.get(index));
+            }
+        }
+        return List.copyOf(prioritized);
     }
 
     private byte[] createDefectResult(XrayJob job, List<XrayDefect> damages) {

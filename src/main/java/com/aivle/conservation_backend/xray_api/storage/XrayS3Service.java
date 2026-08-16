@@ -10,6 +10,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -161,6 +162,22 @@ public class XrayS3Service {
             continuationToken = response.isTruncated() ? response.nextContinuationToken() : null;
         } while (continuationToken != null);
         return keys;
+    }
+
+    /**
+     * 지정 prefix 아래의 기존 객체를 모두 삭제한다.
+     * X-ray 재실행 시 이전 input/output이 새 작업에 섞이지 않도록 사용한다.
+     */
+    public void deletePrefix(String prefix) {
+        requireBucket();
+        for (String key : listKeys(prefix)) {
+            s3Client.deleteObject(
+                    DeleteObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(key)
+                            .build()
+            );
+        }
     }
 
     public String bucket() {

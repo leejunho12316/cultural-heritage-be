@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "documents": [
+    {
+      "document_id": "gumi-metal-excavation-001",
+      "filename": "(2차) 구미 하이테크밸리 유적 발굴조사 출토 금속유물 보존처리 보고서.pdf",
+      "source": "구미 하이테크밸리 유적 발굴조사 출토 금속유물 보존처리 보고서",
+      "default_material": "general",
+      "source_material": "metal",
+      "template_scope": "reference",
+      "is_universal_template": false
+    },
+    {
+      "document_id": "gwangju-joseon-porcelain-001",
+      "filename": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf",
+      "source": "광주 조선백자 요지 출토 폐자기의 보존처리",
+      "default_material": "general",
+      "source_material": "ceramic",
+      "template_scope": "reference",
+      "is_universal_template": false
+    },
+    {
+      "document_id": "jinju-terracotta-mask-001",
+      "filename": "진주 중천리 출토 인두형토기의 보존.pdf",
+      "source": "진주 중천리 출토 인두형토기(人頭形土器)의 보존",
+      "default_material": "general",
+      "source_material": "ceramic",
+      "template_scope": "reference",
+      "is_universal_template": false
+    },
+    {
+      "document_id": "deoksugung-junghwajeon-001",
+      "filename": "덕수궁 중화전 일월오악도 보존처리 수리보고서.pdf",
+      "source": "덕수궁 중화전 일월오악도 보존처리 수리보고서",
+      "default_material": "general",
+      "source_material": "textile",
+      "template_scope": "reference",
+      "is_universal_template": false
+    },
+    {
+      "document_id": "gyujanggak-2020-conservation-001",
+      "filename": "2020 규장각문화재보존관리 및 계승사업보고서 제1권.pdf",
+      "source": "2020 규장각문화재보존관리 및 계승사업보고서 제1권",
+      "default_material": "general",
+      "source_material": "paper",
+      "template_scope": "reference",
+      "is_universal_template": false
+    }
+  ]
+}

@@ -33,7 +33,8 @@ public final class XrayWorkflowDtos {
 
     public record DefectReviewUpdate(
             Long id,
-            String reviewDecision
+            String reviewDecision,
+            String userNote
     ) {
     }
 
@@ -42,8 +43,7 @@ public final class XrayWorkflowDtos {
 
     public record ReportGenerateRequest(
             String artifactType,
-            String material,
-            String reportStyle
+            String material
     ) {
     }
 

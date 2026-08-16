@@ -16,6 +16,7 @@ import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.ReconcileRespo
 import com.aivle.conservation_backend.xray_api.dto.XrayStitchDtos.UploadTarget;
 import com.aivle.conservation_backend.xray_api.repository.S3FileRecordRepository;
 import com.aivle.conservation_backend.xray_api.repository.XrayJobRepository;
+import com.aivle.conservation_backend.xray_api.repository.XrayDefectRepository;
 import com.aivle.conservation_backend.xray_api.storage.XrayS3Keys;
 import com.aivle.conservation_backend.xray_api.storage.XrayS3Service;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +54,7 @@ public class XrayStitchService {
     private final XrayStitchClient xrayStitchClient;
     private final XrayS3Service s3Service;
     private final XrayJobRepository jobRepository;
+    private final XrayDefectRepository defectRepository;
     private final S3FileRecordRepository s3FileRepository;
     private final ObjectMapper objectMapper;
     private final String configName;
@@ -64,6 +66,7 @@ public class XrayStitchService {
             XrayStitchClient xrayStitchClient,
             XrayS3Service s3Service,
             XrayJobRepository jobRepository,
+            XrayDefectRepository defectRepository,
             S3FileRecordRepository s3FileRepository,
             ObjectMapper objectMapper,
             @Value("${xray.ai.config-name}") String configName,
@@ -74,6 +77,7 @@ public class XrayStitchService {
         this.xrayStitchClient = xrayStitchClient;
         this.s3Service = s3Service;
         this.jobRepository = jobRepository;
+        this.defectRepository = defectRepository;
         this.s3FileRepository = s3FileRepository;
         this.objectMapper = objectMapper;
         this.configName = configName;
@@ -98,15 +102,17 @@ public class XrayStitchService {
 
         XrayJob job = jobRepository.findByArtifactId(artifactId)
                 .map(existing -> {
-                    if (existing.getStatus() != XrayJobStatus.PREPARED
-                            && existing.getStatus() != XrayJobStatus.UPLOADING
-                            && existing.getStatus() != XrayJobStatus.FAILED) {
+                    if (existing.getStatus() == XrayJobStatus.STITCHING
+                            || existing.getStatus().isDetectionInProgress()
+                            || existing.getStatus().isReportInProgress()) {
                         throw new ResponseStatusException(
                                 HttpStatus.CONFLICT,
-                                "This artifact already has an active or completed X-ray job: "
+                                "This artifact has an X-ray job currently running: "
                                         + existing.getStatus()
                         );
                     }
+
+                    resetForRerun(existing);
                     existing.prepareAgain(1, xrayNames.size());
                     return existing;
                 })
@@ -361,6 +367,18 @@ public class XrayStitchService {
         return toStatusResponse(requireJob(parseUuid(jobId, "jobId")));
     }
 
+    @Transactional(readOnly = true)
+    public XrayJobStatusResponse getLocalJobStatusByArtifactId(String artifactIdValue) {
+        UUID artifactId = parseUuid(artifactIdValue, "artifactId");
+        XrayJob job = jobRepository.findByArtifactId(artifactId).orElseThrow(() ->
+                new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "X-ray job not found for artifact: " + artifactId
+                )
+        );
+        return toStatusResponse(job);
+    }
+
     @Transactional
     public ReconcileResponse reconcile(String jobIdValue) {
         XrayJob job = requireJob(parseUuid(jobIdValue, "jobId"));
@@ -369,6 +387,7 @@ public class XrayStitchService {
 
         if (hasFinalOutputs(artifactId) || hasBaseOutputs(artifactId)) {
             if (job.getStatus() != XrayJobStatus.REVIEW_READY
+                    && job.getStatus() != XrayJobStatus.REPORTING
                     && job.getStatus() != XrayJobStatus.COMPLETED) {
                 job.markStitched();
             }
@@ -643,6 +662,31 @@ public class XrayStitchService {
     // Helpers
     // ---------------------------------------------------------------------
 
+    /**
+     * 같은 artifact의 X-ray 작업을 다시 시작하기 전에 이전 분석 산출물을 정리한다.
+     *
+     * <p>artifact 기준으로 S3 key가 고정되어 있으므로 이전 output을 남겨두면
+     * hasBaseOutputs/hasFinalOutputs가 과거 결과를 새 작업 결과로 오인할 수 있다.</p>
+     */
+    private void resetForRerun(XrayJob job) {
+        String artifactId = job.getArtifactId().toString();
+
+        // 이전 결함 검수 결과 제거
+        defectRepository.deleteAllByXrayJob_Id(job.getId());
+
+        // Lambda가 기록한 기존 input 감사 레코드 중 현재 workflow가 직접 참조하는 항목 제거
+        List<S3FileRecord> previousInputRecords = new ArrayList<>();
+        previousInputRecords.addAll(xrayInputRecords(job));
+        previousInputRecords.addAll(colorInputRecords(job));
+        if (!previousInputRecords.isEmpty()) {
+            s3FileRepository.deleteAll(previousInputRecords);
+            s3FileRepository.flush();
+        }
+
+        // inputs + outputs 전체를 비워 새 presigned upload부터 완전히 새 작업으로 시작
+        s3Service.deletePrefix(XrayS3Keys.root(artifactId) + "/");
+    }
+
     private XrayJob requireJob(UUID jobId) {
         return jobRepository.findById(jobId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "X-ray job not found: " + jobId)
@@ -652,8 +696,9 @@ public class XrayStitchService {
     private XrayJob requireCompletedJob(String jobId) {
         XrayJob job = requireJob(parseUuid(jobId, "jobId"));
         if (job.getStatus() != XrayJobStatus.STITCHED
-                && job.getStatus() != XrayJobStatus.DETECTING
+                && !job.getStatus().isDetectionInProgress()
                 && job.getStatus() != XrayJobStatus.REVIEW_READY
+                && job.getStatus() != XrayJobStatus.REPORTING
                 && job.getStatus() != XrayJobStatus.COMPLETED) {
             throw new IllegalStateException("X-ray stitching result is not ready: " + job.getStatus());
         }
@@ -710,7 +755,11 @@ public class XrayStitchService {
                     ? "Final X-ray layout is ready for defect analysis."
                     : "Automatic X-ray stitching is complete.";
             case DETECTING -> "X-ray defect detection and mapping are running.";
+            case DETECTING_FRAGMENTS -> "Original X-ray fragments are being analyzed.";
+            case DETECTING_ASSEMBLED -> "The final assembled X-ray is being analyzed.";
+            case MAPPING -> "Detected defects are being mapped and merged.";
             case REVIEW_READY -> "X-ray defects are ready for expert review.";
+            case REPORTING -> "AI X-ray report text is being generated.";
             case COMPLETED -> "X-ray inspection is complete.";
             case FAILED -> "X-ray processing failed.";
         };
@@ -830,6 +879,7 @@ public class XrayStitchService {
             if (hasFinalOutputs(artifactId)) {
                 XrayJob current = requireJob(jobId);
                 if (current.getStatus() != XrayJobStatus.REVIEW_READY
+                        && current.getStatus() != XrayJobStatus.REPORTING
                         && current.getStatus() != XrayJobStatus.COMPLETED) {
                     current.markStitched();
                     jobRepository.save(current);

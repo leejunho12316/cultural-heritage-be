@@ -157,8 +157,8 @@ BODY - form-data에 - Key는 file File 형식으로, Value는 실제 이미지 �
 -> 반환받은 URL 입력
 {
  "resume": {
-  "before_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/89b03de7-95e3-4d45-a5a0-d802f48a2891-before_%EC%95%9E%EB%A9%B4.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260731T062001Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260731%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=9a1e86b7f2054e6a72fb91ef12bc545dd835b58517c862bc3f366ddc94996fe8"],
-  "after_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/933ddcb5-0e55-42de-85c3-9cbeeb8443b6-after_%EC%95%9E%EB%A9%B4.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260731T062023Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260731%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=8bdab328f9335f8074e2c2aff0c7b7c6aa2506e9fcf32873da1af2b129791e82"]
+  "before_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/13e40784-2d8e-407e-aa0a-96293dbaf1fb-sample1.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260810T071339Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260810%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=1c9cade6b5e0bfe0c6f781aaf67dfe8c0c3e8a91f685d91372538c485fc201c2"],
+  "after_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/af269cb6-6d7c-491b-a380-4fb2f9660b0b-sample2.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260810T071359Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260810%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=16eec17a752d303e32697858f3356817c2d54e9a03f968e477fa281d76667250"]
  }
 }
 
@@ -192,16 +192,17 @@ BODY - form-data에 - Key는 file File 형식으로, Value는 실제 이미지 �
  }
 }
 
+
 {
  "resume": {
-  "before_photo_urls": ["test_photos/before.png"],
-  "after_photo_urls": ["test_photos/after.png"]
+  "before_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/13e40784-2d8e-407e-aa0a-96293dbaf1fb-sample1.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260810T071339Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260810%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=1c9cade6b5e0bfe0c6f781aaf67dfe8c0c3e8a91f685d91372538c485fc201c2"],
+  "after_photo_urls": ["https://conservation-guide-ai-wetting-photos.s3.ap-northeast-2.amazonaws.com/wetting-photos/af269cb6-6d7c-491b-a380-4fb2f9660b0b-sample2.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260810T071359Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIA33WAIZMZYGVMG7NN%2F20260810%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Expires=3600&X-Amz-Signature=16eec17a752d303e32697858f3356817c2d54e9a03f968e477fa281d76667250"]
  }
 }
 
 {
  "resume": {
-  "completed_step_ids": ["bonding-method-01", "bonding-method-02"]
+  "completed_step_ids": ["bonding-method-01", "bonding-method-02", "bonding-method-03", "bonding-method-04"]
  }
 }
 
@@ -223,13 +224,13 @@ BODY - form-data에 - Key는 file File 형식으로, Value는 실제 이미지 �
 
 {
  "resume": {
-  "completed_step_ids": ["restoration-guide-01", "restoration-guide-02"]
+  "completed_step_ids": ["restoration-guide-01", "restoration-guide-02", "restoration-guide-03", "restoration-guide-04"]
  }
 }
 
 {
  "resume": {
-  "completed_step_ids": ["restoration-finishing-01", "restoration-finishing-02"]
+  "completed_step_ids": ["restoration-finishing-01", "restoration-finishing-02", "restoration-finishing-03", "restoration-finishing-04"]
  }
 }
 

@@ -1569,7 +1569,8 @@ public class VcaService {
         PotteryInspectionResponseDto response = potteryInspectionAiClient.get().inspect(
                 toMultipartFile(primaryImage),
                 POTTERY_INSPECTION_CALLS,
-                true
+                true, // useVlmPattern - PotteryInspectionAiController의 기본값과 동일
+                true // treatAsSingleArtifact
         );
         return toPotteryInspection(response);
     }

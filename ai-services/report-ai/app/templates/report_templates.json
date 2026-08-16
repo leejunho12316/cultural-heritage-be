@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "templates": [
+    {
+      "template_id": "gumi-metal-excavation-001",
+      "source_document_id": "gumi-metal-excavation-001",
+      "report_type": "excavated_artifact_conservation",
+      "source_material": "metal",
+      "sections": [
+        { "section_id": "overview", "title": "서론", "order": 1, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] },
+        { "section_id": "condition_before", "title": "처리 전 상태 조사", "order": 2, "level": 1, "content_type": "text_and_photos", "related_stage": ["pre_investigation"], "required_fields": ["visual_inspection", "xray_result", "before_photos"] },
+        { "section_id": "foreign_matter_removal", "title": "이물질 제거", "order": 3, "level": 1, "content_type": "text_and_photos", "related_stage": ["cleaning"], "required_fields": ["results.cleaning"] },
+        { "section_id": "stabilization", "title": "안정화처리", "order": 4, "level": 1, "content_type": "text_and_photos", "related_stage": ["cleaning", "reinforcement"], "required_fields": ["results.cleaning", "results.reinforcement"] },
+        { "section_id": "reinforcement", "title": "강화처리", "order": 5, "level": 1, "content_type": "text_and_photos", "related_stage": ["reinforcement"], "required_fields": ["results.reinforcement"] },
+        { "section_id": "bonding_restoration", "title": "접합 및 복원", "order": 6, "level": 1, "content_type": "text_and_photos", "related_stage": ["bonding", "restoration"], "required_fields": ["results.bonding", "results.restoration"] },
+        { "section_id": "re_reinforcement", "title": "재강화처리", "order": 7, "level": 1, "content_type": "text_and_photos", "related_stage": ["reinforcement"], "required_fields": ["results.reinforcement"] },
+        { "section_id": "condition_after", "title": "처리 후 조사", "order": 8, "level": 1, "content_type": "text_and_photos", "related_stage": [], "required_fields": ["after_photos"] },
+        { "section_id": "packing", "title": "포장", "order": 9, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] },
+        { "section_id": "conclusion", "title": "결론", "order": 10, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] }
+      ]
+    },
+    {
+      "template_id": "gwangju-joseon-porcelain-001",
+      "source_document_id": "gwangju-joseon-porcelain-001",
+      "report_type": "excavated_artifact_conservation",
+      "source_material": "ceramic",
+      "sections": [
+        { "section_id": "overview", "title": "서론", "order": 1, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] },
+        { "section_id": "treatment_targets", "title": "처리대상", "order": 2, "level": 1, "content_type": "text_and_photos", "related_stage": ["pre_investigation"], "required_fields": ["relic_info", "before_photos"] },
+        { "section_id": "treatment_process", "title": "보존처리", "order": 3, "level": 1, "content_type": "text_and_photos", "related_stage": ["cleaning", "bonding", "restoration"], "required_fields": ["results.cleaning", "results.bonding", "results.restoration"] },
+        { "section_id": "conclusion", "title": "결론", "order": 4, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] },
+        { "section_id": "references", "title": "참고문헌", "order": 5, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] }
+      ]
+    },
+    {
+      "template_id": "jinju-terracotta-mask-001",
+      "source_document_id": "jinju-terracotta-mask-001",
+      "report_type": "excavated_artifact_conservation",
+      "source_material": "ceramic",
+      "sections": [
+        { "section_id": "overview", "title": "서론", "order": 1, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] },
+        { "section_id": "condition_before", "title": "처리 전 상태", "order": 2, "level": 1, "content_type": "text_and_photos", "related_stage": ["pre_investigation"], "required_fields": ["before_photos"] },
+        { "section_id": "preliminary_investigation", "title": "예비조사", "order": 3, "level": 1, "content_type": "text_and_photos", "related_stage": ["pre_investigation"], "required_fields": ["xray_result", "visual_inspection"] },
+        { "section_id": "disassembly_bonding_restoration", "title": "해체·접합·복원", "order": 4, "level": 1, "content_type": "text_and_photos", "related_stage": ["disassembly", "bonding", "restoration"], "required_fields": ["results.disassembly", "results.bonding", "results.restoration"] },
+        { "section_id": "color_matching", "title": "색맞춤 및 마무리", "order": 5, "level": 1, "content_type": "text_and_photos", "related_stage": ["restoration"], "required_fields": ["results.restoration"] },
+        { "section_id": "conclusion", "title": "결론", "order": 6, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] },
+        { "section_id": "references", "title": "참고문헌", "order": 7, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] }
+      ]
+    },
+    {
+      "template_id": "deoksugung-junghwajeon-001",
+      "source_document_id": "deoksugung-junghwajeon-001",
+      "report_type": "commissioned_repair_report",
+      "source_material": "textile",
+      "sections": [
+        { "section_id": "project_overview", "title": "사업개요", "order": 1, "level": 1, "content_type": "table_and_text", "related_stage": [], "required_fields": ["task_name", "task_manager", "task_date", "relic_info"] },
+        { "section_id": "approach", "title": "수행방향", "order": 2, "level": 1, "content_type": "narrative", "related_stage": ["pre_investigation"], "required_fields": [] },
+        { "section_id": "treatment_process", "title": "보존처리", "order": 3, "level": 1, "content_type": "text_and_photos", "related_stage": ["disassembly", "cleaning", "reinforcement", "bonding", "restoration"], "required_fields": ["results.disassembly", "results.cleaning", "results.reinforcement", "results.bonding", "results.restoration"] },
+        { "section_id": "replica_production", "title": "영인본 제작과정", "order": 4, "level": 1, "content_type": "text_and_photos", "related_stage": [], "required_fields": [] },
+        { "section_id": "advisory_meetings", "title": "자문회의", "order": 5, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] },
+        { "section_id": "post_treatment_analysis", "title": "처리 후 분석", "order": 6, "level": 1, "content_type": "text_and_photos", "related_stage": ["restoration"], "required_fields": ["after_photos"] },
+        { "section_id": "completion_photos", "title": "완료 사진", "order": 7, "level": 1, "content_type": "photos", "related_stage": [], "required_fields": ["after_photos"] }
+      ]
+    },
+    {
+      "template_id": "gyujanggak-2020-conservation-001",
+      "source_document_id": "gyujanggak-2020-conservation-001",
+      "report_type": "commissioned_repair_report",
+      "source_material": "paper",
+      "sections": [
+        { "section_id": "project_overview", "title": "사업개요", "order": 1, "level": 1, "content_type": "table_and_text", "related_stage": [], "required_fields": ["task_name", "task_manager", "task_date"] },
+        { "section_id": "item_list", "title": "대상 유물 개관", "order": 2, "level": 1, "content_type": "table_and_photos", "related_stage": ["pre_investigation"], "required_fields": ["relic_info", "before_photos"] },
+        { "section_id": "item_treatment", "title": "대상 유물별 보존처리", "order": 3, "level": 1, "content_type": "text_and_photos", "related_stage": ["cleaning", "reinforcement", "bonding", "restoration"], "required_fields": ["results.cleaning", "results.reinforcement", "results.bonding", "results.restoration"] },
+        { "section_id": "materials_used", "title": "사용재료", "order": 4, "level": 1, "content_type": "table_and_text", "related_stage": [], "required_fields": [] },
+        { "section_id": "advisory_and_inspection", "title": "자문회의 및 검수", "order": 5, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] },
+        { "section_id": "contractor_recommendations", "title": "사업자 제언", "order": 6, "level": 1, "content_type": "narrative", "related_stage": [], "required_fields": [] }
+      ]
+    }
+  ]
+}

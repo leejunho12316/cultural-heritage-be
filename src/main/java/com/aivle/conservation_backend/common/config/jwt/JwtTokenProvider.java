@@ -16,7 +16,7 @@ public class JwtTokenProvider {
 
     private final JwtProperties jwtProperties;
 
-    public String createToken(String email, String role) {
+    public String createToken(String loginId, String role) {
         Date now = new Date();
         Date expiration = new Date(
                 now.getTime() + jwtProperties.getExpirationMs()
@@ -24,7 +24,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .issuer(jwtProperties.getIssuer())
-                .subject(email)
+                .subject(loginId)
                 .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiration)
@@ -32,7 +32,7 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    public String getEmail(String token) {
+    public String getLoginId(String token) {
         return getClaims(token).getSubject();
     }
 

@@ -8,24 +8,114 @@ env:
 phases:
   pre_build:
     commands:
+      - set -e
+      - echo "===== ECR LOGIN ====="
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - echo "IMAGE_TAG=$IMAGE_TAG"
+
   build:
     commands:
-      - docker build -t conservation-backend:$IMAGE_TAG .
-      - docker build -t conservation-guide-ai:$IMAGE_TAG ai-services/conservation-guide-ai
-      - docker build -t xray-ai:$IMAGE_TAG ai-services/xray-ai
-      - docker build -t pottery-inspection-ai:$IMAGE_TAG ai-services/pottery-inspection-ai
+      - |
+        set -e
+
+        echo "===== BUILD ALL SERVICES ====="
+
+        docker build \
+          -t conservation-backend:$IMAGE_TAG \
+          .
+
+        docker build \
+          -t conservation-guide-ai:$IMAGE_TAG \
+          ai-services/conservation-guide-ai
+
+        docker build \
+          -t xray-ai:$IMAGE_TAG \
+          ai-services/xray-ai
+
+        docker build \
+          -t pottery-inspection-ai:$IMAGE_TAG \
+          ai-services/pottery-inspection-ai
+
+        docker build \
+          -t report-ai:$IMAGE_TAG \
+          ai-services/report-ai
+
   post_build:
     commands:
       - |
-        for svc in conservation-backend conservation-guide-ai xray-ai pottery-inspection-ai; do
-          docker tag $svc:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:$IMAGE_TAG
-          docker tag $svc:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:latest
-          docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:$IMAGE_TAG
-          docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:latest
+        set -e
+
+        echo "===== PUSH ALL SERVICES ====="
+
+        SERVICES="
+        conservation-backend
+        conservation-guide-ai
+        xray-ai
+        pottery-inspection-ai
+        report-ai
+        "
+
+        for svc in $SERVICES; do
+          echo "===== PUSH $svc ====="
+
+          docker tag \
+            $svc:$IMAGE_TAG \
+            $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:$IMAGE_TAG
+
+          docker tag \
+            $svc:$IMAGE_TAG \
+            $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:latest
+
+          docker push \
+            $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:$IMAGE_TAG
+
+          docker push \
+            $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$svc:latest
         done
-      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      - chmod +x kubectl && mv kubectl /usr/local/bin/
-      - aws eks update-kubeconfig --name conservation-cluster --region $AWS_REGION
-      - kubectl rollout restart deployment/conservation-backend deployment/conservation-guide-ai deployment/xray-ai deployment/pottery-inspection-ai
+
+      - |
+        set -e
+
+        echo "===== KUBERNETES SETUP ====="
+
+        curl -LO \
+          "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
+        chmod +x kubectl
+        mv kubectl /usr/local/bin/
+
+        aws eks update-kubeconfig \
+          --name conservation-cluster \
+          --region $AWS_REGION
+
+      - |
+        set -e
+
+        echo "===== APPLY KUBERNETES MANIFEST ====="
+
+        kubectl apply -f k8s/app.yaml
+
+      - |
+        set -e
+
+        echo "===== RESTART ALL DEPLOYMENTS ====="
+
+        kubectl rollout restart deployment/conservation-backend
+        kubectl rollout restart deployment/conservation-guide-ai
+        kubectl rollout restart deployment/xray-ai
+        kubectl rollout restart deployment/pottery-inspection-ai
+        kubectl rollout restart deployment/report-ai
+
+      - |
+        set -e
+
+        echo "===== WAIT FOR ROLLOUT ====="
+
+        kubectl rollout status deployment/conservation-backend --timeout=10m
+        kubectl rollout status deployment/conservation-guide-ai --timeout=10m
+        kubectl rollout status deployment/xray-ai --timeout=10m
+        kubectl rollout status deployment/pottery-inspection-ai --timeout=10m
+        kubectl rollout status deployment/report-ai --timeout=10m
+
+      - echo "===== DEPLOY COMPLETE ====="

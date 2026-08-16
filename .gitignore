@@ -14,6 +14,8 @@
 HELP.md
 .gradle/
 build/
+/shared/
+/outputs/
 
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
@@ -162,6 +164,15 @@ ai-services/vca-ai/engine/**/.omo/
 # Frontend / Node
 # ============================================================
 
+### report-ai ###
+ai-services/report-ai/.env
+ai-services/report-ai/.venv/
+ai-services/report-ai/app/documents/*
+!ai-services/report-ai/app/documents/README.md
+ai-services/report-ai/app/index/*
+!ai-services/report-ai/app/index/.gitkeep
+
+### frontend ###
 node_modules/
 dist/
 

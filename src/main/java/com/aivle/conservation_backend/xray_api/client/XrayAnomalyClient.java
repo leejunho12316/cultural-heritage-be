@@ -349,13 +349,11 @@ public class XrayAnomalyClient {
      * 설정되어 있지 않으면 503을 반환한다.
      *
      * @param regionsJson 검수 반영된 영역 목록 JSON 문자열
-     * @param reportStyle summary(PPT용 요약) 또는 detailed(기록용 상세)
      */
     public String generateReport(
             String regionsJson,
             String artifactType,
             String material,
-            String reportStyle,
             MultipartFile assembled,
             List<MultipartFile> fragments,
             List<MultipartFile> rgbImages
@@ -364,12 +362,6 @@ public class XrayAnomalyClient {
                 new LinkedMultiValueMap<>();
 
         body.add("regions", regionsJson);
-        body.add(
-                "report_style",
-                reportStyle != null && !reportStyle.isBlank()
-                        ? reportStyle
-                        : "summary"
-        );
         body.add(
                 "artifact_type",
                 artifactType != null ? artifactType : ""
@@ -419,19 +411,12 @@ public String generateReportResources(
         String regionsJson,
         String artifactType,
         String material,
-        String reportStyle,
         Resource assembled,
         List<Resource> fragments,
         List<Resource> rgbImages
 ) {
     MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
     body.add("regions", regionsJson);
-    body.add(
-            "report_style",
-            reportStyle != null && !reportStyle.isBlank()
-                    ? reportStyle
-                    : "summary"
-    );
     body.add("artifact_type", artifactType != null ? artifactType : "");
     body.add("material", material != null ? material : "");
 

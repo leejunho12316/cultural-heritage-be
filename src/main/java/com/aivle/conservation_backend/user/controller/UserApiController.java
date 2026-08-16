@@ -18,16 +18,15 @@ public class UserApiController {
 
     private final UserService userService;
 
-    @PostMapping("/api/users/signup") // 또는 /user
-    public ResponseEntity<Long> signup( @Valid @RequestBody AddUserRequest request) {
+    @PostMapping("/api/users/signup")
+    public ResponseEntity<Long> signup(@Valid @RequestBody AddUserRequest request) {
         Long userId = userService.save(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(userId);
     }
 
     @PostMapping("/api/users/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        String token = userService.login(request);
-        return ResponseEntity.ok(new LoginResponse(token));
+        return ResponseEntity.ok(userService.login(request));
     }
 
     @PostMapping("/api/users/logout")

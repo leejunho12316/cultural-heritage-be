@@ -35,7 +35,7 @@ public class XrayJob {
 
     /** 인증/사용자 통합 전까지 nullable. 이후 USER FK 연결 예정. */
     @Column(name = "user_id")
-    private UUID userId;
+    private Long userId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -73,7 +73,7 @@ public class XrayJob {
         return artifactId;
     }
 
-    public UUID getUserId() {
+    public Long getUserId() {
         return userId;
     }
 
@@ -112,7 +112,7 @@ public class XrayJob {
     public static XrayJob create(
             UUID id,
             UUID artifactId,
-            UUID userId,
+            Long userId,
             int expectedColorCount,
             int expectedXrayCount
     ) {
@@ -129,15 +129,19 @@ public class XrayJob {
         return job;
     }
 
-    /** 같은 artifact의 FAILED/PREPARED 작업을 새 Presigned URL로 재사용한다. */
+    /**
+     * 같은 artifact의 기존 작업을 새 X-ray 분석용으로 초기화한다.
+     *
+     * <p>실행 중 상태(STITCHING/탐지 세부 상태) 차단은 service에서 담당하고,
+     * 여기서는 재실행 가능한 작업의 workflow 결과 필드를 초기화한다.</p>
+     */
     public void prepareAgain(int expectedColorCount, int expectedXrayCount) {
-        if (status == XrayJobStatus.COMPLETED) {
-            throw new IllegalStateException("Completed X-ray job cannot be prepared again.");
-        }
         this.status = XrayJobStatus.PREPARED;
         this.expectedColorCount = expectedColorCount;
         this.expectedXrayCount = expectedXrayCount;
         this.errorMessage = null;
+        this.reportText = null;
+        this.completedAt = null;
         touch();
     }
 
@@ -165,8 +169,32 @@ public class XrayJob {
         touch();
     }
 
+    public void markDetectingFragments() {
+        this.status = XrayJobStatus.DETECTING_FRAGMENTS;
+        this.errorMessage = null;
+        touch();
+    }
+
+    public void markDetectingAssembled() {
+        this.status = XrayJobStatus.DETECTING_ASSEMBLED;
+        this.errorMessage = null;
+        touch();
+    }
+
+    public void markMapping() {
+        this.status = XrayJobStatus.MAPPING;
+        this.errorMessage = null;
+        touch();
+    }
+
     public void markReviewReady() {
         this.status = XrayJobStatus.REVIEW_READY;
+        this.errorMessage = null;
+        touch();
+    }
+
+    public void markReporting() {
+        this.status = XrayJobStatus.REPORTING;
         this.errorMessage = null;
         touch();
     }

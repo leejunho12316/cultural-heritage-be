@@ -1,5 +1,7 @@
 package com.aivle.conservation_backend.conservation_guide_ai.service;
 
+import com.aivle.conservation_backend.artifact.domain.Artifact;
+import com.aivle.conservation_backend.artifact.repository.ArtifactRepository;
 import com.aivle.conservation_backend.conservation_guide_ai.client.ConservationGuideAiClient;
 import com.aivle.conservation_backend.conservation_guide_ai.domain.Task;
 import com.aivle.conservation_backend.conservation_guide_ai.domain.TaskStatus;
@@ -8,13 +10,16 @@ import com.aivle.conservation_backend.conservation_guide_ai.dto.ConservationGuid
 import com.aivle.conservation_backend.conservation_guide_ai.dto.ConservationGuideAiStartRequestDto;
 import com.aivle.conservation_backend.conservation_guide_ai.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 // start/resume 호출 시 보존 가이드 AI를 호출하고, 응답을 tasks 테이블에 반영(upsert)하는 orchestration 계층.
 // 컨트롤러는 이 서비스만 알고, AI 호출 자체는 ConservationGuideAiClient가 담당한다.
@@ -22,17 +27,17 @@ import java.util.Map;
 @Service
 public class TaskService {
 
-    private static final DateTimeFormatter KST_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final ConservationGuideAiClient client;
     private final TaskRepository taskRepository;
+    private final ArtifactRepository artifactRepository;
 
     @Transactional
     public ConservationGuideAiResponseDto startTask(String taskId, ConservationGuideAiStartRequestDto request) {
         ConservationGuideAiResponseDto response = client.startTask(taskId, request);
 
-        String now = nowKst();
+        OffsetDateTime now = nowKst();
         Task task = taskRepository.findById(taskId).orElseGet(() -> Task.builder()
                 .taskId(taskId)
                 .createdDate(now)
@@ -43,6 +48,7 @@ public class TaskService {
         task.setRelicInfo(request.relicInfo());
         task.setRelicPhoto(request.relicPhoto());
         task.setFlow(request.flow());
+        resolveArtifact(request.artifactId()).ifPresent(task::setArtifact);
 
         applyAiResponse(task, response, now);
         taskRepository.save(task);
@@ -54,7 +60,7 @@ public class TaskService {
     public ConservationGuideAiResponseDto resumeTask(String taskId, ConservationGuideAiResumeRequestDto request) {
         ConservationGuideAiResponseDto response = client.resumeTask(taskId, request);
 
-        String now = nowKst();
+        OffsetDateTime now = nowKst();
         Task task = taskRepository.findById(taskId).orElseGet(() -> Task.builder()
                 .taskId(taskId)
                 .createdDate(now)
@@ -72,10 +78,36 @@ public class TaskService {
                 .orElseThrow(() -> new java.util.NoSuchElementException("task not found: " + taskId));
     }
 
+    // 이 유물의 가장 최근 작업을 조회한다. FE가 새로고침으로 taskId(React
+    // Context)를 잃어버렸을 때, artifactId(URL 파라미터)만으로 복구하는 용도.
+    @Transactional(readOnly = true)
+    public Task getLatestTaskByArtifact(UUID artifactId) {
+        return taskRepository.findFirstByArtifact_IdOrderByCreatedDateDesc(artifactId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "해당 유물의 보존 가이드 작업이 없습니다: " + artifactId
+                ));
+    }
+
+    // artifactId가 없거나(구버전 FE) UUID 형식이 아니거나 매칭되는 유물이 없어도
+    // 예외를 던지지 않는다 - artifact_id는 nullable이라 작업 시작 자체는 막지 않는다.
+    private Optional<Artifact> resolveArtifact(String artifactId) {
+        if (artifactId == null || artifactId.isBlank()) {
+            return Optional.empty();
+        }
+        UUID uuid;
+        try {
+            uuid = UUID.fromString(artifactId);
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+        return artifactRepository.findById(uuid);
+    }
+
     // AI 응답을 Task 엔티티에 반영.
     // - waiting_for_input: 진행중 상태로 표시하고, FE가 이어서 resume할 수 있도록 마지막 interrupt를 저장.
     // - completed: 최종 상태(결과/문서경로)를 저장하고 interrupt는 비운다.
-    private void applyAiResponse(Task task, ConservationGuideAiResponseDto response, String now) {
+    private void applyAiResponse(Task task, ConservationGuideAiResponseDto response, OffsetDateTime now) {
         boolean completed = "completed".equals(response.status());
 
         if (completed) {
@@ -103,7 +135,7 @@ public class TaskService {
         return null;
     }
 
-    private String nowKst() {
-        return ZonedDateTime.now(KST).format(KST_FORMAT);
+    private OffsetDateTime nowKst() {
+        return OffsetDateTime.now(KST);
     }
 }
