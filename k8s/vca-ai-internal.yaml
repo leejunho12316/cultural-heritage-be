@@ -1,11 +1,15 @@
-# vca-ai를 클러스터 안에서 직접 돌릴 때만 적용하는 파일. VCA 엔진을 RunPod
-# 등 외부에 위탁하는 경우엔 이 파일을 apply하지 않고, k8s/app.yaml의
-# conservation-backend VCA_AI_BASE_URL만 외부 주소로 바꾼다.
+# vca-ai를 클러스터 안에서 직접 돌릴 때만 적용하는 파일. VCA는 GPU가
+# 필요한 무거운 파이프라인이라, 클러스터 밖 별도 GPU 호스트(RunPod 등)에
+# 위탁해서 돌릴 수 있어야 한다 - 그런 경우엔 이 파일을 apply하지 않고,
+# app-secrets의 VCA_AI_BASE_URL만 그 호스트의 외부 주소로 바꾼다
+# (k8s/app.yaml 자체는 안 건드림 - secretKeyRef로 읽으므로).
 #
-#   내부 모드: kubectl apply -f k8s/app.yaml -f k8s/vca-ai-internal.yaml
-#             (app.yaml의 VCA_AI_BASE_URL = http://vca-ai:8000)
-#   외부 모드: kubectl apply -f k8s/app.yaml
-#             (app.yaml의 VCA_AI_BASE_URL = 외부 주소로 직접 수정)
+#   내부 모드: app-secrets의 VCA_AI_BASE_URL=http://vca-ai:8000 로 설정 후
+#             kubectl apply -f k8s/app.yaml -f k8s/vca-ai-internal.yaml
+#   외부 모드: app-secrets의 VCA_AI_BASE_URL=<외부 GPU 호스트 주소> 로 설정 후
+#             kubectl apply -f k8s/app.yaml
+#             (시크릿 값을 바꿨다면 `kubectl rollout restart
+#             deployment/conservation-backend`까지 해야 반영됨)
 #             이미 내부 모드로 떠있던 걸 외부로 전환하는 거라면
 #             `kubectl delete -f k8s/vca-ai-internal.yaml`로 기존
 #             vca-ai Deployment/Service도 같이 지울 것.

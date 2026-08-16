@@ -6,7 +6,7 @@ services:
       # runs natively (avoids the Docker-VM memory ceiling that OOM-kills
       # Qwen visual-cue generation) against a live local vca_v2 checkout.
       # Set VCA_V2_LOCAL_ENGINE_ROOT in .env to that checkout's absolute path.
-      VCA_AI_BASE_URL: ${VCA_AI_LOCAL_BASE_URL:-http://host.docker.internal:8000}
+      VCA_AI_BASE_URL: ${VCA_AI_BASE_URL:-http://host.docker.internal:8000}
       VCA_SHARED_STORAGE_CONTAINER_ROOT: ${VCA_V2_LOCAL_ENGINE_ROOT}/output/input
       VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
     volumes:

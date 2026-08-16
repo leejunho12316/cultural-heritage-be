@@ -153,7 +153,12 @@ services:
     build: .
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
-      VCA_AI_BASE_URL: http://vca-ai:8000
+      # 기본값(vca-ai를 이 compose 파일의 컨테이너로 같이 띄우는 모드)은
+      # http://vca-ai:8000 - docker-compose.local-vca.override.yml/
+      # docker-compose.remote-vca.override.yml을 추가로 -f하면 그쪽에서
+      # 같은 VCA_AI_BASE_URL 키를 다시 정의해 이 기본값을 덮어쓴다
+      # (k8s의 app-secrets가 쓰는 키 이름과 동일하게 맞춰둠).
+      VCA_AI_BASE_URL: ${VCA_AI_BASE_URL:-http://vca-ai:8000}
       VCA_AI_TIMEOUT_SECONDS: "3900"
       VCA_ACCESS_TOKEN: ${VCA_ACCESS_TOKEN:?VCA_ACCESS_TOKEN is required for /api/vca}
       VCA_SHARED_STORAGE_ROOT: /shared/vca/input-store
