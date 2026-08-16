@@ -2,6 +2,7 @@ package com.aivle.conservation_backend.artifact.controller;
 
 import com.aivle.conservation_backend.artifact.dto.AddArtifactRequest;
 import com.aivle.conservation_backend.artifact.dto.ArtifactResponse;
+import com.aivle.conservation_backend.artifact.dto.ArtifactPublicResponse;
 import com.aivle.conservation_backend.artifact.dto.UpdateArtifactRequest;
 import com.aivle.conservation_backend.artifact.service.ArtifactService;
 import jakarta.validation.Valid;
@@ -41,6 +42,16 @@ public class ArtifactApiController {
         return ResponseEntity.ok(
                 artifactService.findAll()
         );
+    }
+
+    @GetMapping("/mine")
+    public ResponseEntity<List<ArtifactResponse>> findMine() {
+        return ResponseEntity.ok(artifactService.findMine());
+    }
+
+    @GetMapping("/public")
+    public ResponseEntity<List<ArtifactPublicResponse>> findPublic() {
+        return ResponseEntity.ok(artifactService.findPublic());
     }
 
     @GetMapping("/{artifactId}")

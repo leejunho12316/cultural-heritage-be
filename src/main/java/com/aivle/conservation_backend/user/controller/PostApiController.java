@@ -68,7 +68,7 @@ public class PostApiController {
         PostDetailResponse response =
                 postService.save(
                         request,
-                        currentUser.getEmail()
+                        currentUser
                 );
 
         return ResponseEntity
@@ -86,7 +86,7 @@ public class PostApiController {
                 postService.update(
                         id,
                         request,
-                        currentUser.getEmail()
+                        currentUser
                 )
         );
     }
@@ -98,7 +98,7 @@ public class PostApiController {
     ) {
         postService.delete(
                 id,
-                currentUser.getEmail()
+                currentUser
         );
 
         return ResponseEntity.noContent().build();

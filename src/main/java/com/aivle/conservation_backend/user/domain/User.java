@@ -23,6 +23,9 @@ public class User implements UserDetails{
     @Column(name = "id", updatable = false)
     private Long id;
 
+    @Column(name = "login_id", nullable = false, unique = true)
+    private String loginId;
+
     @Column(name = "email", nullable = false, unique = true)
     private String email;
 
@@ -37,15 +40,13 @@ public class User implements UserDetails{
     private Role role; // ADMIN 또는 USER
 
     @Builder
-    public User(String email, String password, String nickname, Role role) {
+    public User(String loginId, String email, String password, String nickname, Role role) {
+        this.loginId = loginId;
         this.email = email;
         this.password = password;
         this.nickname = nickname;
-        // role이 입력되지 않은 경우 기본값 USER 적용
         this.role = (role != null) ? role : Role.USER;
     }
-
-    // --- UserDetails 인터페이스 구현 메서드 ---
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -54,7 +55,7 @@ public class User implements UserDetails{
 
     @Override
     public String getUsername() {
-        return email; // 로그인 식별자로 email 사용
+        return loginId;
     }
 
     @Override
@@ -64,21 +65,21 @@ public class User implements UserDetails{
 
     @Override
     public boolean isAccountNonExpired() {
-        return true; // 계정 만료 여부
+        return true;
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return true; // 계정 잠금 여부
+        return true;
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return true; // 비밀번호 만료 여부
+        return true;
     }
 
     @Override
     public boolean isEnabled() {
-        return true; // 계정 활성화 여부
+        return true;
     }
 }

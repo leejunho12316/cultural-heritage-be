@@ -182,9 +182,12 @@ public class XrayWorkflowService {
                 );
             }
             try {
-                defect.changeReviewDecision(XrayDefectReviewDecision.valueOf(
-                        update.reviewDecision().trim().toUpperCase(Locale.ROOT)
-                ));
+                defect.updateReview(
+                        XrayDefectReviewDecision.valueOf(
+                                update.reviewDecision().trim().toUpperCase(Locale.ROOT)
+                        ),
+                        update.userNote()
+                );
             } catch (IllegalArgumentException e) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
@@ -229,7 +232,6 @@ public class XrayWorkflowService {
                     regions,
                     request == null ? null : request.artifactType(),
                     request == null ? null : request.material(),
-                    request == null ? "summary" : request.reportStyle(),
                     assembled,
                     fragments,
                     colors
@@ -496,6 +498,7 @@ public class XrayWorkflowService {
         region.put("position", defect.getGeometry().get("position"));
         region.put("areaRatioPercent", defect.getGeometry().get("areaRatioPercent"));
         region.put("mappingStatus", defect.getGeometry().get("mappingStatus"));
+        region.put("userNote", defect.getGeometry().get("userNote"));
         region.put("sourceObservations", defect.getGeometry().get("sourceObservations"));
         return region;
     }

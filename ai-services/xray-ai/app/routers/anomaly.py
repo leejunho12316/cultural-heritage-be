@@ -287,7 +287,6 @@ def generate_report(
     regions: str = Form(...),
     artifact_type: str = Form(""),
     material: str = Form(""),
-    report_style: str = Form("summary"),
     assembled: UploadFile = File(None),
     fragments: list[UploadFile] = File(None),
     rgb_images: list[UploadFile] = File(None),
@@ -298,18 +297,7 @@ def generate_report(
 
         전문가가 검수한 결과(오탐 제외, userNote 수정)를
         그대로 보내면 문안에 반영된다.
-
-    report_style
-        summary  - PPT 삽입용 요약본, 1500자 내외, 영역 5건
-        detailed - 공식 기록용 상세본, 9개 절, 영역 12건
     """
-    if report_style not in ("summary", "detailed"):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "report_style은 summary 또는 detailed여야 합니다."
-            ),
-        )
     if not config.OPENAI_API_KEY:
         raise HTTPException(
             status_code=503,
@@ -362,7 +350,7 @@ def generate_report(
             rgb_paths.append(p)
 
         print(
-            f"[LLM] style={report_style} | "
+            f"[LLM] practitioner-summary | "
             f"전체 {len(region_list)}건 | "
             f"결합본 {1 if assembled_path else 0} | "
             f"조각 {len(fragment_paths)} | "
@@ -376,7 +364,6 @@ def generate_report(
             rgb_paths=rgb_paths,
             artifact_type=artifact_type,
             material=material,
-            style=report_style,
         )
 
         print(

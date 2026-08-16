@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.vca.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.vca.domain.AssessmentRun;
 import com.aivle.conservation_backend.vca.dto.AssessmentRunResponseDto;
 import com.aivle.conservation_backend.vca.repository.AssessmentRunRepository;
@@ -26,10 +27,12 @@ public class AssessmentRunController {
     private static final List<String> ACTIVE_STATUSES = List.of("queued", "running");
 
     private final AssessmentRunRepository assessmentRunRepository;
+    private final ArtifactAccessService artifactAccessService;
 
     /** 진행 중(active) run이 있으면 409, 없으면 새 run을 만든다. */
     @PostMapping
     public ResponseEntity<AssessmentRunResponseDto> create(@PathVariable UUID artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
         if (assessmentRunRepository.existsByArtifactIdAndStatusIn(artifactId, ACTIVE_STATUSES)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "ACTIVE_RUN_EXISTS");
         }
@@ -46,6 +49,7 @@ public class AssessmentRunController {
     /** 최신순으로 이 유물의 run 전체를 돌려준다 - 409 났을 때 FE가 활성 run을 찾는 용도. */
     @GetMapping
     public ResponseEntity<List<AssessmentRunResponseDto>> list(@PathVariable UUID artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
         List<AssessmentRunResponseDto> runs = assessmentRunRepository
                 .findAllByArtifactIdOrderByRunNumberDesc(artifactId).stream()
                 .map(AssessmentRunResponseDto::from)
@@ -58,6 +62,7 @@ public class AssessmentRunController {
             @PathVariable UUID artifactId,
             @PathVariable UUID assessmentRunId
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         return assessmentRunRepository.findByIdAndArtifactId(assessmentRunId, artifactId)
                 .map(run -> ResponseEntity.ok(AssessmentRunResponseDto.from(run)))
                 .orElseGet(() -> ResponseEntity.notFound().build());

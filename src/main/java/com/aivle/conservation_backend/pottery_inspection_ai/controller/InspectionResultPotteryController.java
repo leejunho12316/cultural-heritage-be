@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.pottery_inspection_ai.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.pottery_inspection_ai.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.InspectionResultPotteryResponseDto;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -30,9 +32,11 @@ import java.util.UUID;
 public class InspectionResultPotteryController {
 
     private final AssessmentRunRepository assessmentRunRepository;
+    private final ArtifactAccessService artifactAccessService;
     private final InspectionResultPotteryRepository inspectionResultPotteryRepository;
 
     @PostMapping
+    @Transactional
     public ResponseEntity<InspectionResultPotteryResponseDto> save(
             @PathVariable UUID artifactId,
             @PathVariable UUID assessmentRunId,
@@ -49,6 +53,9 @@ public class InspectionResultPotteryController {
                         aiResult.detail()
                 )
         );
+
+        run.markCompleted();
+        assessmentRunRepository.save(run);
 
         return ResponseEntity.ok(InspectionResultPotteryResponseDto.from(saved));
     }
@@ -68,6 +75,7 @@ public class InspectionResultPotteryController {
     }
 
     private AssessmentRun requireRun(UUID artifactId, UUID assessmentRunId) {
+        artifactAccessService.requireArtifact(artifactId);
         return assessmentRunRepository.findByIdAndArtifactId(assessmentRunId, artifactId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "VCA 실행을 찾을 수 없습니다: " + assessmentRunId));

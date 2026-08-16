@@ -35,6 +35,22 @@ public class ReportDocumentService {
     private final ReportAiClient reportAiClient;
     private final S3PhotoStorageService photoStorageService;
 
+    /** 생성된 report_json만 먼저 저장한다. DOCX는 나중에 별도 저장한다. */
+    @Transactional
+    public ReportDocumentResponseDto saveJson(UUID artifactId, SaveReportRequestDto request) {
+        Artifact artifact = findArtifact(artifactId);
+
+        ReportDocument document = reportDocumentRepository.save(
+                ReportDocument.builder()
+                        .artifact(artifact)
+                        .reportJson(request.reportJson())
+                        .docxObjectKey(null)
+                        .build()
+        );
+
+        return toResponse(document);
+    }
+
     /**
      * 이미 만들어진(미리보기까지 끝난) report_json을 .docx로 변환해서
      * S3에 영구 저장하고, 그 결과를 DB에 기록한다. LLM은 재호출하지
@@ -83,7 +99,10 @@ public class ReportDocumentService {
     }
 
     private ReportDocumentResponseDto toResponse(ReportDocument document) {
-        String downloadUrl = photoStorageService.presignedUrl(document.getDocxObjectKey());
+        String objectKey = document.getDocxObjectKey();
+        String downloadUrl = objectKey == null || objectKey.isBlank()
+                ? null
+                : photoStorageService.presignedUrl(objectKey);
         return ReportDocumentResponseDto.of(document, downloadUrl);
     }
 }

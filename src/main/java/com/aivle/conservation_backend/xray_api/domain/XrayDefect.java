@@ -95,8 +95,17 @@ public class XrayDefect {
         return defect;
     }
 
-    public void changeReviewDecision(XrayDefectReviewDecision decision) {
+    public void updateReview(XrayDefectReviewDecision decision, String userNote) {
         this.reviewDecision = decision;
+        if (userNote != null) {
+            this.geometry = new LinkedHashMap<>(this.geometry);
+            String normalized = userNote.trim();
+            if (normalized.isEmpty()) {
+                this.geometry.remove("userNote");
+            } else {
+                this.geometry.put("userNote", normalized);
+            }
+        }
         this.updatedAt = Instant.now();
     }
 }

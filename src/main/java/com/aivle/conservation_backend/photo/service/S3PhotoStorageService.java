@@ -13,7 +13,9 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
-
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
@@ -32,13 +34,21 @@ public class S3PhotoStorageService {
 
     /** 기존 범용 임시 사진 업로드. 기존 화면 호환을 위해 그대로 유지한다. */
     public String upload(MultipartFile file) {
-        String key =
-                "wetting-photos/"
-                        + UUID.randomUUID()
-                        + "-"
-                        + file.getOriginalFilename();
+        return upload(null, file);
+    }
+
+    public String upload(UUID artifactId, MultipartFile file) {
+        String prefix = artifactId == null
+                ? "wetting-photos/"
+                : "artifacts/" + artifactId + "/uploads/";
+
+        String key = prefix
+                + UUID.randomUUID()
+                + "-"
+                + file.getOriginalFilename();
 
         uploadToS3(key, file);
+
         return presignedUrl(key);
     }
 
@@ -189,6 +199,28 @@ public class S3PhotoStorageService {
         }
 
         return extension;
+    }
+
+    public void deletePrefix(String prefix) {
+        if (prefix == null || prefix.isBlank()) {
+            return;
+        }
+
+        String continuationToken = null;
+        do {
+            ListObjectsV2Response response = s3Client.listObjectsV2(
+                    ListObjectsV2Request.builder()
+                            .bucket(bucket)
+                            .prefix(prefix)
+                            .continuationToken(continuationToken)
+                            .build()
+            );
+
+            response.contents().forEach(object -> delete(object.key()));
+            continuationToken = response.isTruncated()
+                    ? response.nextContinuationToken()
+                    : null;
+        } while (continuationToken != null);
     }
 
     public void delete(String key) {

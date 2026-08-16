@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.conservation_guide_ai.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.conservation_guide_ai.dto.TaskDetailResponseDto;
 import com.aivle.conservation_backend.conservation_guide_ai.service.TaskService;
 
@@ -25,9 +26,11 @@ import java.util.UUID;
 public class TaskLookupController {
 
     private final TaskService taskService;
+    private final ArtifactAccessService artifactAccessService;
 
     @GetMapping
     public TaskDetailResponseDto latest(@PathVariable UUID artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
         return TaskDetailResponseDto.from(taskService.getLatestTaskByArtifact(artifactId));
     }
 }

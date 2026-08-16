@@ -1,6 +1,7 @@
 package com.aivle.conservation_backend.artifact.dto;
 
 import com.aivle.conservation_backend.artifact.domain.Artifact;
+import com.aivle.conservation_backend.user.domain.User;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -30,8 +31,9 @@ public class AddArtifactRequest {
 
     private String treatmentPurpose;
 
-    public Artifact toEntity() {
+    public Artifact toEntity(User owner) {
         return Artifact.builder()
+                .owner(owner)
                 .name(name)
                 .category(category)
                 .material(material)

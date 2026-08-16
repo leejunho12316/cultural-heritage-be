@@ -7,4 +7,8 @@ import lombok.Getter;
 @Getter
 public class LoginResponse {
     private String token;
+    private String loginId;
+    private String email;
+    private String nickName;
+    private String role;
 }

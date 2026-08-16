@@ -1,14 +1,13 @@
 package com.aivle.conservation_backend.common.config;
 
 import com.aivle.conservation_backend.common.config.jwt.JwtAuthenticationFilter;
-import com.aivle.conservation_backend.user.service.UserDetailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -21,7 +20,6 @@ public class WebSecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http
@@ -29,6 +27,9 @@ public class WebSecurityConfig {
 
         return http
                 .csrf(csrf -> csrf.disable())
+
+                // WebConfig의 CORS 설정을 Spring Security에도 적용
+                .cors(Customizer.withDefaults())
 
                 .formLogin(form -> form.disable())
 
@@ -41,6 +42,13 @@ public class WebSecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
+
+                        // 브라우저 CORS preflight 요청은 인증 없이 허용
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/**"
+                        ).permitAll()
+
                         // 공지사항
                         .requestMatchers(
                                 HttpMethod.POST,
@@ -56,6 +64,24 @@ public class WebSecurityConfig {
                                 HttpMethod.DELETE,
                                 "/api/notices/**"
                         ).hasRole("ADMIN")
+
+                        // 유물/AI 워크스페이스는 로그인 사용자만 접근
+                        .requestMatchers("/api/artifacts/**").authenticated()
+                        .requestMatchers("/api/vca/**").authenticated()
+                        .requestMatchers("/api/reports/**").authenticated()
+
+                        // X-Ray health/callback은 인프라 및 AI callback 용도로 예외
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/xray/health"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/xray/stitch/callback"
+                        ).permitAll()
+
+                        .requestMatchers("/api/xray/**").authenticated()
 
                         // 회원 탈퇴는 로그인 필요
                         .requestMatchers(
@@ -100,12 +126,10 @@ public class WebSecurityConfig {
                 )
 
                 .build();
-
-
     }
 
     @Bean
-    public BCryptPasswordEncoder bCryptPasswordEncoder(){
+    public BCryptPasswordEncoder bCryptPasswordEncoder() {
         return new BCryptPasswordEncoder();
     }
 }
