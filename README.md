@@ -127,6 +127,96 @@ VCA는 이상 유형 판정 근거로 문헌 PDF corpus를 검색한다. `vca-ai
 문서를 추가/삭제하려면 `GET`/`POST`/`DELETE /api/vca/corpus/pdfs`를
 쓴다.
 
+### AWS 배포
+
+AWS 인프라(EKS 클러스터/RDS/ALB 등)가 이미 있다는 전제로, VCA가 쓰는
+설정값을 어떻게 채우는지만 다룬다. 클러스터/RDS 최초 구축 절차는
+`ai-services/README-cloud*.md` 참고.
+
+매니페스트(`k8s/app.yaml`) 자체는 거의 건드릴 일이 없다 - 값이
+바뀌는 것들(호스트 주소, 토큰)은 대부분 `app-secrets`(k8s Secret)에서
+`secretKeyRef`/`envFrom`으로 읽으므로, 시크릿 값만 갱신하고
+재시작하면 된다.
+
+```bash
+kubectl create secret generic app-secrets --from-env-file=.env.k8s \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl rollout restart deployment/conservation-backend
+```
+
+VCA는 GPU가 필요한 무거운 파이프라인이라, `vca-ai`를 **클러스터
+안**에서 돌릴지 **클러스터 밖 GPU 호스트(RunPod 등)에 위탁**할지를
+골라야 한다. 이 선택이 `app-secrets`의 `VCA_AI_BASE_URL` 하나로
+갈린다 - BE 코드/매니페스트 자체는 두 경우 다 안 바뀐다.
+
+**클러스터 내부에서 돌릴 때**
+
+```
+app-secrets: VCA_AI_BASE_URL=http://vca-ai:8000
+```
+
+```bash
+kubectl apply -f k8s/app.yaml -f k8s/vca-ai-internal.yaml
+```
+
+**외부 GPU 호스트(RunPod 등)에 위탁할 때**
+
+```
+app-secrets: VCA_AI_BASE_URL=https://<pod-id>-8000.proxy.runpod.net
+app-secrets: VCA_AI_ACCESS_TOKEN=<값 채우기>
+```
+
+```bash
+kubectl apply -f k8s/app.yaml
+# 이미 내부 모드로 떠 있던 걸 전환하는 거라면 기존 vca-ai Deployment/Service도 정리:
+kubectl delete -f k8s/vca-ai-internal.yaml
+```
+
+> ⚠️ `VCA_AI_ACCESS_TOKEN`을 채워서 BE는 `X-VCA-Access-Token` 헤더를
+> 보내지만, `ai-services/vca-ai/app/`(FastAPI)에는 이 헤더를 실제로
+> 검사하는 코드가 아직 없다. 외부 위탁으로 vca-ai를 인터넷에 실제
+> 노출할 계획이면, 배포 전에 vca-ai 쪽에 토큰 검증 미들웨어를 먼저
+> 추가할 것 - 안 그러면 URL만 아는 누구든 분석 엔드포인트를 인증
+> 없이 호출할 수 있다.
+
+**`conservation-backend`가 `app-secrets`로 받는 값**
+
+| 변수 | 설명 |
+|---|---|
+| `VCA_AI_BASE_URL` | vca-ai 위치. 재배정/전환마다 이 값만 갱신하면 됨. |
+| `VCA_AI_ACCESS_TOKEN` | BE→vca-ai 공유 시크릿. 외부 위탁일 때만 실질적 의미 있음(위 경고 참고). |
+| `VCA_ACCESS_TOKEN` | `/api/vca/**` 게이트웨이 토큰. 없으면 Spring이 기동 시점에 바로 실패한다. FE `VITE_VCA_ACCESS_TOKEN`과 정확히 같은 값이어야 함. |
+| `JWT_SECRET` | 로그인 세션 JWT 서명 키. 없으면 기동 실패. |
+
+**로컬 docker-compose엔 있는데 EKS 매니페스트엔 없는 값들**
+
+`VCA_SHARED_STORAGE_ROOT`/`VCA_SHARED_STORAGE_CONTAINER_ROOT`와
+`AWS_S3_ENDPOINT`/`AWS_S3_PRESIGN_ENDPOINT`/`AWS_S3_INTERNAL_PRESIGN_ENDPOINT`는
+k8s에 없다 - 로컬은 이미지를 로컬 디스크(bind mount)로 vca-ai에
+넘기지만, EKS는 presigned URL로 vca-ai가 S3에서 직접 내려받는다
+(`VcaS3ImageStorage.materializeRunInput`, vca-ai 쪽
+`app/services/remote_io.py`) - EFS 같은 공유 볼륨 자체가 필요 없는
+구조다. 로컬 MinIO를 흉내낼 때만 필요했던 "컨테이너 전용
+호스트명이라 외부에서 못 찾는" 문제도 진짜 AWS S3에서는 발생하지
+않는다 - 실제 S3 엔드포인트는 클러스터 안이든 RunPod 팟이든 어디서나
+똑같이 열리는 공개 HTTPS 주소이기 때문이다.
+
+**`vca-ai`가 클러스터 내부 모드일 때 쓰는 값** (`k8s/vca-ai-internal.yaml`)
+
+| 변수 | 값 | 설명 |
+|---|---|---|
+| `VCA_DEVICE` | `auto` | GPU 자동 감지. Pod가 실제 GPU 노드에 스케줄되지 않으면 CPU로 떨어짐. |
+| `VCA_RUN_MODE` | `real` | `dry-run`이면 실제 모델 호출 없이 파이프라인 흐름만 검증. |
+| `VCA_MAX_IMAGES` | `1` | run당 처리할 이미지 수 제한. |
+| `VCA_RUN_TIMEOUT_SECONDS` | `3600` | 엔진 자체 타임아웃(BE의 `VCA_AI_TIMEOUT_SECONDS=3900`보다 짧게 잡아, BE가 먼저 끊기기 전에 엔진이 정상 종료되도록). |
+| `VCA_MODEL_CACHE_ROOT` | `/opt/vca-models/models` | 모델 가중치 캐시 경로 - `emptyDir` 볼륨이라 Pod 재시작마다 초기화됨(영속 볼륨 전환 여부 미정). |
+| `VCA_DOCUMENT_CORPUS_DIR` | `/opt/vca-data/document` | RAG 근거 문헌 corpus 경로. `rag` 스테이지가 필수로 요구하며 없으면 예외 발생. |
+| `VCA_BOOTSTRAP_MODELS` | `false` | `true`면 기동 시 모델을 새로 받음 - `emptyDir`과 조합하면 재시작마다 다시 받음. |
+| `VCA_RAG_CORPUS_ARCHIVE_URL` | `""` | 비워두면 RAG 근거(citation) 없이 동작. |
+
+외부 위탁 모드일 때는 이 값들을 그 GPU 호스트(RunPod 팟 등) 쪽에서
+직접 설정한다 - k8s 매니페스트와 무관.
+
 ---
 
 ## 실행
