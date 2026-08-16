@@ -74,7 +74,7 @@ vca:
   s3:
     object-prefix: ${VCA_S3_OBJECT_PREFIX:vca/images}
   ai:
-    base-url: ${VCA_AI_BASE_URL:http://localhost:8002}
+    base-url: ${VCA_AI_BASE_URL:http://localhost:8004}
     timeout-seconds: ${VCA_AI_TIMEOUT_SECONDS:150}
     # BE -> vca-ai 호출에 실어 보내는 공유 시크릿. vca-ai가 인터넷에 공개
     # 노출된 경우(RunPod 등 외부 위탁)에만 실질적인 의미가 있다 - 같은

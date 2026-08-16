@@ -42,7 +42,7 @@
 | ---------- | ------------- |
 | PostgreSQL | `postgres:16` |
 
-`postgres`(LangGraph 체크포인터 + 앱 DB), `conservation-guide-ai`(FastAPI, 8000), `xray-ai`(FastAPI, 8001), `vca-ai`(FastAPI, 8002), `pottery-inspection-ai`(FastAPI, 8003), `conservation-backend`(Spring, 8080) 컨테이너로 구성.
+`postgres`(LangGraph 체크포인터 + 앱 DB), `conservation-guide-ai`(FastAPI, 8000), `xray-ai`(FastAPI, 8001), `pottery-inspection-ai`(FastAPI, 8003), `vca-ai`(FastAPI, 8004), `conservation-backend`(Spring, 8080) 컨테이너로 구성.
 
 ---
 
@@ -80,11 +80,11 @@
 | 서비스                  | 역할                                              | 포트 |
 | ----------------------- | ------------------------------------------------- | ---- |
 | `conservation-backend`  | Spring. 모든 요청의 관문                          | 8080 |
-| `vca-ai`                | `vca_v2` 파이프라인 어댑터(FastAPI)               | 8002 |
 | `pottery-inspection-ai` | 도자기 재질 유물 후속 검사(완전성/유약/시대/문양) | 8003 |
+| `vca-ai`                | `vca_v2` 파이프라인 어댑터(FastAPI)               | 8004 |
 
 실제 요청 경로는 Spring이 Docker 내부 네트워크로 `vca-ai:8000`/
-`pottery-inspection-ai:8000`을 호출하는 것이다. 위 8002/8003 host port는
+`pottery-inspection-ai:8000`을 호출하는 것이다. 위 8003/8004 host port는
 디버깅용으로만 열려 있다.
 
 ### 분석 흐름
