@@ -1,0 +1,41 @@
+{
+  "schema_version": "vca-shared-model-inventory-v1",
+  "models": [
+    {
+      "key": "owlv2_sam2.detector",
+      "repo_id": "google/owlv2-base-patch16-ensemble",
+      "revision": "sha256:b0e1c87eeecad23b816cd1f26a6ba14bb54d41a399c895ce4ae73ae5125bd44a",
+      "local_dir": "models/hf/google/owlv2-base-patch16-ensemble"
+    },
+    {
+      "key": "florence2_sam2.detector",
+      "repo_id": "microsoft/Florence-2-base",
+      "revision": "sha256:335d57ff34b7b80a200e7ef22ae999643a31ca7767bf7e3f52022721ad7724a7",
+      "local_dir": "models/hf/microsoft/Florence-2-base"
+    },
+    {
+      "key": "grounded_sam2.detector",
+      "repo_id": "IDEA-Research/grounding-dino-base",
+      "revision": "sha256:e3f2355ee634388c17c5fb1c522b64a2870a0f0b88016f224a0c1305bf67069c",
+      "local_dir": "models/hf/IDEA-Research/grounding-dino-base"
+    },
+    {
+      "key": "sam2.segmenter",
+      "repo_id": "facebook/sam2-hiera-large",
+      "revision": "sha256:f41466bb56f059614f97e14b71c63f84a2b96022175d26a9fd6291b40be7fd5a",
+      "local_dir": "models/hf/facebook/sam2-hiera-large"
+    },
+    {
+      "key": "qwen2.5-vl.visual",
+      "repo_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "local_dir": "models/hf/Qwen/Qwen2.5-VL-3B-Instruct"
+    },
+    {
+      "key": "rag.text_embedding",
+      "repo_id": "intfloat/multilingual-e5-small",
+      "revision": "fd1525a9fd15316a2d503bf26ab031a61d056e98",
+      "local_dir": "models/hf/intfloat/multilingual-e5-small"
+    }
+  ]
+}

@@ -1,10 +1,19 @@
 services:
+  # postgres/minio/minio-init are local-only stand-ins for the real AWS RDS
+  # + S3 that production (AWS EKS, see ai-services/README-cloud3.md) uses
+  # instead - tagged with the "local" profile so docker-compose.prod.yml can
+  # exclude them by not activating that profile. COMPOSE_PROFILES=local in
+  # .env.example keeps plain `docker compose up` behaving exactly as before
+  # for local dev.
   postgres:
     image: postgres:16
+    profiles: ["local"]
     environment:
       POSTGRES_DB: conservation
       POSTGRES_USER: conservation
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -12,6 +21,35 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    profiles: ["local"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    profiles: ["local"]
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c '
+      until /usr/bin/mc alias set local http://minio:9000 "$${AWS_ACCESS_KEY_ID}" "$${AWS_SECRET_ACCESS_KEY}"; do sleep 2; done;
+      /usr/bin/mc mb --ignore-existing "local/$${AWS_S3_BUCKET}";
+      /usr/bin/mc anonymous set none "local/$${AWS_S3_BUCKET}";
+      '
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
 
   conservation-guide-ai:
     build: ./ai-services/conservation-guide-ai
@@ -65,6 +103,38 @@ services:
       start_period: 120s
       retries: 3
 
+  vca-ai:
+    build: ./ai-services/vca-ai
+    environment:
+      VCA_SHARED_STORAGE_ROOT: /vca_v2/output/input
+      VCA_ENGINE_ROOT: /vca_v2
+      VCA_RUN_TIMEOUT_SECONDS: "3600"
+      VCA_RUN_MODE: ${VCA_RUN_MODE:-real}
+      VCA_DEVICE: auto
+      VCA_MAX_IMAGES: "1"
+      VCA_SKIP_VISUAL_CUES: ${VCA_SKIP_VISUAL_CUES:-false}
+      VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES: ${VCA_LOCAL_ALLOW_UNVERIFIED_MODEL_HASHES:-false}
+      VCA_MODEL_CACHE_ROOT: /opt/vca-models/models
+      VCA_DOCUMENT_CORPUS_DIR: /opt/vca-data/document
+      VCA_BOOTSTRAP_MODELS: ${VCA_BOOTSTRAP_MODELS:-false}
+      VCA_RAG_CORPUS_ARCHIVE_URL: ${VCA_RAG_CORPUS_ARCHIVE_URL:-}
+      UV_PROJECT_ENVIRONMENT: /opt/vca-uv-env
+      UV_CACHE_DIR: /opt/vca-uv-cache
+      UV_FROZEN: "true"
+    ports:
+      - "8004:8000"
+    volumes:
+      - ./shared:/shared
+      - ./shared/vca/engine-output:/vca_v2/output
+      - ./shared/vca/input-store:/vca_v2/output/input
+      - ${VCA_HOST_DOCUMENT_CORPUS:-./shared/vca/document-corpus}:/opt/vca-data/document:ro
+      - vca_uv_cache:/opt/vca-uv-cache
+      - vca_model_cache:/opt/vca-models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   report-ai:
     build: ./ai-services/report-ai
@@ -100,12 +170,32 @@ services:
     build: .
     environment:
       CONSERVATION_GUIDE_AI_BASE_URL: http://conservation-guide-ai:8000
+      # 기본값(vca-ai를 이 compose 파일의 컨테이너로 같이 띄우는 모드)은
+      # http://vca-ai:8000 - docker-compose.local-vca.override.yml/
+      # docker-compose.remote-vca.override.yml을 추가로 -f하면 그쪽에서
+      # 같은 VCA_AI_BASE_URL 키를 다시 정의해 이 기본값을 덮어쓴다
+      # (k8s의 app-secrets가 쓰는 키 이름과 동일하게 맞춰둠).
+      VCA_AI_BASE_URL: ${VCA_AI_BASE_URL:-http://vca-ai:8000}
+      VCA_AI_TIMEOUT_SECONDS: "3900"
+      VCA_ACCESS_TOKEN: ${VCA_ACCESS_TOKEN:?VCA_ACCESS_TOKEN is required for /api/vca}
+      # application.yaml의 jwt.secret-key(${JWT_SECRET})는 기본값이 없어
+      # 이 값이 없으면 컨테이너가 기동조차 못 한다. 로컬 개발용 기본값만
+      # 두고, 운영 배포에서는 .env/시크릿으로 반드시 덮어쓴다.
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-jwt-secret-change-me}
+      VCA_SHARED_STORAGE_ROOT: /shared/vca/input-store
+      VCA_SHARED_STORAGE_CONTAINER_ROOT: /vca_v2/output/input
+      VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
+      VCA_DOCUMENT_CORPUS_ROOT: /shared/vca/document-corpus
       POTTERY_INSPECTION_AI_BASE_URL: http://pottery-inspection-ai:8000
       REPORT_AI_BASE_URL: http://report-ai:8000
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
+      AWS_S3_PRESIGN_ENDPOINT: ${AWS_S3_PRESIGN_ENDPOINT:-${AWS_S3_ENDPOINT}}
+      AWS_S3_PATH_STYLE_ACCESS_ENABLED: ${AWS_S3_PATH_STYLE_ACCESS_ENABLED:-false}
+      VCA_S3_OBJECT_PREFIX: ${VCA_S3_OBJECT_PREFIX:-vca/images}
       XRAY_AI_BASE_URL: http://xray-ai:8000
       XRAY_AI_TIMEOUT_SECONDS: "300"
       XRAY_AI_CONFIG_NAME: config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json
@@ -113,14 +203,23 @@ services:
       XRAY_STITCH_CALLBACK_TOKEN: ${XRAY_STITCH_CALLBACK_TOKEN:-}
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/conservation}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-conservation}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      # SPRING_DATASOURCE_PASSWORD가 .env에 아예 없으면(예: 이 변수가 새로
+      # 생기기 전 .env를 아직 안 맞춘 경우) Compose가 빈 문자열을 그대로
+      # 채워넣는데, application.yaml의 ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:}}
+      # 폴백은 변수가 "존재하되 비어있음"일 때는 안 먹힌다(완전히 없을 때만
+      # 폴백함) - 그래서 여기서 미리 POSTGRES_PASSWORD로 폴백해둔다.
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-${POSTGRES_PASSWORD}}
       APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:3000
     depends_on:
       postgres:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
       conservation-guide-ai:
         condition: service_started
       xray-ai:
+        condition: service_started
+      vca-ai:
         condition: service_started
       pottery-inspection-ai:
         condition: service_started
@@ -128,7 +227,18 @@ services:
         condition: service_started
     ports:
       - "8080:8080"
+    volumes:
+      # VcaS3ImageStorage.materializeRunInput가 VCA_SHARED_STORAGE_ROOT
+      # (/shared/vca/input-store) 밑에 run 입력 이미지를 실제 로컬 파일로
+      # 써야 vca-ai 컨테이너가 같은 호스트 디렉터리(./shared/vca/input-store →
+      # /vca_v2/output/input)에서 읽을 수 있다. 이 마운트가 없으면 컨테이너
+      # 자체 파일시스템에만 쓰고 사라져서, vca-ai가 "폴더 없음"으로 매번
+      # 400을 던진다 - S3에 이미지가 있어도 이 로컬 핸드오프 단계는 필요하다.
+      - ./shared:/shared
 
 volumes:
   pgdata:
+  minio_data:
+  vca_uv_cache:
+  vca_model_cache:
   pottery_hf_cache:

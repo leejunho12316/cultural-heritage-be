@@ -9,7 +9,6 @@ import com.aivle.conservation_backend.artifact.repository.ArtifactRepository;
 import com.aivle.conservation_backend.conservation_guide_ai.domain.Task;
 import com.aivle.conservation_backend.conservation_guide_ai.repository.TaskRepository;
 import com.aivle.conservation_backend.photo.service.S3PhotoStorageService;
-import com.aivle.conservation_backend.pottery_inspection_ai.repository.InspectionResultPotteryRepository;
 import com.aivle.conservation_backend.report_ai.domain.ReportDocument;
 import com.aivle.conservation_backend.report_ai.repository.ReportDocumentRepository;
 import com.aivle.conservation_backend.vca.domain.AssessmentRun;
@@ -17,6 +16,7 @@ import com.aivle.conservation_backend.vca.domain.ReportPdfJob;
 import com.aivle.conservation_backend.vca.domain.UploadedImage;
 import com.aivle.conservation_backend.vca.repository.AssessmentReportRepository;
 import com.aivle.conservation_backend.vca.repository.AssessmentRunRepository;
+import com.aivle.conservation_backend.vca.repository.InspectionResultPotteryRepository;
 import com.aivle.conservation_backend.vca.repository.ReportPdfJobRepository;
 import com.aivle.conservation_backend.vca.repository.UploadedImageRepository;
 import com.aivle.conservation_backend.xray_api.domain.S3FileRecord;
@@ -192,17 +192,19 @@ public class ArtifactService {
         // 육안조사 run 및 run 하위 결과
         List<AssessmentRun> runs = assessmentRunRepository.findAllByArtifactIdOrderByRunNumberDesc(artifactId);
         for (AssessmentRun run : runs) {
+            // run이 이미 findAllByArtifactIdOrderByRunNumberDesc로 이 artifactId
+            // 소유임이 확인됐으므로, 아래 두 조회는 run.getId()만으로 충분하다.
             inspectionResultPotteryRepository
-                    .findFirstByAssessmentRun_IdAndAssessmentRun_ArtifactIdOrderByCreatedAtDesc(
-                            run.getId(), artifactId
-                    )
+                    .findByAssessmentRunId(run.getId())
                     .ifPresent(inspectionResultPotteryRepository::delete);
 
+            // AssessmentReport의 @Id가 assessment_run_id 자체(run당 1행)라서
+            // findById가 그대로 대응된다.
             assessmentReportRepository
-                    .findByAssessmentRun_IdAndAssessmentRun_ArtifactId(run.getId(), artifactId)
+                    .findById(run.getId())
                     .ifPresent(assessmentReportRepository::delete);
 
-            List<ReportPdfJob> pdfJobs = reportPdfJobRepository.findAllByAssessmentRun_Id(run.getId());
+            List<ReportPdfJob> pdfJobs = reportPdfJobRepository.findAllByAssessmentRunId(run.getId());
             pdfJobs.stream()
                     .map(ReportPdfJob::getPdfObjectKey)
                     .filter(key -> key != null && !key.isBlank())

@@ -1,0 +1,8 @@
+# Copy this file to .models to override workspace-local model paths.
+# Relative paths are resolved from the workspace root.
+VCA_MODEL_OWLV2_SAM2_DETECTOR_PATH=models/hf/google/owlv2-base-patch16-ensemble
+VCA_MODEL_FLORENCE2_SAM2_DETECTOR_PATH=models/hf/microsoft/Florence-2-base
+VCA_MODEL_GROUNDED_SAM2_DETECTOR_PATH=models/hf/IDEA-Research/grounding-dino-base
+VCA_MODEL_SAM2_SEGMENTER_PATH=models/hf/facebook/sam2-hiera-large
+VCA_MODEL_QWEN2_5_VL_VISUAL_PATH=models/hf/Qwen/Qwen2.5-VL-3B-Instruct
+VCA_MODEL_RAG_TEXT_EMBEDDING_PATH=models/hf/intfloat/multilingual-e5-small

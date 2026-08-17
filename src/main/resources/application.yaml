@@ -29,6 +29,7 @@ conservation-guide-ai:
 
 pottery-inspection-ai:
   base-url: ${POTTERY_INSPECTION_AI_BASE_URL:http://localhost:8003}
+  timeout-seconds: ${POTTERY_INSPECTION_AI_TIMEOUT_SECONDS:150}
 
 report-ai:
   base-url: ${REPORT_AI_BASE_URL:http://localhost:8002}
@@ -40,6 +41,14 @@ aws:
   secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
   s3:
     bucket: ${AWS_S3_BUCKET:}
+    # Local MinIO stand-in for S3 (see S3Config) - real AWS leaves these
+    # blank and talks to the region default instead.
+    endpoint: ${AWS_S3_ENDPOINT:}
+    presign-endpoint: ${AWS_S3_PRESIGN_ENDPOINT:${AWS_S3_ENDPOINT:}}
+    # vca-ai가 컨테이너 네트워크 밖(다른 머신, 예: RunPod)에 있을 때만 필요 -
+    # 비워두면 aws.s3.endpoint를 그대로 쓴다(S3Config.internalS3Presigner 참고).
+    internal-presign-endpoint: ${AWS_S3_INTERNAL_PRESIGN_ENDPOINT:${AWS_S3_ENDPOINT:}}
+    path-style-access-enabled: ${AWS_S3_PATH_STYLE_ACCESS_ENABLED:false}
 
 xray:
   s3:
@@ -54,6 +63,27 @@ xray:
     callback-url: ${XRAY_STITCH_CALLBACK_URL:http://localhost:8080/api/xray/stitch/callback}
     callback-token: ${XRAY_STITCH_CALLBACK_TOKEN:}
     finalization-wait-seconds: ${XRAY_FINALIZATION_WAIT_SECONDS:300}
+
+vca:
+  access-token: ${VCA_ACCESS_TOKEN}
+  # 기본 false면 SIGNED_PUT 경로를 사용한다. S3/object verifier가 없는
+  # 로컬 in-memory 테스트에서만 VCA_LOCAL_DIRECT_COMPLETE_ENABLED=true로 켠다.
+  local-direct-complete-enabled: ${VCA_LOCAL_DIRECT_COMPLETE_ENABLED:false}
+  storage:
+    local-root: ${VCA_SHARED_STORAGE_ROOT:./shared/vca}
+    container-root: ${VCA_SHARED_STORAGE_CONTAINER_ROOT:${VCA_SHARED_STORAGE_ROOT:./shared/vca}}
+    engine-output-root: ${VCA_ENGINE_OUTPUT_ROOT:./shared/vca/engine-output}
+    document-corpus-root: ${VCA_DOCUMENT_CORPUS_ROOT:./shared/vca/document-corpus}
+  s3:
+    object-prefix: ${VCA_S3_OBJECT_PREFIX:vca/images}
+  ai:
+    base-url: ${VCA_AI_BASE_URL:http://localhost:8004}
+    timeout-seconds: ${VCA_AI_TIMEOUT_SECONDS:150}
+    # BE -> vca-ai 호출에 실어 보내는 공유 시크릿. vca-ai가 인터넷에 공개
+    # 노출된 경우(RunPod 등 외부 위탁)에만 실질적인 의미가 있다 - 같은
+    # 클러스터 안에서만 닿을 수 있으면 비워둬도 되지만(vca-ai 쪽도 비어있으면
+    # 검증을 건너뜀), 외부에 노출하는 배포에서는 반드시 채울 것.
+    access-token: ${VCA_AI_ACCESS_TOKEN:}
 
 jwt:
   issuer: ${JWT_ISSUER:vora}

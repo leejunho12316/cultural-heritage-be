@@ -1,0 +1,14 @@
+.venv
+.pytest_cache
+tests
+**/__pycache__
+**/.omo
+**/*.pyc
+engine/.venv
+engine/output
+engine/models/hf
+engine/models/rag
+engine/.models
+engine/.pytest_cache
+engine/**/tests
+engine/**/test_*.py

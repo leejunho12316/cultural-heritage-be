@@ -1,7 +1,7 @@
 package com.aivle.conservation_backend.report_ai.service;
 
-import com.aivle.conservation_backend.pottery_inspection_ai.domain.InspectionResultPottery;
-import com.aivle.conservation_backend.pottery_inspection_ai.repository.InspectionResultPotteryRepository;
+import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
+import com.aivle.conservation_backend.vca.repository.InspectionResultPotteryRepository;
 import com.aivle.conservation_backend.vca.domain.AssessmentRun;
 import com.aivle.conservation_backend.vca.repository.AssessmentRunRepository;
 
@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,14 @@ class PotterySourceAdapterTest {
     }
 
     private AssessmentRun run(UUID id, UUID artifactId, int runNumber) {
-        return AssessmentRun.create(id, artifactId, runNumber, null, false, null, null);
+        return AssessmentRun.builder()
+                .id(id)
+                .artifactId(artifactId)
+                .runNumber(runNumber)
+                .status("queued")
+                .dryRun(false)
+                .progressPercent(0)
+                .build();
     }
 
     @Test
@@ -62,9 +70,7 @@ class PotterySourceAdapterTest {
         when(assessmentRunRepository.findAllByArtifactIdOrderByRunNumberDesc(artifactId))
                 .thenReturn(List.of(latestRun));
         when(inspectionResultPotteryRepository
-                .findFirstByAssessmentRun_IdAndAssessmentRun_ArtifactIdOrderByCreatedAtDesc(
-                        latestRun.getId(), artifactId
-                ))
+                .findByAssessmentRunId(latestRun.getId()))
                 .thenReturn(Optional.empty());
 
         Optional<PotterySourceAdapter.PotterySource> result = adapter().resolve(artifactId.toString());
@@ -82,20 +88,19 @@ class PotterySourceAdapterTest {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("crack_ratio", 0.12);
 
-        InspectionResultPottery inspection = InspectionResultPottery.create(
-                UUID.randomUUID(),
-                latestRun,
-                "표면에 미세한 균열이 다수 관찰됨.",
-                true,
-                detail
-        );
+        InspectionResultPottery inspection = InspectionResultPottery.builder()
+                .id(UUID.randomUUID())
+                .assessmentRunId(latestRun.getId())
+                .inspectionText("표면에 미세한 균열이 다수 관찰됨.")
+                .humanReviewRecommended(true)
+                .detail(detail)
+                .createdAt(Instant.now())
+                .build();
 
         when(assessmentRunRepository.findAllByArtifactIdOrderByRunNumberDesc(artifactId))
                 .thenReturn(List.of(latestRun, olderRun));
         when(inspectionResultPotteryRepository
-                .findFirstByAssessmentRun_IdAndAssessmentRun_ArtifactIdOrderByCreatedAtDesc(
-                        latestRun.getId(), artifactId
-                ))
+                .findByAssessmentRunId(latestRun.getId()))
                 .thenReturn(Optional.of(inspection));
 
         Optional<PotterySourceAdapter.PotterySource> result = adapter().resolve(artifactId.toString());

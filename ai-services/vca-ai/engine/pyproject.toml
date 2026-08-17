@@ -1,0 +1,106 @@
+[project]
+name = "vca-v2"
+version = "0.1.0"
+description = "Artifact visual inspection pipeline workspace."
+requires-python = ">=3.13"
+dependencies = [
+    "pdfminer-six>=20260107",
+    "psycopg[binary]>=3.2",
+    "sqlalchemy>=2.0",
+]
+
+[dependency-groups]
+dev = [
+    { include-group = "vision" },
+    "basedpyright>=1.31",
+    "pytest>=8.0",
+    "ruff>=0.12",
+]
+vision = [
+    "accelerate>=1.14.0",
+    "einops>=0.8.2",
+    "groundingdino-py>=0.4.0",
+    "huggingface-hub>=0.34,<1",
+    "numpy>=2.5.1",
+    "opencv-python-headless>=5.0.0.93",
+    "pillow>=12.3.0",
+    "safetensors>=0.8.0",
+    "sam2>=1.1.0",
+    "scipy>=1.18.0",
+    "timm>=1.0.28",
+    "torch>=2.13.0",
+    "torchvision>=0.28.0",
+    "transformers>=4.56,<5",
+]
+
+[tool.uv]
+package = false
+# groundingdino-py가 opencv-python(GUI 포함판, libxcb 등 X11 라이브러리 필요)을
+# 전이적으로 요구해서, 우리가 명시한 opencv-python-headless와 같은 cv2
+# 네임스페이스를 두고 충돌한다. 이 override로 opencv-python 요구를 무력화해
+# headless만 설치되게 한다 - anomaly_grouping이 쓰는 cv2 API(findContours,
+# arcLength)는 순수 수치 연산이라 GUI 바인딩이 애초에 필요 없다.
+override-dependencies = ["opencv-python; python_version < '0'"]
+
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.13"
+pythonPlatform = "All"
+include = ["modules"]
+exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist"]
+reportUnusedCallResult = "warning"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnusedVariable = "error"
+reportMissingParameterType = "error"
+reportPrivateUsage = "error"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["modules"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",
+    "CPY001",
+    "D203",
+    "D213",
+    "FBT001",
+    "FBT002",
+    "FIX002",
+    "ISC001",
+    "TD002",
+    "TD003",
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"modules/**/__init__.py" = [
+    "D104",
+]
+"modules/**/test_*.py" = [
+    "D",
+    "PLR2004",
+    "S101",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["modules"]
+addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
+]
+filterwarnings = ["error"]

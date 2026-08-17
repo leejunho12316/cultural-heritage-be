@@ -1,0 +1,82 @@
+# RunPod GPU 팟에서 돌릴 때 쓰는 오버라이드입니다. 단독으로 쓰지 말고
+# docker-compose.yml과 함께 -f 두 개로 얹어서 씁니다:
+#
+#   docker compose --profile local \
+#     -f docker-compose.yml -f docker-compose.runpod.yml \
+#     up --build -d
+#
+# 이 파일이 하는 일은 딱 하나, vca-ai 컨테이너에 GPU를 붙여주는 것뿐입니다.
+#
+# pottery-inspection-ai는 여기서 GPU를 안 붙입니다 - Dockerfile이
+# `PIP_EXTRA_INDEX_URL=.../whl/cpu`로 torch 자체를 CPU 전용 빌드로 고정
+# 설치하기 때문에, device를 붙여줘도 torch.cuda.is_available()이 항상
+# False라 아무 효과가 없습니다(ai-services/pottery-inspection-ai/Dockerfile
+# 참고). GPU 가속이 필요해지면 그 Dockerfile의 CPU 인덱스 지정을 먼저
+# 걷어내야 합니다 - 지금은 "동작 확인"이 목적이라 그대로 CPU로 둡니다.
+#
+# xray-ai도 XRAY_DEVICE=cpu로 코드가 고정하고 있어 GPU를 안 붙입니다.
+#
+# 아래 volumes 오버라이드들은 원래 docker-compose.yml에서 익명 named volume
+# (pgdata/minio_data/vca_model_cache/vca_uv_cache/pottery_hf_cache)이던 걸
+# RunPod 네트워크 볼륨의 마운트 경로(RUNPOD_VOLUME_PATH, 기본 /workspace)
+# 밑 실제 디렉터리로 바꾼다. 이유: named volume은 Container Disk(팟을 지우면
+# 같이 날아가는 임시 저장소) 위에 있어서, 이렇게 안 바꾸면 Qwen2.5-VL 등
+# ~11GB 모델을 팟을 새로 만들 때마다 다시 받아야 한다 - 네트워크 볼륨에
+# 박아둬야 재기동/재생성 후에도 그대로 남는다.
+# 실행 전에 mkdir -p로 하위 디렉터리를 미리 만들어 둬야 한다
+# (scripts/runpod-bootstrap.sh 3단계가 해준다).
+#
+# engine-output(vca-ai의 파이프라인 중간 산출물: rough_masking/rag/
+# mask_refining 등 스테이지별 마스크·크롭·레코드)만은 정반대로 로컬 팟
+# 디스크(RUNPOD_LOCAL_SCRATCH_PATH, 기본 /var/lib/vca-local)로 강제한다.
+# 이유: RunPod 네트워크 볼륨은 FUSE(MooseFS) 마운트라 파일 수천 개짜리
+# 재귀 스캔(예: transformers 지연 임포트, rag의 rough_masking 레코드 glob)
+# 하나하나가 네트워크 왕복을 먹어서 실측 몇 분씩 걸린다 - 실제로 이 문제로
+# rough_masking 초반이 3~4분씩 멈춰 있던 걸 이 경로 하나 옮기는 것만으로
+# 확인했다. engine-output은 런이 끝나면 버려도 되는 산출물이라 지워져도
+# 되므로, base docker-compose.yml처럼 ./shared 밑(=저장소 클론 위치, 보통
+# 네트워크 볼륨)에 둘 이유가 없다. conservation-backend도 같은 디렉터리를
+# /shared 전체 마운트를 통해 읽으므로, 그 안쪽 경로만 같은 로컬 디렉터리로
+# 덮어써 둘을 동기화한다.
+
+services:
+  vca-ai:
+    environment:
+      VCA_DEVICE: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ${RUNPOD_VOLUME_PATH:-/workspace}/vca-uv-cache:/opt/vca-uv-cache
+      - ${RUNPOD_VOLUME_PATH:-/workspace}/vca-models:/opt/vca-models
+      - ${RUNPOD_LOCAL_SCRATCH_PATH:-/var/lib/vca-local}/engine-output:/vca_v2/output
+
+  pottery-inspection-ai:
+    volumes:
+      - ${RUNPOD_VOLUME_PATH:-/workspace}/pottery-hf-cache:/root/.cache/huggingface
+
+  postgres:
+    volumes:
+      - ${RUNPOD_VOLUME_PATH:-/workspace}/pgdata:/var/lib/postgresql/data
+
+  minio:
+    volumes:
+      - ${RUNPOD_VOLUME_PATH:-/workspace}/minio-data:/data
+
+  # docker-compose.yml의 conservation-backend는 APP_CORS_ALLOWED_ORIGINS를
+  # localhost 값으로 하드코딩해 두고 있어서(환경변수 참조가 아님) .env만
+  # 바꿔서는 안 먹는다. FE가 RunPod 프록시 도메인에서 뜨므로 여기서 덮어써야
+  # 브라우저의 CORS 프리플라이트가 통과한다.
+  conservation-backend:
+    environment:
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS}
+    volumes:
+      # base docker-compose.yml의 `./shared:/shared` 전체 마운트 위에, engine
+      # 산출물 서브경로만 vca-ai와 동일한 로컬 스크래치 디렉터리로 덮어써
+      # VCA_ENGINE_OUTPUT_ROOT(=/shared/vca/engine-output) 읽기가 vca-ai가
+      # 실제로 쓴 로컬 경로와 일치하도록 한다.
+      - ${RUNPOD_LOCAL_SCRATCH_PATH:-/var/lib/vca-local}/engine-output:/shared/vca/engine-output
