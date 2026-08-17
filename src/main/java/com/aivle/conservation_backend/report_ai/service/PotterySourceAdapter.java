@@ -1,9 +1,9 @@
 package com.aivle.conservation_backend.report_ai.service;
 
-import com.aivle.conservation_backend.pottery_inspection_ai.domain.InspectionResultPottery;
-import com.aivle.conservation_backend.pottery_inspection_ai.repository.InspectionResultPotteryRepository;
 import com.aivle.conservation_backend.vca.domain.AssessmentRun;
+import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.vca.repository.AssessmentRunRepository;
+import com.aivle.conservation_backend.vca.repository.InspectionResultPotteryRepository;
 
 import org.springframework.stereotype.Service;
 
@@ -64,7 +64,7 @@ public class PotterySourceAdapter {
         AssessmentRun latestRun = runs.get(0);
 
         return inspectionResultPotteryRepository
-                .findFirstByAssessmentRun_IdAndAssessmentRun_ArtifactIdOrderByCreatedAtDesc(latestRun.getId(), uuid)
+                .findByAssessmentRunId(latestRun.getId())
                 .map(this::toSource);
     }
 

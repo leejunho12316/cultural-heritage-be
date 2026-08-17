@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
+
 @Configuration
 public class RestClientConfig {
 
@@ -19,10 +21,41 @@ public class RestClientConfig {
                 .build();
     }
     @Bean
-    public RestClient potteryInspectionAiRestClient(@Value("${pottery-inspection-ai.base-url}") String baseUrl){
+    public RestClient potteryInspectionAiRestClient(
+            @Value("${pottery-inspection-ai.base-url}") String baseUrl,
+            @Value("${pottery-inspection-ai.timeout-seconds}") long timeoutSeconds
+    ) {
+        SimpleClientHttpRequestFactory requestFactory =
+                new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
+
         return RestClient.builder()
                 .baseUrl(baseUrl)
+                .requestFactory(requestFactory)
                 .build();
+    }
+
+    @Bean
+    public RestClient vcaAiRestClient(
+            @Value("${vca.ai.base-url}") String baseUrl,
+            @Value("${vca.ai.timeout-seconds}") long timeoutSeconds,
+            @Value("${vca.ai.access-token:}") String accessToken
+    ) {
+        SimpleClientHttpRequestFactory requestFactory =
+                new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
+
+        RestClient.Builder builder = RestClient.builder()
+                .baseUrl(baseUrl)
+                .requestFactory(requestFactory);
+        // vca-ai가 클러스터 밖(RunPod 등)에 있어 access-token이 설정된 경우에만
+        // 헤더를 붙인다 - 값이 비어있으면 vca-ai 쪽도 검증을 건너뛰므로 안 붙여도 된다.
+        if (accessToken != null && !accessToken.isBlank()) {
+            builder = builder.defaultHeader("X-VCA-Access-Token", accessToken);
+        }
+        return builder.build();
     }
 
     @Bean

@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+import com.aivle.conservation_backend.vca.domain.AssessmentRun;
+
 /**
  * FE가 페이지를 떠나도 완료 결과를 RDS에 저장하기 위한 서버 폴러.
  * FastAPI job 상태 조회는 짧은 GET이라 ALB 장시간 연결과 무관하다.
@@ -24,7 +26,10 @@ public class PotteryInspectionJobScheduler {
     @Scheduled(fixedDelayString = "${pottery-inspection-ai.poll-interval-ms:2000}")
     public void refreshActiveJobs() {
         List<AssessmentRun> activeRuns = assessmentRunRepository
-                .findAllByStatusInAndAiRunIdIsNotNull(ACTIVE_STATUSES);
+                .findAllByRunTypeAndStatusInAndAiRunIdIsNotNull(
+                AssessmentRun.RUN_TYPE_POTTERY_PATTERN,
+                ACTIVE_STATUSES
+        );
 
         for (AssessmentRun run : activeRuns) {
             try {

@@ -153,6 +153,16 @@ spec:
       targetPort: 8000
   type: ClusterIP
 ---
+# vca-ai(엔진)의 Deployment/Service는 k8s/vca-ai-internal.yaml로 옮겼다 -
+# 내부 컨테이너로 돌릴지, 외부 GPU 호스트에 위탁할지에 따라 그 파일을
+# apply할지 말지만 결정하면 된다. VCA는 GPU가 필요한 무거운 파이프라인이라
+# 클러스터 밖 별도 GPU 호스트(RunPod 등)에 위탁하는 걸 기본 시나리오로
+# 지원해야 한다. 아래 conservation-backend의 VCA_AI_BASE_URL(app-secrets의
+# 값)이 그 전환점이다. 외부 GPU 호스트는 고정 하드웨어를 배정받는 게
+# 아니라 재시작/재배정 때마다 주소가 바뀔 수 있으므로, 이 값을 이
+# 매니페스트에 리터럴로 박아두지 않고 app-secrets에서 읽는다 - 전환/재배정
+# 때마다 git 커밋 없이 `kubectl create secret ... --from-env-file=.env.k8s`
+# (값만 갱신) + rollout restart로 끝난다.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -236,8 +246,42 @@ spec:
               value: "300"
             - name: XRAY_AI_CONFIG_NAME
               value: "config.batch_fast.color_slot_voronoi_all_fragments_v13_conservative.json"
+            - name: XRAY_STORAGE_LOCAL_ROOT
+              value: "/shared/jobs"
+            - name: XRAY_STORAGE_CONTAINER_ROOT
+              value: "/shared/jobs"
             - name: XRAY_STITCH_CALLBACK_URL
               value: "http://conservation-backend:8080/api/xray/stitch/callback"
+            # VCA_AI_BASE_URL은 app-secrets의 값을 그대로 쓴다(리터럴 아님) -
+            # 내부/외부 전환도, 외부 GPU 호스트의 주소가 바뀌는 것도 전부
+            # 시크릿 값만 갱신하면 된다:
+            #   내부(클러스터 안 vca-ai Pod): app-secrets의 VCA_AI_BASE_URL을
+            #   "http://vca-ai:8000"로 두고 k8s/vca-ai-internal.yaml도 같이 apply.
+            #   외부(GPU 전용 호스트에 위탁, 예: RunPod): app-secrets의
+            #   VCA_AI_BASE_URL을 그 호스트의 공개 주소(RunPod라면 예:
+            #   https://<pod-id>-8000.proxy.runpod.net)로 두고,
+            #   k8s/vca-ai-internal.yaml은 apply하지 말 것(이미 떠있다면
+            #   kubectl delete -f k8s/vca-ai-internal.yaml로 정리).
+            - name: VCA_AI_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: VCA_AI_BASE_URL
+            - name: VCA_AI_TIMEOUT_SECONDS
+              value: "3900"
+            # VCA_ACCESS_TOKEN(FE->BE)/VCA_AI_ACCESS_TOKEN(BE->vca-ai, 외부
+            # 위탁일 때만 사실상 의미 있음)도 app-secrets에 있어야 한다(아래
+            # envFrom으로 전체 주입됨) - VCA_ACCESS_TOKEN이 없으면 Spring이
+            # 기동 시점에 바로 실패한다.
+            # VCA_SHARED_STORAGE_ROOT/VCA_SHARED_STORAGE_CONTAINER_ROOT는 더 이상
+            # 필요 없다 - vca-ai가 presigned URL로 S3에서 직접 이미지를 내려받으므로
+            # (VcaS3ImageStorage.materializeRunInput 참고) EFS 공유 경로가 없어졌다.
+            - name: VCA_ENGINE_OUTPUT_ROOT
+              value: "/shared/vca/engine-output"
+            - name: VCA_DOCUMENT_CORPUS_ROOT
+              value: "/shared/vca/document-corpus"
+            - name: VCA_S3_OBJECT_PREFIX
+              value: "vca/images"
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:

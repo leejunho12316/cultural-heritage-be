@@ -2,10 +2,10 @@ package com.aivle.conservation_backend.pottery_inspection_ai.service;
 
 import com.aivle.conservation_backend.photo.service.S3PhotoStorageService;
 import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
-import com.aivle.conservation_backend.pottery_inspection_ai.domain.InspectionResultPottery;
+import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionJobResponseDto;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
-import com.aivle.conservation_backend.pottery_inspection_ai.repository.InspectionResultPotteryRepository;
+import com.aivle.conservation_backend.vca.repository.InspectionResultPotteryRepository;
 import com.aivle.conservation_backend.vca.domain.AssessmentRun;
 import com.aivle.conservation_backend.vca.repository.AssessmentRunRepository;
 import lombok.RequiredArgsConstructor;
@@ -55,8 +55,11 @@ public class PotteryInspectionJobService {
             boolean useVlmPattern,
             boolean treatAsSingleArtifact
     ) {
-        if (assessmentRunRepository.existsByArtifactIdAndStatusInAndAiRunIdIsNotNull(
-                artifactId, ACTIVE_STATUSES)) {
+        if (assessmentRunRepository.existsByArtifactIdAndRunTypeAndStatusInAndAiRunIdIsNotNull(
+        artifactId,
+        AssessmentRun.RUN_TYPE_POTTERY_PATTERN,
+        ACTIVE_STATUSES
+        )) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "이미 진행 중인 육안조사 작업이 있습니다. 기존 작업을 다시 불러와주세요."
@@ -110,7 +113,7 @@ public class PotteryInspectionJobService {
             return toResponse(run);
         } catch (RuntimeException error) {
             run.markFailed("AI_SUBMIT", rootMessage(error));
-            run.updateStages(errorStages(error));
+            run.updatePotteryJobState(errorStages(error));
             assessmentRunRepository.save(run);
             throw error;
         }
@@ -133,14 +136,20 @@ public class PotteryInspectionJobService {
     /** artifactId의 가장 최근 육안조사 job/저장 결과를 찾는다. */
     @Transactional
     public PotteryInspectionJobResponseDto getLatestJob(UUID artifactId) {
+        // 동일 artifact에 VCA 상태조사 run도 함께 존재할 수 있으므로
+        // 문양조사(POTTERY_PATTERN) run만 최신순으로 조회한다.
         List<AssessmentRun> runs = assessmentRunRepository
-                .findAllByArtifactIdOrderByRunNumberDesc(artifactId);
+                .findAllByArtifactIdAndRunTypeOrderByRunNumberDesc(
+                        artifactId,
+                        AssessmentRun.RUN_TYPE_POTTERY_PATTERN
+                );
 
         for (AssessmentRun candidate : runs) {
             boolean hasAiJob = candidate.getAiRunId() != null && !candidate.getAiRunId().isBlank();
+            // VCA v2에서는 InspectionResultPottery가 AssessmentRun 연관관계를 직접 가지지 않고
+            // assessmentRunId(UUID)만 저장하므로 assessmentRunId 기준으로 결과 존재 여부를 조회한다.
             boolean hasResult = inspectionResultPotteryRepository
-                    .findFirstByAssessmentRun_IdAndAssessmentRun_ArtifactIdOrderByCreatedAtDesc(
-                            candidate.getId(), artifactId)
+                    .findByAssessmentRunId(candidate.getId())
                     .isPresent();
 
             if (!hasAiJob && !hasResult) {
@@ -182,7 +191,7 @@ public class PotteryInspectionJobService {
             Object detail = body == null ? error.getResponseBodyAsString() : body.get("detail");
 
             run.markFailed("AI_ANALYSIS", detailText(detail, error.getMessage()));
-            run.updateStages(Map.of(
+            run.updatePotteryJobState(Map.of(
                     STAGE_ERROR_STATUS, error.getStatusCode().value(),
                     STAGE_ERROR_DETAIL, detail == null ? "AI 분석 실패" : detail
             ));
@@ -190,11 +199,11 @@ public class PotteryInspectionJobService {
         } catch (ResourceAccessException error) {
             // 일시적인 네트워크 오류는 job 자체를 FAILED로 확정하지 않는다.
             Map<String, Object> stages = new LinkedHashMap<>();
-            if (run.getStagesJson() != null) {
-                stages.putAll(run.getStagesJson());
+            if (run.getPotteryJobStateJson() != null) {
+                stages.putAll(run.getPotteryJobStateJson());
             }
             stages.put(STAGE_LAST_POLL_ERROR, rootMessage(error));
-            run.updateStages(stages);
+            run.updatePotteryJobState(stages);
             assessmentRunRepository.save(run);
         }
     }
@@ -224,16 +233,16 @@ public class PotteryInspectionJobService {
             case "failed" -> {
                 Object detail = aiJob.get("detail");
                 run.markFailed("AI_ANALYSIS", detailText(detail, "AI 분석 실패"));
-                run.updateStages(Map.of(STAGE_ERROR_DETAIL, detail == null ? "AI 분석 실패" : detail));
+                run.updatePotteryJobState(Map.of(STAGE_ERROR_DETAIL, detail == null ? "AI 분석 실패" : detail));
                 assessmentRunRepository.save(run);
             }
             default -> {
                 Map<String, Object> stages = new LinkedHashMap<>();
-                if (run.getStagesJson() != null) {
-                    stages.putAll(run.getStagesJson());
+                if (run.getPotteryJobStateJson() != null) {
+                    stages.putAll(run.getPotteryJobStateJson());
                 }
                 stages.put("unknownAiStatus", status);
-                run.updateStages(stages);
+                run.updatePotteryJobState(stages);
                 assessmentRunRepository.save(run);
             }
         }
@@ -249,8 +258,7 @@ public class PotteryInspectionJobService {
         }
 
         boolean alreadySaved = inspectionResultPotteryRepository
-                .findFirstByAssessmentRun_IdAndAssessmentRun_ArtifactIdOrderByCreatedAtDesc(
-                        run.getId(), run.getArtifactId())
+                .findByAssessmentRunId(run.getId())
                 .isPresent();
 
         if (!alreadySaved) {
@@ -266,34 +274,36 @@ public class PotteryInspectionJobService {
             }
 
             inspectionResultPotteryRepository.save(
-                    InspectionResultPottery.create(
-                            UUID.randomUUID(),
-                            run,
-                            result.inspectionText(),
-                            result.humanReviewRecommended(),
-                            detail
-                    )
+                  InspectionResultPottery.create(
+                        UUID.randomUUID(),
+                        // VCA v2 엔티티 구조에 맞춰 AssessmentRun 객체 대신 FK UUID만 전달한다.
+                        run.getId(),
+                        result.inspectionText(),
+                        result.humanReviewRecommended(),
+                        detail
+                )
             );
         }
 
         run.markCompleted();
-        run.updateStages(Map.of("aiStatus", "done"));
+        run.updatePotteryJobState(Map.of("aiStatus", "done"));
         assessmentRunRepository.save(run);
     }
 
     private PotteryInspectionJobResponseDto toResponse(AssessmentRun run) {
+        // 문양조사 결과는 assessmentRunId와 1:1로 저장되므로
+        // 현재 run ID로 저장 결과를 조회해 API 응답으로 변환한다.
         InspectionResultPottery stored = inspectionResultPotteryRepository
-                .findFirstByAssessmentRun_IdAndAssessmentRun_ArtifactIdOrderByCreatedAtDesc(
-                        run.getId(), run.getArtifactId())
-                .orElse(null);
+            .findByAssessmentRunId(run.getId())
+            .orElse(null);
 
         PotteryInspectionResponseDto result = stored == null ? null : toAiResult(stored);
 
         Object errorDetail = null;
         Integer errorStatus = null;
-        if (run.getStagesJson() != null) {
-            errorDetail = run.getStagesJson().get(STAGE_ERROR_DETAIL);
-            Object rawStatus = run.getStagesJson().get(STAGE_ERROR_STATUS);
+        if (run.getPotteryJobStateJson() != null) {
+            errorDetail = run.getPotteryJobStateJson().get(STAGE_ERROR_DETAIL);
+            Object rawStatus = run.getPotteryJobStateJson().get(STAGE_ERROR_STATUS);
             if (rawStatus instanceof Number number) {
                 errorStatus = number.intValue();
             } else if (rawStatus != null) {

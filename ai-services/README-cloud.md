@@ -947,4 +947,3 @@ kubectl describe pod conservation-backend-<pod>
 2. **ALB Ingress Controller 설치**: `conservation-backend`(관문 역할)만 외부 노출 — 콘솔에 설치 버튼이 없어 Helm 필요 (유일하게 순수 콘솔 GUI로 안 되는 지점으로 논의됨)
 3. **IRSA로 S3 접근 전환 검토**: 지금 `.env`의 정적 `AWS_ACCESS_KEY_ID`/`SECRET` 대신, `conservation-backend`의 ServiceAccount에 S3 접근 역할을 직접 연결
 4. **CI/CD 파이프라인**: GitHub Actions(OIDC 기반 IAM 역할 연동, ECR push, `kubectl set image` 배포) 또는 AWS 콘솔 네이티브 CodePipeline + CodeBuild 중 선택
-

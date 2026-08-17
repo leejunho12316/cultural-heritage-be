@@ -1,0 +1,20 @@
+services:
+  conservation-backend:
+    environment:
+      # Reaches a vca-ai FastAPI wrapper (`ai-services/vca-ai/app`) run as a
+      # bare host process instead of the vca-ai container, so the VCA engine
+      # runs natively (avoids the Docker-VM memory ceiling that OOM-kills
+      # Qwen visual-cue generation) against a live local vca_v2 checkout.
+      # Set VCA_V2_LOCAL_ENGINE_ROOT in .env to that checkout's absolute path.
+      VCA_AI_BASE_URL: ${VCA_AI_BASE_URL:-http://host.docker.internal:8000}
+      VCA_SHARED_STORAGE_CONTAINER_ROOT: ${VCA_V2_LOCAL_ENGINE_ROOT}/output/input
+      VCA_ENGINE_OUTPUT_ROOT: /shared/vca/engine-output
+      # 이 vca-ai는 docker 네트워크 밖(맥북 호스트 네이티브 프로세스)에 있어서
+      # internalS3Presigner의 기본값(aws.s3.endpoint=http://minio:9000, 컨테이너
+      # 네트워크 전용 호스트명)으로 만든 다운로드 URL을 못 연다 - 브라우저와 같은
+      # host-reachable 주소(AWS_S3_PRESIGN_ENDPOINT와 동일)로 덮어쓴다.
+      AWS_S3_INTERNAL_PRESIGN_ENDPOINT: ${AWS_S3_PRESIGN_ENDPOINT:-http://localhost:9000}
+    volumes:
+      - ./shared:/shared
+      - ${VCA_V2_LOCAL_ENGINE_ROOT}/output/input:/shared/vca/input-store
+      - ${VCA_V2_LOCAL_ENGINE_ROOT}/output:/shared/vca/engine-output

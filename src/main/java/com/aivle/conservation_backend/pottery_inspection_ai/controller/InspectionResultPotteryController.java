@@ -1,12 +1,12 @@
 package com.aivle.conservation_backend.pottery_inspection_ai.controller;
 
 import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
-import com.aivle.conservation_backend.pottery_inspection_ai.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.InspectionResultPotteryResponseDto;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
-import com.aivle.conservation_backend.pottery_inspection_ai.repository.InspectionResultPotteryRepository;
 import com.aivle.conservation_backend.vca.domain.AssessmentRun;
+import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.vca.repository.AssessmentRunRepository;
+import com.aivle.conservation_backend.vca.repository.InspectionResultPotteryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -45,16 +46,17 @@ public class InspectionResultPotteryController {
         AssessmentRun run = requireRun(artifactId, assessmentRunId);
 
         InspectionResultPottery saved = inspectionResultPotteryRepository.save(
-                InspectionResultPottery.create(
-                        UUID.randomUUID(),
-                        run,
-                        aiResult.inspectionText(),
-                        aiResult.humanReviewRecommended(),
-                        aiResult.detail()
-                )
+                InspectionResultPottery.builder()
+                        .id(UUID.randomUUID())
+                        .assessmentRunId(run.getId())
+                        .inspectionText(aiResult.inspectionText())
+                        .humanReviewRecommended(aiResult.humanReviewRecommended())
+                        .detail(aiResult.detail())
+                        .createdAt(Instant.now())
+                        .build()
         );
 
-        run.markCompleted();
+        run.setStatus("COMPLETED");
         assessmentRunRepository.save(run);
 
         return ResponseEntity.ok(InspectionResultPotteryResponseDto.from(saved));
@@ -65,11 +67,12 @@ public class InspectionResultPotteryController {
             @PathVariable UUID artifactId,
             @PathVariable UUID assessmentRunId
     ) {
+        // requireRun이 이미 assessmentRunId가 이 artifactId 소유임을 검증했으므로,
+        // 아래 조회는 assessmentRunId 하나만으로 충분하다.
         requireRun(artifactId, assessmentRunId);
 
         return inspectionResultPotteryRepository
-                .findFirstByAssessmentRun_IdAndAssessmentRun_ArtifactIdOrderByCreatedAtDesc(
-                        assessmentRunId, artifactId)
+                .findByAssessmentRunId(assessmentRunId)
                 .map(result -> ResponseEntity.ok(InspectionResultPotteryResponseDto.from(result)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

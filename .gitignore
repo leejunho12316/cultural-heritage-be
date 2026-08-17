@@ -1,4 +1,13 @@
 # ============================================================
+# Local runtime volumes
+# ============================================================
+
+# docker-compose's ./shared bind mount - VCA runtime uploads/engine-output
+# and any local test artifacts. X-RAY moved off this to S3; VCA still uses
+# it for local native-engine runs (docker-compose.local-vca.override.yml).
+/shared/
+
+# ============================================================
 # Gradle / Spring Boot
 # ============================================================
 
@@ -19,7 +28,6 @@ build/
 
 .env
 .env.*
-!.env.example
 
 /.env
 /.env.k8s
@@ -127,6 +135,19 @@ ai-services/xray-ai/test_output/
 # 결합 엔진 캐시
 ai-services/xray-ai/.xray_input_cache/
 
+# 파이썬 캐시
+.pytest_cache/
+
+### vca-ai ###
+ai-services/vca-ai/.env
+ai-services/vca-ai/.venv/
+ai-services/vca-ai/engine/output/
+ai-services/vca-ai/engine/models/hf/
+ai-services/vca-ai/engine/models/rag/
+ai-services/vca-ai/engine/.models
+ai-services/vca-ai/engine/.venv/
+ai-services/vca-ai/engine/**/.omo/
+
 # ============================================================
 # Local X-RAY Test Artifacts
 # ============================================================
@@ -154,3 +175,10 @@ ai-services/report-ai/app/index/*
 ### frontend ###
 node_modules/
 dist/
+
+
+# ============================================================
+# etc
+# ============================================================
+
+.omo/
