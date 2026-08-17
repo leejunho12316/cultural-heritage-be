@@ -56,4 +56,29 @@ public class InspectionResultPottery {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+    /**
+     * 문양조사 결과 엔티티 생성용 팩토리 메서드.
+     *
+     * VCA v2의 InspectionResultPottery는 AssessmentRun 엔티티 자체를 참조하지 않고
+     * assessmentRunId(UUID)만 저장하는 구조이므로, 호출부에서도 run 객체가 아닌 ID만 전달한다.
+     *
+     * 결과 생성 시 필요한 createdAt 등의 공통 초기화도 이곳에서 처리해
+     * Service가 엔티티 생성 세부사항에 직접 의존하지 않도록 한다.
+     */
+    public static InspectionResultPottery create(
+            UUID id,
+            UUID assessmentRunId,
+            String inspectionText,
+            boolean humanReviewRecommended,
+            Map<String, Object> detail
+    ) {
+        return InspectionResultPottery.builder()
+                .id(id)
+                .assessmentRunId(assessmentRunId)
+                .inspectionText(inspectionText)
+                .humanReviewRecommended(humanReviewRecommended)
+                .detail(detail)
+                .createdAt(Instant.now())
+                .build();
+    }
 }

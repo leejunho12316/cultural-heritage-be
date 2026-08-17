@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -15,7 +16,6 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
@@ -32,6 +32,7 @@ public class S3PhotoStorageService {
     @Value("${aws.s3.bucket}")
     private String bucket;
 
+    /** 기존 범용 임시 사진 업로드. 기존 화면 호환을 위해 그대로 유지한다. */
     public String upload(MultipartFile file) {
         return upload(null, file);
     }
@@ -51,11 +52,32 @@ public class S3PhotoStorageService {
         return presignedUrl(key);
     }
 
-    /*
-     * 생성된 보고서 .docx를 유물별 영구 key로 업로드한다.
-     * 대표 이미지와 같은 패턴: key는 영구 저장하고, URL은 조회 시점에
-     * presignedUrl()로 매번 새로 발급한다.
+    /**
+     * 육안조사 원본 사진을 artifact/run 기준 영구 key로 저장한다.
+     * DB에는 만료되는 presigned URL이 아니라 이 key를 저장하고, 조회 시마다
+     * presignedUrl(key)를 새로 발급한다.
      */
+    public String uploadPotteryInspection(
+            UUID artifactId,
+            UUID assessmentRunId,
+            MultipartFile file
+    ) {
+        validateImage(file);
+
+        String key =
+                "artifacts/"
+                        + artifactId
+                        + "/vca/"
+                        + assessmentRunId
+                        + "/inspection/"
+                        + UUID.randomUUID()
+                        + getExtension(file.getOriginalFilename());
+
+        uploadToS3(key, file);
+        return key;
+    }
+
+    /* 생성된 보고서 .docx를 유물별 영구 key로 업로드한다. */
     public String uploadReportDocx(UUID artifactId, byte[] docx) {
         String key = "artifacts/" + artifactId + "/reports/" + UUID.randomUUID() + ".docx";
 
@@ -74,17 +96,14 @@ public class S3PhotoStorageService {
         return key;
     }
 
-    /*
-     * 유물 대표 이미지 업로드
-     */
+    /* 유물 대표 이미지 업로드 */
     public String uploadArtifactRepresentative(
             UUID artifactId,
             MultipartFile file
     ) {
         validateImage(file);
 
-        String extension =
-                getExtension(file.getOriginalFilename());
+        String extension = getExtension(file.getOriginalFilename());
 
         String key =
                 "artifacts/"
@@ -94,7 +113,6 @@ public class S3PhotoStorageService {
                         + extension;
 
         uploadToS3(key, file);
-
         return key;
     }
 
@@ -121,11 +139,8 @@ public class S3PhotoStorageService {
         }
     }
 
-    /*
-     * DB에 저장된 key를 프론트에서 사용할 URL로 변경
-     */
+    /* DB에 저장된 key를 프론트에서 사용할 URL로 변경 */
     public String presignedUrl(String key) {
-
         if (key == null || key.isBlank()) {
             return null;
         }
@@ -138,9 +153,7 @@ public class S3PhotoStorageService {
 
         GetObjectPresignRequest presignRequest =
                 GetObjectPresignRequest.builder()
-                        .signatureDuration(
-                                Duration.ofHours(1)
-                        )
+                        .signatureDuration(Duration.ofHours(1))
                         .getObjectRequest(getObjectRequest)
                         .build();
 
@@ -151,19 +164,16 @@ public class S3PhotoStorageService {
     }
 
     private void validateImage(MultipartFile file) {
-
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "대표 이미지를 선택해주세요."
+                    "이미지를 선택해주세요."
             );
         }
 
         String contentType = file.getContentType();
 
-        if (contentType == null
-                || !contentType.startsWith("image/")) {
-
+        if (contentType == null || !contentType.startsWith("image/")) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "이미지 파일만 업로드할 수 있습니다."
@@ -172,7 +182,6 @@ public class S3PhotoStorageService {
     }
 
     private String getExtension(String filename) {
-
         if (filename == null || filename.isBlank()) {
             return "";
         }
@@ -183,8 +192,7 @@ public class S3PhotoStorageService {
             return "";
         }
 
-        String extension =
-                filename.substring(dotIndex);
+        String extension = filename.substring(dotIndex);
 
         if (!extension.matches("\\.[A-Za-z0-9]+")) {
             return "";

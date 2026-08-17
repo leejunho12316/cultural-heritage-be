@@ -16,13 +16,11 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-// VCA assessment run의 영속 상태. 팀 공유 ERD의 `assessment_run` 테이블.
-// ERD에 없는 aiRunId/failureReason/stages/uploadedImageIds/potteryInspection*은
-// 지금 API가 실제로 필요로 하는 구현 세부값이라 추가한 컬럼이다 (VcaService.RunState와 1:1 대응).
 @Entity
 @Table(
         name = "assessment_run",
@@ -35,6 +33,9 @@ import java.util.UUID;
 @Builder
 public class AssessmentRun {
 
+    public static final String RUN_TYPE_VCA = "VCA";
+    public static final String RUN_TYPE_POTTERY_PATTERN = "POTTERY_PATTERN";
+
     @Id
     @Column(name = "id")
     private UUID id;
@@ -45,9 +46,21 @@ public class AssessmentRun {
     @Column(name = "run_number", nullable = false)
     private int runNumber;
 
+    /**
+     * AssessmentRun의 종류.
+     * VCA          : 실제 부식/손상 상태 조사
+     * POTTERY_PATTERN : 도자기 문양 조사
+     */
+    @Column(name = "run_type", columnDefinition = "text")
+    private String runType;
+
     @Column(name = "legacy_project_name")
     private String legacyProjectName;
 
+    /**
+     * 각 AssessmentRun row의 실행 상태.
+     * VCA와 Pottery는 서로 다른 row를 사용하므로 공통 컬럼으로 사용한다.
+     */
     @Column(name = "status", nullable = false)
     private String status;
 
@@ -76,24 +89,25 @@ public class AssessmentRun {
     @Column(name = "config_json", columnDefinition = "jsonb")
     private Map<String, Object> configJson;
 
-    // --- 아래부터는 ERD 외 구현 필수 컬럼 ---
-
     @Column(name = "image_count", nullable = false)
     private int imageCount;
 
     @Column(name = "material")
     private String material;
 
-    @Column(name = "ai_run_id")
+    /**
+     * 각 AssessmentRun row에 대응하는 AI Job ID.
+     * runType으로 VCA/Pottery를 구분한다.
+     */
+    @Column(name = "ai_run_id", columnDefinition = "text")
     private String aiRunId;
 
-    // vca-ai가 넘기는 실패 사유는 엔진의 원본 예외/트레이스백 텍스트를 그대로
-    // 담을 수 있어 기본 varchar(255)를 쉽게 넘긴다 - 실제로 한 번 이걸로
-    // DataIntegrityViolationException이 나서 run 상태 동기화 자체가
-    // 무한 반복 실패한 적이 있다(그러면 이 아티팩트의 모든 조회가 막힌다).
     @Column(name = "failure_reason", columnDefinition = "text")
     private String failureReason;
 
+    /**
+     * VCA 실제 상태조사 AI의 파이프라인 단계.
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "stages_json", columnDefinition = "jsonb")
     private List<RunResponse.Stage> stages;
@@ -102,11 +116,122 @@ public class AssessmentRun {
     @Column(name = "uploaded_image_ids_json", columnDefinition = "jsonb")
     private List<String> uploadedImageIds;
 
-    // 도자기 검사 "결과"는 더 이상 여기 없다 - inspection_result_pottery 테이블로
-    // 옮겼다(assessment_run_id 1:1). 이 컬럼은 워크플로우 상태(진행/실패/재시도)만
-    // 담당한다 - run 자신의 status/failure_reason과 같은 성격의 process metadata라
-    // 결과와 분리해서 여기 남겨뒀다.
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "pottery_inspection_status_json", columnDefinition = "jsonb")
     private ReportResponse.PotteryInspectionStatus potteryInspectionStatus;
+
+    /**
+     * 문양조사 비동기 Job의 폴링 상태/오류 등의 내부 메타데이터.
+     * VCA의 stages_json과 데이터 타입과 의미가 다르므로 별도 컬럼으로 저장한다.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pottery_job_state_json", columnDefinition = "jsonb")
+    private Map<String, Object> potteryJobStateJson;
+
+    /**
+     * 문양조사(Pottery) AssessmentRun 생성용.
+     * VCA는 기존 builder()를 사용한다.
+     */
+    public static AssessmentRun create(
+            UUID id,
+            UUID artifactId,
+            int runNumber,
+            String legacyProjectName,
+            boolean dryRun,
+            String requestedDevice,
+            Map<String, Object> configJson
+    ) {
+        return AssessmentRun.builder()
+                .id(id)
+                .artifactId(artifactId)
+                .runNumber(runNumber)
+                .runType(RUN_TYPE_POTTERY_PATTERN)
+                .legacyProjectName(legacyProjectName)
+                .status("queued")
+                .dryRun(dryRun)
+                .requestedDevice(requestedDevice)
+                .progressPercent(0)
+                .imageCount(0)
+                .configJson(configJson == null
+                        ? null
+                        : new LinkedHashMap<>(configJson))
+                .build();
+    }
+
+    public void bindAiRun(String aiRunId, String resolvedDevice) {
+        this.aiRunId = aiRunId;
+        this.resolvedDevice = resolvedDevice;
+    }
+
+    public void mergeConfig(Map<String, Object> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+
+        if (this.configJson == null) {
+            this.configJson = new LinkedHashMap<>();
+        }
+
+        this.configJson.putAll(values);
+    }
+
+    public void setInputSnapshot(
+            int imageCount,
+            String material,
+            List<UUID> uploadedImageIds
+    ) {
+        this.imageCount = imageCount;
+        this.material = material;
+        this.uploadedImageIds = uploadedImageIds == null
+                ? null
+                : uploadedImageIds.stream()
+                        .map(UUID::toString)
+                        .toList();
+    }
+
+    public void updatePotteryJobState(Map<String, Object> state) {
+        this.potteryJobStateJson = state == null
+                ? null
+                : new LinkedHashMap<>(state);
+    }
+
+    public void markRunning(String resolvedDevice, String currentStage) {
+        this.status = "running";
+        this.resolvedDevice = resolvedDevice;
+        this.currentStage = currentStage;
+
+        if (this.startedAt == null) {
+            this.startedAt = Instant.now();
+        }
+    }
+
+    public void updateProgress(String currentStage, int progressPercent) {
+        if (progressPercent < 0 || progressPercent > 100) {
+            throw new IllegalArgumentException(
+                    "progressPercent must be between 0 and 100"
+            );
+        }
+
+        this.currentStage = currentStage;
+        this.progressPercent = progressPercent;
+    }
+
+    public void markCompleted() {
+        this.status = "completed";
+        this.currentStage = "COMPLETED";
+        this.progressPercent = 100;
+        this.failureReason = null;
+        this.completedAt = Instant.now();
+    }
+
+    public void markFailed(String currentStage) {
+        markFailed(currentStage, null);
+    }
+
+    public void markFailed(String currentStage, String failureReason) {
+        this.status = "failed";
+        this.currentStage = currentStage;
+        this.failureReason = failureReason;
+        this.completedAt = null;
+    }
 }

@@ -2,8 +2,8 @@ package com.aivle.conservation_backend.pottery_inspection_ai.client;
 
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -21,8 +21,12 @@ public class PotteryInspectionAiClient {
 
     private final RestClient potteryInspectionAiRestClient;
 
+    /** 기존 동기 방식. 하위 호환용으로 유지한다. */
     public PotteryInspectionResponseDto inspect(
-            MultipartFile image, int nCalls, boolean useVlmPattern, boolean treatAsSingleArtifact
+            MultipartFile image,
+            int nCalls,
+            boolean useVlmPattern,
+            boolean treatAsSingleArtifact
     ) {
         return potteryInspectionAiRestClient.post()
                 .uri(uriBuilder -> uriBuilder
@@ -37,15 +41,12 @@ public class PotteryInspectionAiClient {
                 .body(PotteryInspectionResponseDto.class);
     }
 
-    /**
-     * 분석을 백그라운드로 접수하고 즉시 반환한다({job_id, status}).
-     * 문양이 여러 개면 확정된 문양별 상태조사까지 순차로 이어져서 60초를
-     * 넘길 수 있는데, 그동안 ALB가 연결을 붙들고 있으면 유휴 타임아웃(기본
-     * 60초)에 걸려 504가 났다 - 접수만 하고 폴링으로 결과를 받으면 개별
-     * 요청은 항상 짧게 끝나서 이 문제를 피할 수 있다.
-     */
+    /** FastAPI에 분석 job을 접수하고 {job_id, status}를 받는다. */
     public Map<String, Object> createInspectionJob(
-            MultipartFile image, int nCalls, boolean useVlmPattern, boolean treatAsSingleArtifact
+            MultipartFile image,
+            int nCalls,
+            boolean useVlmPattern,
+            boolean treatAsSingleArtifact
     ) {
         return potteryInspectionAiRestClient.post()
                 .uri(uriBuilder -> uriBuilder
@@ -60,7 +61,7 @@ public class PotteryInspectionAiClient {
                 .body(new ParameterizedTypeReference<Map<String, Object>>() {});
     }
 
-    /** job 상태를 폴링한다. FE가 보통 1~2초 간격으로 반복 호출한다. */
+    /** FastAPI 메모리에 있는 job의 현재 상태/결과를 조회한다. */
     public Map<String, Object> getInspectionJob(String jobId) {
         return potteryInspectionAiRestClient.get()
                 .uri("/inspect/jobs/{jobId}", jobId)
@@ -74,8 +75,7 @@ public class PotteryInspectionAiClient {
         return body;
     }
 
-    // pottery_api가 확장자로 파일 형식을 판단하므로(os.path.splitext),
-    // 원본 파일명을 그대로 넘겨줘야 한다 - 안 그러면 기본값 .jpg로 처리된다.
+    // pottery_api가 확장자로 파일 형식을 판단하므로 원본 파일명을 유지한다.
     private ByteArrayResource toResource(MultipartFile image) {
         try {
             byte[] bytes = image.getBytes();

@@ -620,6 +620,7 @@ public class VcaService {
                 .id(assessmentRunId)
                 .artifactId(artifact.getId())
                 .runNumber(runNumber)
+                .runType(AssessmentRun.RUN_TYPE_VCA)
                 .legacyProjectName(projectName(artifactId, assessmentRunId.toString()))
                 .status("QUEUED")
                 .dryRun(false)
