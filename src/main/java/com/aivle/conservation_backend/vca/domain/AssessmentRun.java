@@ -76,8 +76,9 @@ public class AssessmentRun {
     @Column(name = "current_stage")
     private String currentStage;
 
-    @Column(name = "progress_percent")
-    private Integer progressPercent;
+    // 모든 AssessmentRun은 생성 시 진행률 0부터 시작하므로 DB의 NOT NULL 제약과 맞춘다.
+    @Column(name = "progress_percent", nullable = false)
+    private int progressPercent;
 
     @Column(name = "started_at")
     private Instant startedAt;

@@ -32,10 +32,10 @@ public class AssessmentReport {
     private UUID assessmentRunId;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "report_json", columnDefinition = "jsonb")
+    @Column(name = "report_json", nullable = false, columnDefinition = "jsonb")
     private ReportResponse reportJson;
 
-    @Column(name = "status")
+    @Column(name = "status", nullable = false)
     private String status;
 
     @Column(name = "overall_condition")
@@ -47,9 +47,9 @@ public class AssessmentReport {
     @Column(name = "generated_at")
     private Instant generatedAt;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 }

@@ -40,7 +40,7 @@ public class InspectionResultPottery {
     @Column(name = "assessment_run_id", nullable = false, unique = true)
     private UUID assessmentRunId;
 
-    @Column(name = "inspection_text", columnDefinition = "text")
+    @Column(name = "inspection_text", nullable = false, columnDefinition = "text")
     private String inspectionText;
 
     @Column(name = "human_review_recommended", nullable = false)
@@ -51,7 +51,7 @@ public class InspectionResultPottery {
     // 않기로 한 결정 때문. 실제 분석 근거(시대/문양 등)와는 저장 시점에 합쳐지고
     // 읽을 때 다시 분리된다.
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "detail", columnDefinition = "jsonb")
+    @Column(name = "detail", nullable = false, columnDefinition = "jsonb")
     private Map<String, Object> detail;
 
     @Column(name = "created_at", nullable = false)
