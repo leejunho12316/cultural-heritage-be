@@ -59,14 +59,39 @@ def pre_investigation_node(state: State) -> dict[str, Any]:
 
     pottery_inspection = state.get("pottery_inspection") or {}
     inspection_text = pottery_inspection.get("inspection_text")
+    vca_assessment = state.get("vca_assessment") or {}
 
-    # 육안조사 결과가 있을 때만 이 part를 만든다.
-    if inspection_text:
+    vca_summary = vca_assessment.get("summary") or {}
+    vca_findings = vca_assessment.get("findings") or []
+    vca_recommendations = vca_assessment.get("recommendations") or []
+
+    vca_lines = []
+    if vca_summary.get("description"):
+        vca_lines.append(f"종합: {vca_summary.get('description')}")
+    for finding in vca_findings:
+        description = finding.get("description") or ""
+        category = finding.get("category") or "미분류"
+        severity = finding.get("severity") or "미기재"
+        if description:
+            vca_lines.append(f"- {category} / {severity}: {description}")
+    for recommendation in vca_recommendations:
+        title = recommendation.get("title") or "권고"
+        description = recommendation.get("description") or ""
+        if description:
+            vca_lines.append(f"- 권고 {title}: {description}")
+    vca_text = "\n".join(vca_lines)
+
+    # VCA 상태조사와 문양조사는 독립 기능이다. 둘 중 하나라도 결과가 있으면
+    # 같은 '육안조사' part 안에서 각각 근거를 구분해 report-ai에 전달한다.
+    if inspection_text or vca_text:
         visual_section = build_section_via_llm(
             system_prompt=_VISUAL_SYSTEM_PROMPT,
             data_context=f"""
-[육안조사 결과]
-{inspection_text}
+[VCA 상태조사 결과]
+{vca_text or "(없음)"}
+
+[문양 기반 육안조사 결과]
+{inspection_text or "(없음)"}
 """,
             rag_query="보존처리 보고서 처리 전 상태조사 육안조사 손상 문양 판단",
         )

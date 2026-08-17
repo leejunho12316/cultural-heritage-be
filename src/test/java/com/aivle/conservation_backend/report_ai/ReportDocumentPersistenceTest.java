@@ -7,6 +7,9 @@ import com.aivle.conservation_backend.report_ai.client.ReportAiClient;
 import com.aivle.conservation_backend.report_ai.dto.ReportDocumentResponseDto;
 import com.aivle.conservation_backend.report_ai.dto.SaveReportRequestDto;
 import com.aivle.conservation_backend.report_ai.service.ReportDocumentService;
+import com.aivle.conservation_backend.user.domain.Role;
+import com.aivle.conservation_backend.user.domain.User;
+import com.aivle.conservation_backend.user.repository.UserRepository;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +56,9 @@ class ReportDocumentPersistenceTest {
     @Autowired
     private ReportDocumentService reportDocumentService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @MockitoBean
     private ReportAiClient reportAiClient;
 
@@ -61,9 +67,18 @@ class ReportDocumentPersistenceTest {
 
     @Test
     void 유물을_저장하고_그_id로_보고서를_저장한_뒤_실제_DB에서_다시_조회된다() {
-        // 1. 유물 저장 - ArtifactRepository가 실제 H2(Postgres 호환 모드)에 INSERT.
+        // 1. artifacts.user_id는 운영 RDS에서 NOT NULL이므로 테스트 유물도 실제 owner를 저장한다.
+        User owner = userRepository.save(User.builder()
+                .loginId("report-persistence-user")
+                .email("report-persistence@example.com")
+                .password("test-password")
+                .nickname("report tester")
+                .role(Role.USER)
+                .build());
+
         Artifact artifact = artifactRepository.save(
                 Artifact.builder()
+                        .owner(owner)
                         .name("청자상감운학문매병")
                         .category("도자기")
                         .material("청자")

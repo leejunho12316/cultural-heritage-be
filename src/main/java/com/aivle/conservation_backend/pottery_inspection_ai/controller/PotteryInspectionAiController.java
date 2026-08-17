@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.pottery_inspection_ai.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionJobResponseDto;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
@@ -20,6 +21,7 @@ public class PotteryInspectionAiController {
 
     private final PotteryInspectionAiClient client;
     private final PotteryInspectionJobService jobService;
+    private final ArtifactAccessService artifactAccessService;
 
     /** 기존 동기 방식. 하위 호환을 위해 유지한다. */
     @PostMapping(consumes = "multipart/form-data")
@@ -52,6 +54,7 @@ public class PotteryInspectionAiController {
             @RequestParam(name = "use_vlm_pattern", defaultValue = "true") boolean useVlmPattern,
             @RequestParam(name = "treat_as_single_artifact", defaultValue = "false") boolean treatAsSingleArtifact
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         PotteryInspectionJobResponseDto result = jobService.createJob(
                 artifactId,
                 image,
@@ -67,6 +70,7 @@ public class PotteryInspectionAiController {
     public ResponseEntity<PotteryInspectionJobResponseDto> getLatestJob(
             @RequestParam("artifact_id") UUID artifactId
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         return ResponseEntity.ok(jobService.getLatestJob(artifactId));
     }
 
@@ -76,6 +80,7 @@ public class PotteryInspectionAiController {
             @PathVariable UUID assessmentRunId,
             @RequestParam("artifact_id") UUID artifactId
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         return ResponseEntity.ok(jobService.getJob(artifactId, assessmentRunId));
     }
 }

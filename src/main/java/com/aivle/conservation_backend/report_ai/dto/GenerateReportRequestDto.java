@@ -20,6 +20,7 @@ public record GenerateReportRequestDto(
         @JsonProperty("xray_report_text") String xrayReportText,        // XRAY_JOB.report_text
         @JsonProperty("xray_regions") List<Map<String, Object>> xrayRegions,  // XRAY_REGION 행
         @JsonProperty("pottery_inspection") Map<String, Object> potteryInspection,  // INSPECTION_RESULT_POTTERY
+        @JsonProperty("vca_assessment") Map<String, Object> vcaAssessment,          // ASSESSMENT_REPORT(VCA)
         // key: header/pre_investigation_xray/pre_investigation_visual/disassembly/
         // cleaning/reinforcement/bonding/restoration/conclusion.
         // pre_investigation은 X-ray 조사와 육안조사를 한 섹션 안에서 나눠 서술하므로

@@ -10,6 +10,8 @@ import com.aivle.conservation_backend.vca.dto.CreateArtifactRequest;
 import com.aivle.conservation_backend.vca.dto.RunResponse;
 import com.aivle.conservation_backend.vca.exception.VcaApiException;
 import com.aivle.conservation_backend.vca.exception.VcaExceptionHandler;
+import com.aivle.conservation_backend.user.domain.Role;
+import com.aivle.conservation_backend.user.domain.User;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentFinding;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentReport;
 import com.aivle.conservation_backend.vca.gateway.VcaAiAssessmentRun;
@@ -19,15 +21,20 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -79,8 +86,31 @@ class VcaControllerTest {
     private LocalValidatorFactoryBean validator;
     private MockMvc mockMvc;
 
+    @BeforeAll
+    static void useInheritableSecurityContextForAsyncServiceTests() {
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
+    }
+
+    @AfterAll
+    static void restoreDefaultSecurityContextStrategy() {
+        SecurityContextHolder.clearContext();
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_THREADLOCAL);
+    }
+
     @BeforeEach
     void setUp() {
+        User user = User.builder()
+                .loginId("vca-test-user")
+                .email("vca-test@example.com")
+                .password("test-password")
+                .nickname("VCA tester")
+                .role(Role.USER)
+                .build();
+        ReflectionTestUtils.setField(user, "id", 1L);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities())
+        );
+
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mockMvc = mvc(new VcaService(true));
@@ -88,6 +118,7 @@ class VcaControllerTest {
 
     @AfterEach
     void tearDown() {
+        SecurityContextHolder.clearContext();
         validator.close();
     }
 
@@ -562,9 +593,26 @@ class VcaControllerTest {
                 .andReturn();
         String runId = JsonPath.read(runResult.getResponse().getContentAsString(), "$.assessmentRunId");
 
-        // Polling the report once triggers the auto pottery inspection (same
-        // transition-based trigger as runsPotteryInspectionFromReportOnlyForPotteryMaterial).
-        pdfMvc.perform(get("/api/vca/{artifactId}/runs/{runId}/report", artifactId, runId))
+        // VCA와 Pottery는 독립 실행이므로 VCA report 조회만으로
+        // Pottery 검사를 자동 실행하지 않는다.
+        pdfMvc.perform(get(
+                        "/api/vca/{artifactId}/runs/{runId}/report",
+                        artifactId,
+                        runId
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.potteryInspection").isEmpty());
+
+        // Pottery 결과가 포함된 PDF를 검증하기 위해 명시적으로 Pottery 검사를 실행한다.
+        pdfMvc.perform(post(
+                        "/api/vca/{artifactId}/runs/{runId}/pottery-inspection",
+                        artifactId,
+                        runId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"material":"도자기"}
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.potteryInspection.moduleVersion").value("pottery-test-v1"));
 
@@ -1245,9 +1293,8 @@ class VcaControllerTest {
                 .andReturn();
         String potteryRunId = JsonPath.read(potteryRun.getResponse().getContentAsString(), "$.assessmentRunId");
 
-        // Then: the very first report poll already carries the pottery result -
-        // the transition to a COMPLETED VCA report auto-triggers pottery
-        // inspection server-side, with no separate manual call required.
+        // Then: VCA report 조회만으로는 Pottery 검사를 자동 실행하지 않는다.
+        // Pottery 검사는 별도 요청이 있을 때만 실행된다.
         gatewayMvc.perform(get(
                         "/api/vca/{artifactId}/runs/{assessmentRunId}/report",
                         potteryArtifactId,
@@ -1255,14 +1302,10 @@ class VcaControllerTest {
                 ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.headline").value("VCA 육안 조사 결과"))
-                .andExpect(jsonPath("$.potteryInspection.moduleVersion").value("pottery-test-v1"))
-                .andExpect(jsonPath("$.potteryInspection.summary").value("도자기 문양 요약"))
-                .andExpect(jsonPath("$.potteryInspection.humanReviewRecommended").value(true))
-                .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(true))
-                .andExpect(jsonPath("$.potteryInspectionStatus.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(true));
-        assertThat(potteryClient.calls.get()).isEqualTo(1);
-        assertThat(potteryClient.inspectedFileName).isEqualTo("front.jpg");
+                .andExpect(jsonPath("$.potteryInspection").isEmpty());
+
+        assertThat(potteryClient.calls.get()).isZero();
+        assertThat(potteryClient.inspectedFileName).isNull();
 
         // When: the manual endpoint is still used to explicitly re-run it (eg. as a retry).
         gatewayMvc.perform(post(
@@ -1280,7 +1323,8 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(true))
                 .andExpect(jsonPath("$.potteryInspectionStatus.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(true));
-        assertThat(potteryClient.calls.get()).isEqualTo(2);
+        assertThat(potteryClient.calls.get()).isEqualTo(1);
+        assertThat(potteryClient.inspectedFileName).isEqualTo("front.jpg");
 
         String bronzeArtifactId = createArtifact(gatewayMvc, "bronze artifact");
         gatewayMvc.perform(multipart("/api/vca/{artifactId}/images", bronzeArtifactId).file(
@@ -1318,7 +1362,7 @@ class VcaControllerTest {
                 .andExpect(jsonPath("$.potteryInspection").isEmpty())
                 .andExpect(jsonPath("$.potteryInspectionStatus.applicable").value(false))
                 .andExpect(jsonPath("$.potteryInspectionStatus.retryable").value(false));
-        assertThat(potteryClient.calls.get()).isEqualTo(2);
+        assertThat(potteryClient.calls.get()).isEqualTo(1);
     }
 
     @Test

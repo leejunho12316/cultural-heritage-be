@@ -7,6 +7,9 @@ import com.aivle.conservation_backend.conservation_guide_ai.domain.Task;
 import com.aivle.conservation_backend.conservation_guide_ai.dto.ConservationGuideAiResponseDto;
 import com.aivle.conservation_backend.conservation_guide_ai.dto.ConservationGuideAiStartRequestDto;
 import com.aivle.conservation_backend.conservation_guide_ai.service.TaskService;
+import com.aivle.conservation_backend.user.domain.Role;
+import com.aivle.conservation_backend.user.domain.User;
+import com.aivle.conservation_backend.user.repository.UserRepository;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,14 +53,26 @@ class TaskArtifactPersistenceTest {
     @Autowired
     private TaskService taskService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @MockitoBean
     private ConservationGuideAiClient client;
 
     @Test
     void artifact_id로_task를_저장하고_실제_DB에서_다시_조회된다() {
-        // 1. 유물 저장 - ArtifactRepository가 실제 H2(Postgres 호환 모드)에 INSERT.
+        // 1. artifacts.user_id는 운영 RDS에서 NOT NULL이므로 테스트 유물도 실제 owner를 저장한다.
+        User owner = userRepository.save(User.builder()
+                .loginId("task-persistence-user")
+                .email("task-persistence@example.com")
+                .password("test-password")
+                .nickname("task tester")
+                .role(Role.USER)
+                .build());
+
         Artifact artifact = artifactRepository.save(
                 Artifact.builder()
+                        .owner(owner)
                         .name("청자기린향로")
                         .category("도자기")
                         .material("청자")

@@ -38,6 +38,7 @@ class PotterySourceAdapterTest {
                 .id(id)
                 .artifactId(artifactId)
                 .runNumber(runNumber)
+                .runType(AssessmentRun.RUN_TYPE_POTTERY_PATTERN)
                 .status("queued")
                 .dryRun(false)
                 .progressPercent(0)
@@ -54,7 +55,7 @@ class PotterySourceAdapterTest {
     @Test
     void AssessmentRun이_없으면_빈값을_반환한다() {
         UUID artifactId = UUID.randomUUID();
-        when(assessmentRunRepository.findAllByArtifactIdOrderByRunNumberDesc(artifactId))
+        when(assessmentRunRepository.findAllByArtifactIdAndRunTypeOrderByRunNumberDesc(artifactId, AssessmentRun.RUN_TYPE_POTTERY_PATTERN))
                 .thenReturn(List.of());
 
         Optional<PotterySourceAdapter.PotterySource> result = adapter().resolve(artifactId.toString());
@@ -67,7 +68,7 @@ class PotterySourceAdapterTest {
         UUID artifactId = UUID.randomUUID();
         AssessmentRun latestRun = run(UUID.randomUUID(), artifactId, 2);
 
-        when(assessmentRunRepository.findAllByArtifactIdOrderByRunNumberDesc(artifactId))
+        when(assessmentRunRepository.findAllByArtifactIdAndRunTypeOrderByRunNumberDesc(artifactId, AssessmentRun.RUN_TYPE_POTTERY_PATTERN))
                 .thenReturn(List.of(latestRun));
         when(inspectionResultPotteryRepository
                 .findByAssessmentRunId(latestRun.getId()))
@@ -97,7 +98,7 @@ class PotterySourceAdapterTest {
                 .createdAt(Instant.now())
                 .build();
 
-        when(assessmentRunRepository.findAllByArtifactIdOrderByRunNumberDesc(artifactId))
+        when(assessmentRunRepository.findAllByArtifactIdAndRunTypeOrderByRunNumberDesc(artifactId, AssessmentRun.RUN_TYPE_POTTERY_PATTERN))
                 .thenReturn(List.of(latestRun, olderRun));
         when(inspectionResultPotteryRepository
                 .findByAssessmentRunId(latestRun.getId()))

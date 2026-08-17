@@ -24,6 +24,7 @@ class State(TypedDict, total=False):
     xray_report_text: str | None  # XRAY_JOB.report_text
     xray_regions: list[dict[str, Any]]  # XRAY_REGION 행 목록
     pottery_inspection: dict[str, Any] | None  # INSPECTION_RESULT_POTTERY 등가
+    vca_assessment: dict[str, Any] | None  # ASSESSMENT_REPORT(VCA)
 
     # ── 노드별 산출물 (섹션 키: header/pre_investigation/disassembly/...) ──
     sections: Annotated[dict[str, Any], merge_sections]
