@@ -156,7 +156,25 @@ public class AssessmentRun {
                 .configJson(configJson == null
                         ? null
                         : new LinkedHashMap<>(configJson))
+                // 문양조사 run은 유물 이미지 풀(uploadedImageIds)을 참조하지
+                // 않는다 - 자기만의 사진을 uploadPotteryInspection으로 직접
+                // 올린다. 그래도 null이 아니라 빈 리스트여야 한다:
+                // requireImageNotReferencedByAnyRun이 유물의 모든 run을
+                // 순회하며 이 필드에 .contains()를 호출하는데, null이면 이
+                // run이 존재하는 것만으로 그 유물의 모든 VCA 이미지 삭제가
+                // NPE로 깨진다.
+                .uploadedImageIds(List.of())
                 .build();
+    }
+
+    // Lombok @Getter가 만드는 기본 게터를 덮어쓴다. 위 create()는 이제
+    // uploadedImageIds를 채우지만, 이 필드를 null 없이 채우는 걸 앞으로도
+    // 모든 생성 경로가 계속 지키리라고 보장할 수 없다 - 여러 곳(이미지 삭제
+    // 시 참조 여부 검사, 재개 가능 run 조회, 리포트 이미지 조립 등)이 이
+    // 값이 항상 non-null List라고 가정하고 바로 .contains()/.stream()을
+    // 호출하므로, 게터 레벨에서 한 번 더 막아둔다.
+    public List<String> getUploadedImageIds() {
+        return uploadedImageIds == null ? List.of() : uploadedImageIds;
     }
 
     public void bindAiRun(String aiRunId, String resolvedDevice) {
