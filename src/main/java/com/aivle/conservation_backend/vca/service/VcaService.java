@@ -1382,7 +1382,15 @@ public class VcaService {
         run.setCurrentStage(aiStatus.currentStage());
         run.setStages(toRunStages(aiStatus.stages()));
         run.setFailureReason(aiStatus.failureReason());
-        run.setProgressPercent(computeProgressPercent(aiStatus.currentStageProgress(), run.getStatus()));
+        // computeProgressPercent는 무거운 스테이지가 아니면 의도적으로 null을
+        // 돌려준다(그 스테이지엔 세부 진행률이 없다는 뜻) - progressPercent가
+        // primitive int라 null을 그대로 넣으면 언박싱 NPE로 run 생성/폴링
+        // 자체가 죽는다(실측: POST /runs가 이 경로에서 500). 새 값이 없으면
+        // 마지막으로 알려진 진행률을 그대로 둔다.
+        Integer progressPercent = computeProgressPercent(aiStatus.currentStageProgress(), run.getStatus());
+        if (progressPercent != null) {
+            run.setProgressPercent(progressPercent);
+        }
         if ("COMPLETED".equals(run.getStatus()) && run.getCompletedAt() == null) {
             run.setCompletedAt(Instant.now());
         }
