@@ -2,6 +2,7 @@ package com.aivle.conservation_backend.vca.service;
 
 import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
+import com.aivle.conservation_backend.user.domain.User;
 import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.vca.domain.VcaArtifactEntity;
 import com.aivle.conservation_backend.vca.domain.AssessmentReport;
@@ -41,6 +42,8 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -331,10 +334,25 @@ public class VcaService {
                 .name(request.name())
                 .createdAt(now)
                 .updatedAt(now)
+                .userId(currentUserId())
                 .build();
         artifact = artifactStore.save(artifact);
         log.info("VCA artifact created artifactId={}", artifact.getId());
         return toDetail(artifact, List.of());
+    }
+
+    // 현재 로그인 사용자의 id. artifacts.user_id는 db/artifact_owner_migration.sql이
+    // NOT NULL + users FK로 걸어둔 컬럼이라, 채우지 않고 INSERT하면 그 제약이 걸린
+    // 환경(운영 RDS)에서 매번 실패한다. /api/vca/**는 WebSecurityConfig가 이미
+    // authenticated()로 막아두므로 principal은 항상 존재한다 - 데모/테스트처럼
+    // SecurityContext가 비어 있는 경로에서만 null로 폴백한다(그 경우 로컬처럼
+    // user_id가 nullable인 DB에서만 저장이 성립한다).
+    private Long currentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User user) {
+            return user.getId();
+        }
+        return null;
     }
 
     // GET /api/vca - 아티팩트 목록 조회. 조회할 때마다 진행 중인 데모 run들의 진행 상태를 갱신한다.
