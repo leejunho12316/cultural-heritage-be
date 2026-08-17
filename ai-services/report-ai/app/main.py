@@ -65,6 +65,7 @@ class GenerateReportRequest(BaseModel):
     xray_report_text: str | None = None  # XRAY_JOB.report_text
     xray_regions: list[dict[str, Any]] = Field(default_factory=list)  # XRAY_REGION 행
     pottery_inspection: dict[str, Any] | None = None  # INSPECTION_RESULT_POTTERY
+    vca_assessment: dict[str, Any] | None = None  # ASSESSMENT_REPORT(VCA)
     # docx에 붙일 사진(작업 전/후, X-ray 원본 등). S3_FILE에서 조회한 이미지를
     # 호출자가 base64로 인코딩해서 넘긴다 - report-ai는 파일을 직접 조회하지 않는다.
     # 키는 어느 단계/조사 항목에 붙일지를 나타낸다 - header/
@@ -84,6 +85,7 @@ def _run_pipeline(req: GenerateReportRequest) -> dict[str, Any]:
         "xray_report_text": req.xray_report_text,
         "xray_regions": req.xray_regions,
         "pottery_inspection": req.pottery_inspection,
+        "vca_assessment": req.vca_assessment,
         "sections": {},
     }
     result = graph.invoke(initial_state)

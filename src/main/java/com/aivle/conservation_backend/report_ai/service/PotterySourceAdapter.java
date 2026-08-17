@@ -57,7 +57,10 @@ public class PotterySourceAdapter {
             return Optional.empty();
         }
 
-        List<AssessmentRun> runs = assessmentRunRepository.findAllByArtifactIdOrderByRunNumberDesc(uuid);
+        List<AssessmentRun> runs = assessmentRunRepository.findAllByArtifactIdAndRunTypeOrderByRunNumberDesc(
+                uuid,
+                AssessmentRun.RUN_TYPE_POTTERY_PATTERN
+        );
         if (runs.isEmpty()) {
             return Optional.empty();
         }

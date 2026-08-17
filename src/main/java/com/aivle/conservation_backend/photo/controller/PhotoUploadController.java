@@ -1,5 +1,6 @@
 package com.aivle.conservation_backend.photo.controller;
 
+import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.photo.dto.PhotoUploadResponseDto;
 import com.aivle.conservation_backend.photo.service.S3PhotoStorageService;
 import lombok.RequiredArgsConstructor;
@@ -18,12 +19,14 @@ import java.util.UUID;
 public class PhotoUploadController {
 
     private final S3PhotoStorageService storageService;
+    private final ArtifactAccessService artifactAccessService;
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
     public PhotoUploadResponseDto upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "artifactId", required = false) UUID artifactId
+            @RequestParam("artifactId") UUID artifactId
     ) {
+        artifactAccessService.requireArtifact(artifactId);
         String url = storageService.upload(artifactId, file);
         return new PhotoUploadResponseDto(url);
     }

@@ -2,6 +2,7 @@ package com.aivle.conservation_backend.vca.service;
 
 import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
+import com.aivle.conservation_backend.user.domain.Role;
 import com.aivle.conservation_backend.user.domain.User;
 import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.vca.domain.VcaArtifactEntity;
@@ -345,10 +346,10 @@ public class VcaService {
     // NOT NULL + users FK로 걸어둔 컬럼이라, 채우지 않고 INSERT하면 운영 RDS에서 실패한다.
     // /api/vca/**는 인증이 필요한 경로이므로 정상 요청에서는 User principal이 존재해야 한다.
     // 인증 정보가 없거나 User principal이 아니면 DB 저장까지 진행하지 않고 401을 반환한다.
-    private Long currentUserId() {
+    private User currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
+            return user;
         }
         throw new VcaApiException(
             HttpStatus.UNAUTHORIZED,
@@ -357,10 +358,21 @@ public class VcaService {
         );
     }
 
-    // GET /api/vca - 아티팩트 목록 조회. 조회할 때마다 진행 중인 데모 run들의 진행 상태를 갱신한다.
+    private Long currentUserId() {
+        return currentUser().getId();
+    }
+
+    private boolean canAccessArtifact(VcaArtifactEntity artifact, User user) {
+        return user.getRole() == Role.ADMIN || artifact.getUserId().equals(user.getId());
+    }
+
+    // GET /api/vca - 일반 사용자는 본인 유물만, ADMIN은 전체 유물을 조회한다.
+    // 조회할 때마다 진행 중인 데모 run들의 진행 상태를 갱신한다.
     public synchronized ArtifactCollectionResponse getArtifacts() {
+        User user = currentUser();
         return new ArtifactCollectionResponse(
                 artifactStore.findAll().stream()
+                        .filter(artifact -> canAccessArtifact(artifact, user))
                         .map(artifact -> toSummary(artifact, advanceDemoRuns(artifact)))
                         .toList()
         );
@@ -1860,12 +1872,22 @@ public class VcaService {
     // 조회 전용 헬퍼를 거친다.
     private VcaArtifactEntity requireArtifact(String artifactId) {
         UUID id = validateUuid(artifactId, "artifactId");
-        return artifactStore.findById(id)
+        VcaArtifactEntity artifact = artifactStore.findById(id)
                 .orElseThrow(() -> new VcaApiException(
                         HttpStatus.NOT_FOUND,
                         "ARTIFACT_NOT_FOUND",
                         "The requested VCA artifact was not found."
                 ));
+
+        User user = currentUser();
+        if (!canAccessArtifact(artifact, user)) {
+            throw new VcaApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ARTIFACT_ACCESS_DENIED",
+                    "해당 유물 프로젝트에 접근할 권한이 없습니다."
+            );
+        }
+        return artifact;
     }
 
     private UploadedImage requireImage(VcaArtifactEntity artifact, UUID imageId) {

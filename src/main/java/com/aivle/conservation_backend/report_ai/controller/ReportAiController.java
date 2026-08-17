@@ -11,6 +11,7 @@ import com.aivle.conservation_backend.report_ai.service.ConservationGuideSourceA
 import com.aivle.conservation_backend.report_ai.service.PotterySourceAdapter;
 import com.aivle.conservation_backend.report_ai.service.ReportDocumentService;
 import com.aivle.conservation_backend.report_ai.service.XraySourceAdapter;
+import com.aivle.conservation_backend.report_ai.service.VcaSourceAdapter;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
@@ -52,6 +53,7 @@ public class ReportAiController {
     private final ReportAiClient reportAiClient;
     private final XraySourceAdapter xraySourceAdapter;
     private final PotterySourceAdapter potterySourceAdapter;
+    private final VcaSourceAdapter vcaSourceAdapter;
     private final ArtifactSourceAdapter artifactSourceAdapter;
     private final ConservationGuideSourceAdapter conservationGuideSourceAdapter;
     private final ReportDocumentService reportDocumentService;
@@ -154,6 +156,15 @@ public class ReportAiController {
                         "human_review_recommended", false,
                         "detail", Map.of()
                 )));
+    }
+
+    /** VCA v2의 최신 assessment_report를 최종 report-ai 입력 형태로 반환한다. */
+    @GetMapping("/{artifactId}/vca-source")
+    public ResponseEntity<Map<String, Object>> vcaSource(@PathVariable String artifactId) {
+        artifactAccessService.requireArtifact(artifactId);
+        return vcaSourceAdapter.resolve(artifactId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.ok(Map.of()));
     }
 
     /**

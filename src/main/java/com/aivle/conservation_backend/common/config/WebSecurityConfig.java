@@ -65,10 +65,22 @@ public class WebSecurityConfig {
                                 "/api/notices/**"
                         ).hasRole("ADMIN")
 
+                        // VCA 공용 RAG corpus 변경은 ADMIN만 허용
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/vca/corpus/pdfs"
+                        ).hasRole("ADMIN")
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/vca/corpus/pdfs/**"
+                        ).hasRole("ADMIN")
+
                         // 유물/AI 워크스페이스는 로그인 사용자만 접근
                         .requestMatchers("/api/artifacts/**").authenticated()
                         .requestMatchers("/api/vca/**").authenticated()
                         .requestMatchers("/api/reports/**").authenticated()
+                        .requestMatchers("/pottery-inspection/**").authenticated()
+                        .requestMatchers("/photos/**").authenticated()
 
                         // X-Ray health/callback은 인프라 및 AI callback 용도로 예외
                         .requestMatchers(
