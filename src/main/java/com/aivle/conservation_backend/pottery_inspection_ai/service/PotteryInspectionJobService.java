@@ -2,10 +2,10 @@ package com.aivle.conservation_backend.pottery_inspection_ai.service;
 
 import com.aivle.conservation_backend.photo.service.S3PhotoStorageService;
 import com.aivle.conservation_backend.pottery_inspection_ai.client.PotteryInspectionAiClient;
-import com.aivle.conservation_backend.pottery_inspection_ai.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionJobResponseDto;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
-import com.aivle.conservation_backend.pottery_inspection_ai.repository.InspectionResultPotteryRepository;
+import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
+import com.aivle.conservation_backend.vca.repository.InspectionResultPotteryRepository;
 import com.aivle.conservation_backend.vca.domain.AssessmentRun;
 import com.aivle.conservation_backend.vca.repository.AssessmentRunRepository;
 import lombok.RequiredArgsConstructor;

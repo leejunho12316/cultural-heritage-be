@@ -772,20 +772,14 @@ public class VcaService {
         }
     }
 
-    // "도자기 검사" 수동 트리거 엔드포인트의 실제 로직. material 게이팅 결과에 따라
-    // 도자기 AI 호출/미적용/실패 세 갈래로 나뉜다(아래 3개의 private 메서드가 각각 담당).
+    // "도자기 검사" 수동 트리거 엔드포인트의 실제 로직. VCA 완료 시 자동 실행하지 않고,
+    // 명시적인 요청이 들어왔을 때만 material 게이팅 후 Pottery AI를 호출한다.
     public ReportResponse runPotteryInspection(
             String artifactId,
             String assessmentRunId,
             PotteryInspectionRequest request
     ) {
         PotteryInspectionTarget target = preparePotteryInspection(artifactId, assessmentRunId, request);
-        if (target.alreadyHandled()) {
-            // VCA 리포트가 이번 호출에서 막 COMPLETED로 전환되면서 도자기
-            // 검사가 이미 자동으로 실행됐다 - 방금 반영된 리포트를 그대로
-            // 돌려주고, 실제 검사를 한 번 더 중복 실행하지 않는다.
-            return findReport(UUID.fromString(assessmentRunId));
-        }
         if (!target.applicable()) {
             return markPotteryInspectionNotApplicable(artifactId, assessmentRunId);
         }
@@ -797,8 +791,9 @@ public class VcaService {
         }
     }
 
-    // 도자기 검사 실행 전제조건 확인: 리포트가 완료되어 있어야 하고, material이 도자기 계열이면서
-    // potteryInspectionAiClient 빈이 존재할 때만 applicable=true로 판단한다.
+    // 기존 VCA run 기반 수동 Pottery 엔드포인트의 전제조건 확인.
+    // 자동 Pottery 실행은 제거됐으므로 syncRunWithAi는 VCA 상태/리포트 동기화만 담당한다.
+    // 최종 독립 카드 구조에서는 PotteryInspectionJobService의 별도 POTTERY_PATTERN run을 사용한다.
     private synchronized PotteryInspectionTarget preparePotteryInspection(
             String artifactId,
             String assessmentRunId,
@@ -806,10 +801,7 @@ public class VcaService {
     ) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
         AssessmentRun run = requireRun(artifact, assessmentRunId);
-        // 이 동기화가 방금 COMPLETED로 전환시킨 거라면, 그 안에서 이미 도자기
-        // 검사를 자동으로 실행해뒀다(syncRunWithAi 참고) - 아래에서 또
-        // 중복 실행하지 않도록 alreadyHandled로 표시해 돌려준다.
-        boolean alreadyHandled = syncRunWithAi(artifact, run);
+        syncRunWithAi(artifact, run);
         if (!"COMPLETED".equals(run.getStatus())) {
             throw new VcaApiException(
                     HttpStatus.CONFLICT,
@@ -822,7 +814,7 @@ public class VcaService {
         boolean applicable = isPotteryMaterial(material) && potteryInspectionAiClient.isPresent();
         UploadedImage primaryImage = requireImage(artifact, UUID.fromString(run.getUploadedImageIds().get(0)));
         runStore.save(run);
-        return new PotteryInspectionTarget(applicable, primaryImage, alreadyHandled);
+        return new PotteryInspectionTarget(applicable, primaryImage);
     }
 
     // runPotteryInspection의 세 가지 결과 처리 중 하나: 도자기 재질이 아니거나 클라이언트가
@@ -1341,17 +1333,10 @@ public class VcaService {
         ));
     }
 
-    // vca-ai에서 run의 최신 상태를 가져와 로컬 엔티티에 반영. getReport/createPdfJob/
-    // preparePotteryInspection/advanceDemoRuns 등 여러 곳에서 공통으로 호출되는 동기화 지점.
-    // 이 호출로 run이 방금 처음 COMPLETED로 전환됐다면, (1) 재질과 무관하게 리포트를
-    // 곧바로 이쪽 DB에 받아 저장하고(vca-ai가 팟 로컬 디스크에만 들고 있는 산출물은
-    // 팟이 재생성되면 사라지므로, 완료 직후 바로 받아두지 않으면 아무도 조회하기
-    // 전에 pod가 내려갔을 때 영영 사라진다 - 실제로 이렇게 리포트 하나를 잃고 나서
-    // 추가한 동작이다), (2) 도자기 재질에 한해 도자기 검사도 이어서 실행한다(아래
-    // autoTriggerPotteryInspectionIfApplicable). 반환값은 "이 호출 안에서 도자기
-    // 검사를 자동으로 이미 실행했는가"이다 - preparePotteryInspection이 이 값을
-    // 보고, 방금 자동으로 막 끝낸 검사를 수동 트리거 경로가 곧바로 또 한 번
-    // 중복 실행하지 않게 막는다.
+    // vca-ai에서 run의 최신 상태를 가져와 로컬 엔티티에 반영한다.
+    // run이 처음 COMPLETED로 전환되면 VCA 리포트를 즉시 DB에 저장해
+    // RunPod/AI Pod 재시작 시 산출물이 유실되지 않도록 한다.
+    // Pottery 검사는 VCA와 독립된 AssessmentRun으로 별도 실행한다.
     private boolean syncRunWithAi(VcaArtifactEntity artifact, AssessmentRun run) {
         if (vcaAiGateway.isEmpty() || run.getAiRunId() == null) {
             return false;
@@ -1365,44 +1350,10 @@ public class VcaService {
         boolean justCompleted = !wasCompleted && "COMPLETED".equals(run.getStatus());
         if (justCompleted) {
             ensureReportReady(artifact, run);
-            autoTriggerPotteryInspectionIfApplicable(artifact, run);
         }
         return justCompleted;
     }
 
-    // VCA 리포트가 방금 COMPLETED로 전환된 시점에 한 번, material이 도자기 계열이면
-    // 도자기 검사를 자동으로 실행한다 - "분석 시작"만 누르면 VCA가 끝나는 즉시 이어서
-    // 돌아가길 원한다는 요청에 따른 것으로, FE가 별도 버튼을 누르거나 리포트 페이지를
-    // 열어둘 필요가 없다(이 메서드는 폴링/조회가 들어올 때마다 공통으로 거치는
-    // syncRunWithAi 안에서 호출되므로, 어느 화면이 폴링하든 트리거된다). runPotteryInspection
-    // 처럼 syncRunWithAi를 다시 부르지 않는다(방금 그 호출 안에 있으므로) - 대신
-    // completePotteryInspection/failPotteryInspection을 그대로 재사용해 저장 로직을
-    // 수동 트리거와 하나로 유지한다. COMPLETED는 한 번만 전환되므로(재전환 없음)
-    // 이 메서드도 run당 정확히 한 번만 실행된다.
-    private void autoTriggerPotteryInspectionIfApplicable(
-            VcaArtifactEntity artifact,
-            AssessmentRun run
-    ) {
-        if (!isPotteryMaterial(run.getMaterial()) || potteryInspectionAiClient.isEmpty()) {
-            return;
-        }
-        if (run.getUploadedImageIds() == null || run.getUploadedImageIds().isEmpty()) {
-            return;
-        }
-        String artifactId = artifact.getId().toString();
-        String assessmentRunId = run.getId().toString();
-        ensureReportReady(artifact, run);
-        UploadedImage primaryImage = requireImage(artifact, UUID.fromString(run.getUploadedImageIds().get(0)));
-        try {
-            ReportResponse.PotteryInspection potteryInspection = inspectPottery(primaryImage);
-            completePotteryInspection(artifactId, assessmentRunId, potteryInspection);
-        } catch (RuntimeException exception) {
-            failPotteryInspection(artifactId, assessmentRunId, exception);
-        }
-    }
-
-    // vca-ai 응답을 run 엔티티 필드에 반영하는 공통 매핑 로직(syncRunWithAi/completeRunReservation/
-    // cancelRun에서 재사용). COMPLETED로 처음 전환되는 순간에만 completedAt을 채운다.
     private static void applyAiStatus(AssessmentRun run, VcaAiAssessmentRun aiStatus) {
         run.setStatus(aiStatus.status());
         run.setCurrentStage(aiStatus.currentStage());
@@ -1999,8 +1950,7 @@ public class VcaService {
 
     private record PotteryInspectionTarget(
             boolean applicable,
-            UploadedImage primaryImage,
-            boolean alreadyHandled
+            UploadedImage primaryImage
     ) {
     }
 
