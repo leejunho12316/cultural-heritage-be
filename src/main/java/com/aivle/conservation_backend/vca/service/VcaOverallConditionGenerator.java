@@ -181,7 +181,11 @@ final class VcaOverallConditionGenerator {
 
     // FE visualVcaLabels.js의 translateDescriptor()와 동일한 단어 단위 사전 치환.
     private static String translateDescriptor(String descriptor) {
-        if (descriptor == null || descriptor.isBlank()) {
+        // "unknown"은 mask_refining의 passthrough 경로(참고 문헌 근거를
+        // 못 찾은 후보)에서 내려오는 값으로, DESCRIPTOR_TERM_LABELS에 없어
+        // 그대로 영문으로 요약문에 섞여 나온다 - 빈 문자열과 같은 취급으로
+        // 막는다.
+        if (descriptor == null || descriptor.isBlank() || "unknown".equalsIgnoreCase(descriptor.trim())) {
             return "세부 정보 없음";
         }
         List<String> translated = new ArrayList<>();
