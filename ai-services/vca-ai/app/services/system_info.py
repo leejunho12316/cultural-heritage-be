@@ -92,8 +92,16 @@ def _probe_engine() -> SystemInfo:
 
 
 def get_system_info() -> SystemInfo:
-    """Return cached engine environment diagnostics, probing once on first call."""
+    """Return cached engine environment diagnostics, probing once on first success.
+
+    A failed probe (e.g. a transient `uv` PATH issue right after startup) is not
+    cached, so a later call can retry instead of being stuck at the fallback for
+    the rest of the process's lifetime.
+    """
     global _cached_system_info  # noqa: PLW0603 - process-lifetime cache, single-writer
     if _cached_system_info is None:
-        _cached_system_info = _probe_engine()
+        probed = _probe_engine()
+        if probed == _FALLBACK:
+            return probed
+        _cached_system_info = probed
     return _cached_system_info

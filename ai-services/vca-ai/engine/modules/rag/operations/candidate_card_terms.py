@@ -20,6 +20,8 @@ from modules.rag.operations.candidate_term_constants import (
     MIN_NUMERIC_FRAGMENT_COUNT,
     MIN_REPEATED_FRAGMENT_COUNT,
     MIN_TABLE_GARBAGE_NUMERIC_COUNT,
+    STRONG_PROVENANCE_MIN_MATCHED_TERMS,
+    STRONG_PROVENANCE_MIN_SCORE,
     TABLE_GARBAGE_PHRASES,
     TABLE_GARBAGE_TERMS,
 )
@@ -192,6 +194,21 @@ def is_usable_retrieval_result(result: PromptRagResultRecord) -> bool:
         numeric_like >= MIN_NUMERIC_FRAGMENT_COUNT
         and repeated >= MIN_REPEATED_FRAGMENT_COUNT
     )
+
+
+# 검색 결과 하나가 concept card의 근거로 얼마나 강한지 판정한다.
+# candidate_sidecars._card가 카드를 조립할 때 호출한다. RAG 시스템 자신의
+# 검색 신뢰도(관련도 점수 + 실제 겹친 용어 수)만 보고, 손상 위험도 같은
+# 도메인 판단은 하지 않는다 - 그건 검증된 기준이 없어 이 함수의 책임이 아니다.
+def provenance_strength_for_result(result: PromptRagResultRecord) -> str:
+    """Return "strong" only when both the retrieval score and the matched-term
+    count clear their thresholds - either signal alone can be misleading."""
+    if (
+        result.score >= STRONG_PROVENANCE_MIN_SCORE
+        and len(result.matched_terms) >= STRONG_PROVENANCE_MIN_MATCHED_TERMS
+    ):
+        return "strong"
+    return "weak"
 
 
 # 색상/형태/질감 중 하나라도 UNKNOWN이 아니면 프롬프트를 구별할 수 있는

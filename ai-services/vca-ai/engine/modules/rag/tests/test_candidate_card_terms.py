@@ -1,7 +1,27 @@
 from __future__ import annotations
 
-from modules.rag.operations.candidate_card_terms import qwen_query_signature
+from modules.rag.operations.candidate_card_terms import (
+    provenance_strength_for_result,
+    qwen_query_signature,
+)
+from modules.rag.operations.candidate_sidecar_artifacts import PromptRagResultRecord
 from modules.shared import CandidateId, QwenBridgeResult, QwenBridgeStatus
+
+
+def _result(**overrides: object) -> PromptRagResultRecord:
+    defaults: dict[str, object] = {
+        "query_id": "owlv2_sam2:prompt-0001",
+        "lane": "owlv2_sam2",
+        "prompt_text": "spalled surface",
+        "citation_id": "fixture:chunk-0001:citation",
+        "chunk_id": "fixture:chunk-0001",
+        "score": 0.9,
+        "snippet_text": "fixture snippet text",
+        "matched_terms": ("spalled", "surface"),
+        "rank": 1,
+    }
+    defaults.update(overrides)
+    return PromptRagResultRecord(**defaults)  # type: ignore[arg-type]
 
 
 def _bridge(candidate_id: str, **overrides: object) -> QwenBridgeResult:
@@ -56,3 +76,30 @@ def test_duplicate_terms_across_fields_are_deduplicated() -> None:
     )
     signature = qwen_query_signature(candidate_id, {candidate_id: bridge})
     assert signature == ("rough",)
+
+
+def test_provenance_strength_is_strong_when_score_and_terms_both_clear_threshold() -> (
+    None
+):
+    result = _result(score=0.9, matched_terms=("spalled", "surface", "crust"))
+    assert provenance_strength_for_result(result) == "strong"
+
+
+def test_provenance_strength_is_weak_when_score_clears_but_terms_do_not() -> None:
+    result = _result(score=0.9, matched_terms=("spalled",))
+    assert provenance_strength_for_result(result) == "weak"
+
+
+def test_provenance_strength_is_weak_when_terms_clear_but_score_does_not() -> None:
+    result = _result(score=0.5, matched_terms=("spalled", "surface"))
+    assert provenance_strength_for_result(result) == "weak"
+
+
+def test_provenance_strength_is_weak_when_neither_clears_threshold() -> None:
+    result = _result(score=0.3, matched_terms=())
+    assert provenance_strength_for_result(result) == "weak"
+
+
+def test_provenance_strength_is_strong_exactly_at_threshold() -> None:
+    result = _result(score=0.75, matched_terms=("spalled", "surface"))
+    assert provenance_strength_for_result(result) == "strong"

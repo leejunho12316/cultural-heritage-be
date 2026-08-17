@@ -15,6 +15,7 @@ from modules.rag.operations.candidate_card_terms import (
     is_usable_retrieval_result,
     material_terms,
     normalize_visual_cue,
+    provenance_strength_for_result,
     qwen_query_signature,
     retrieval_visual_cue,
 )
@@ -222,7 +223,7 @@ def _card(
         raw_retrieved_sentence=result.snippet_text,
         visual_cue=cue,
         retrieval_score=result.score,
-        provenance_strength="strong",
+        provenance_strength=provenance_strength_for_result(result),
     )
 
 
