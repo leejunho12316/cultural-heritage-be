@@ -13,7 +13,9 @@ class HelpCommand:
 
 
 HELP_COMMANDS = (
-    HelpCommand("modules.orchestration.startup", "--storage-mode"),
+    HelpCommand(
+        "modules.orchestration.startup", "--allow-unverified-model-hashes-local-only"
+    ),
     HelpCommand(
         "modules.preprocessing.pipeline", "Real preprocessing execution manual"
     ),

@@ -11,10 +11,7 @@ uv run python -m modules.orchestration.startup <project_name> <input_image_folde
   [--dry-run] \
   [--device auto|cuda|mps|cpu] \
   [--model-cache-root PATH] \
-  [--max-images N] \
-  [--storage-mode filesystem|rdb] \
-  [--artifact-id UUID] \
-  [--db-url URL]
+  [--max-images N]
 ```
 
 도움말:
@@ -23,7 +20,7 @@ uv run python -m modules.orchestration.startup <project_name> <input_image_folde
 uv run python -m modules.orchestration.startup --help
 ```
 
-기본 저장 방식은 파일시스템 전용입니다. `--storage-mode rdb`를 쓰면 선택적으로 PostgreSQL 이중 쓰기를 켤 수 있고, 이 경우 `--artifact-id`와 `--db-url`(또는 `VCA_DATABASE_URL`)이 필요합니다. 현재 startup writer는 `artifact + assessment_run` 스냅샷 한 건만 기록합니다. `uploaded_image`, `assessment_report`, `report_pdf_job`은 Spring VCA/API 영속성 레이어가 목표로 하는 ERD 테이블이며, 현재 startup writer는 image/report/PDF 행을 채우지 않습니다. 최종 리포트는 정규화된 `report_*` 행이 아니라 `assessment_report.report_json`의 JSONB로 저장됩니다. 스테이지별 receipt, 중간 페이로드, 로컬 아티팩트는 여전히 파일시스템 전용이며, startup 스냅샷은 실행 진행 상황과 입력 폴더/출력 루트/이미지 개수 설정만 저장합니다.
+저장 방식은 파일시스템 전용입니다. 스테이지별 receipt, 중간 페이로드, 로컬 아티팩트는 모두 파일시스템에 기록됩니다.
 
 Spring 인메모리 VCA MVP는 기본값이 `SIGNED_PUT`입니다. signed upload verifier 없이 로컬 개발을 할 때는 `VCA_LOCAL_DIRECT_COMPLETE_ENABLED=true`를 명시적으로 설정해야 합니다. `DIRECT_COMPLETE`는 로컬/테스트 전용이며 프로덕션 업로드 경로로 쓰면 안 됩니다.
 
