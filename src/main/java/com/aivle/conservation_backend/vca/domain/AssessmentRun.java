@@ -193,6 +193,20 @@ public class AssessmentRun {
         this.resolvedDevice = resolvedDevice;
     }
 
+    /**
+     * 기존 config_json을 유지하면서 작업 메타데이터만 합친다.
+     * 육안조사 원본 사진의 S3 key와 AI 옵션을 저장할 때 사용한다.
+     */
+    public void mergeConfig(Map<String, Object> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        if (this.configJson == null) {
+            this.configJson = new LinkedHashMap<>();
+        }
+        this.configJson.putAll(values);
+    }
+
     public void setInputSnapshot(
             int imageCount,
             String material,
@@ -228,6 +242,7 @@ public class AssessmentRun {
 
     public void markCompleted() {
         this.status = "completed";
+        this.currentStage = "COMPLETED";
         this.progressPercent = 100;
         this.failureReason = null;
         this.completedAt = Instant.now();

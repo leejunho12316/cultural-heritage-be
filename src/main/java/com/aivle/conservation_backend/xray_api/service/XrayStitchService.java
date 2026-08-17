@@ -263,25 +263,9 @@ public class XrayStitchService {
         for (String name : xrayNames) {
             requireObject(XrayS3Keys.xrayInput(artifactId, name), "X-ray fragment " + name);
         }
-
-        // Lambda와 Spring이 같은 RDS를 바라보는 환경에서는 S3_FILE을 함께 검증한다.
-        // 로컬 테스트처럼 DB가 분리된 경우에는 S3 객체 존재 검사를 정본 fallback으로 사용한다.
-        List<S3FileRecord> inputRecords = xrayInputRecords(job);
-        if (!inputRecords.isEmpty() && inputRecords.size() != job.getExpectedXrayCount()) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "S3_FILE X-ray count does not match the prepared count. expected="
-                            + job.getExpectedXrayCount() + ", actual=" + inputRecords.size()
-            );
-        }
-        List<S3FileRecord> colorRecords = colorInputRecords(job);
-        if (!colorRecords.isEmpty() && colorRecords.size() != job.getExpectedColorCount()) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "S3_FILE color count does not match the prepared count. expected="
-                            + job.getExpectedColorCount() + ", actual=" + colorRecords.size()
-            );
-        }
+        // 결합 시작 여부는 실제 S3 객체 존재 검사를 정본으로 판단한다.
+        // S3_FILE은 ObjectCreated -> Lambda -> RDS로 비동기 기록되므로
+        // 대량 업로드 직후 레코드 반영이 늦더라도 /start를 차단하지 않는다.
 
         XrayAiStitchRequest request = new XrayAiStitchRequest(
                 jobId.toString(),
