@@ -22,20 +22,11 @@ from modules.orchestration.stage_execution import (
     execute_startup_stages,
 )
 from modules.orchestration.stage_paths import StagePathMap, stage_paths
-from modules.orchestration.startup_storage import (
-    StartupStorageConfig,
-    StorageMode,
-    StoragePersistenceError,
-    StorageWriterFactory,
-    persist_startup_storage,
-    startup_storage_config,
-)
 from modules.shared import (
     ContractValidationError,
     PathSafetyError,
     ensure_safe_run_root,
 )
-from modules.storage import RdbStorageCliArguments
 
 IMAGE_SUFFIXES: Final = frozenset(
     {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff"}
@@ -61,7 +52,6 @@ class StartupRequest:
     model_cache_root: Path
     dry_run: bool
     verify_model_hashes: bool
-    storage_config: StartupStorageConfig
     resume_from_stage: str | None = None
 
 
@@ -72,9 +62,6 @@ class _CliNamespace(argparse.Namespace):
     device: str | None
     model_cache_root: Path | None
     max_images: str | None
-    storage_mode: StorageMode
-    artifact_id: str | None
-    db_url: str | None
     allow_unverified_model_hashes_local_only: bool
     resume_from_stage: str | None
 
@@ -87,10 +74,7 @@ class _CliNamespace(argparse.Namespace):
         self.device = None
         self.model_cache_root = None
         self.max_images = None
-        self.storage_mode = "filesystem"
-        self.artifact_id = None
         self.resume_from_stage = None
-        self.db_url = None
         self.allow_unverified_model_hashes_local_only = False
 
 
@@ -103,11 +87,6 @@ def _parser() -> argparse.ArgumentParser:
     _ = parser.add_argument("--device", choices=("auto", "cuda", "mps", "cpu"))
     _ = parser.add_argument("--model-cache-root", type=Path, default=None)
     _ = parser.add_argument("--max-images", default=None)
-    _ = parser.add_argument(
-        "--storage-mode", choices=("filesystem", "rdb"), default="filesystem"
-    )
-    _ = parser.add_argument("--artifact-id")
-    _ = parser.add_argument("--db-url")
     _ = parser.add_argument(
         "--allow-unverified-model-hashes-local-only",
         action="store_true",
@@ -229,10 +208,6 @@ def _request(arguments: Sequence[str], workspace_root: Path) -> StartupRequest:
         model_cache_root,
         parsed.dry_run,
         not parsed.allow_unverified_model_hashes_local_only,
-        startup_storage_config(
-            parsed.storage_mode,
-            RdbStorageCliArguments(parsed.artifact_id, parsed.db_url),
-        ),
         parsed.resume_from_stage,
     )
     return replace(
@@ -241,12 +216,11 @@ def _request(arguments: Sequence[str], workspace_root: Path) -> StartupRequest:
     )
 
 
-# 모든 스테이지를 실행하고 startup 리시트를 기록한 뒤, 선택적으로 RDB
-# 스냅샷을 저장한다. run()에서 요청 파싱이 성공한 뒤 호출된다.
+# 모든 스테이지를 실행하고 startup 리시트를 기록한다. run()에서 요청 파싱이
+# 성공한 뒤 호출된다.
 def _execute(
     request: StartupRequest,
     stage_runners: StartupStageRunners,
-    storage_writer_factory: StorageWriterFactory | None,
 ) -> int:
     request.output_root.mkdir(parents=True, exist_ok=True)
     result = execute_startup_stages(
@@ -273,7 +247,6 @@ def _execute(
             result.final_success_evaluation,
         ),
     )
-    persist_startup_storage(request, result, storage_writer_factory)
     return result.exit_code
 
 
@@ -283,7 +256,6 @@ def run(
     workspace_root: Path | None = None,
     preprocessing_runner: PreprocessingRunner | None = None,
     stage_runners: StartupStageRunners | None = None,
-    storage_writer_factory: StorageWriterFactory | None = None,
 ) -> int:
     """Run the project startup pipeline from parsed CLI arguments."""
     root = Path.cwd() if workspace_root is None else workspace_root
@@ -294,8 +266,8 @@ def run(
         return STARTUP_FAILURE_EXIT_CODE
     runners = _stage_runners(stage_runners, preprocessing_runner)
     try:
-        return _execute(request, runners, storage_writer_factory)
-    except (ContractValidationError, PathSafetyError, StoragePersistenceError) as error:
+        return _execute(request, runners)
+    except (ContractValidationError, PathSafetyError) as error:
         _print_startup_failure("startup execution", error)
         return STARTUP_FAILURE_EXIT_CODE
 
