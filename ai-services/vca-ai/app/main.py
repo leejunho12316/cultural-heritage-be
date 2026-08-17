@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request, Response
 
 from app.routers import assessments
 from app.schemas import HealthResponse, SystemInfoModelResponse, SystemInfoResponse
+from app.services.ollama_proxy import OllamaProxyError, forward_chat
 from app.services.system_info import get_system_info
 
 
@@ -27,3 +28,16 @@ def system_info() -> SystemInfoResponse:
             for model in info.models
         ),
     )
+
+
+# BE의 VcaOverallConditionGenerator가 부르는 Ollama 리버스 프록시 - 같은 팟의
+# localhost:11434로 그대로 전달한다(services/ollama_proxy.py 참고). vca-ai의
+# 다른 엔드포인트와 마찬가지로 X-VCA-Access-Token 검증 없이 열어둔다.
+@app.post("/ollama/api/chat")
+async def ollama_chat_proxy(request: Request) -> Response:
+    body = await request.body()
+    try:
+        upstream_response = forward_chat(body)
+    except OllamaProxyError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    return Response(content=upstream_response, media_type="application/json")

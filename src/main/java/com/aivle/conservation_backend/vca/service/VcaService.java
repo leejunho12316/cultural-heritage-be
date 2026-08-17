@@ -1436,6 +1436,8 @@ public class VcaService {
                 ))
                 .toList();
         List<ReportResponse.Finding> findings = toFindings(artifact, aiReport.findings());
+        ReportResponse.PotteryInspection pottery = findPotteryInspection(run.getId()).orElse(null);
+        String overallCondition = new VcaOverallConditionGenerator().generate(findings, pottery);
         return new ReportResponse(
                 run.getId().toString(),
                 artifact.getId().toString(),
@@ -1444,14 +1446,14 @@ public class VcaService {
                 new ReportResponse.Summary(
                         REPORT_HEADLINE,
                         aiReport.summary(),
-                        null,
+                        overallCondition,
                         null
                 ),
                 findings,
                 toRecommendations(findings),
                 reportImages,
                 toRagArtifacts(aiReport.ragArtifacts()),
-                findPotteryInspection(run.getId()).orElse(null),
+                pottery,
                 run.getPotteryInspectionStatus()
         );
     }
