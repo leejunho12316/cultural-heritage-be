@@ -342,17 +342,19 @@ public class VcaService {
     }
 
     // 현재 로그인 사용자의 id. artifacts.user_id는 db/artifact_owner_migration.sql이
-    // NOT NULL + users FK로 걸어둔 컬럼이라, 채우지 않고 INSERT하면 그 제약이 걸린
-    // 환경(운영 RDS)에서 매번 실패한다. /api/vca/**는 WebSecurityConfig가 이미
-    // authenticated()로 막아두므로 principal은 항상 존재한다 - 데모/테스트처럼
-    // SecurityContext가 비어 있는 경로에서만 null로 폴백한다(그 경우 로컬처럼
-    // user_id가 nullable인 DB에서만 저장이 성립한다).
+    // NOT NULL + users FK로 걸어둔 컬럼이라, 채우지 않고 INSERT하면 운영 RDS에서 실패한다.
+    // /api/vca/**는 인증이 필요한 경로이므로 정상 요청에서는 User principal이 존재해야 한다.
+    // 인증 정보가 없거나 User principal이 아니면 DB 저장까지 진행하지 않고 401을 반환한다.
     private Long currentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User user) {
             return user.getId();
         }
-        return null;
+        throw new VcaApiException(
+            HttpStatus.UNAUTHORIZED,
+            "UNAUTHORIZED",
+            "로그인이 필요합니다."
+        );
     }
 
     // GET /api/vca - 아티팩트 목록 조회. 조회할 때마다 진행 중인 데모 run들의 진행 상태를 갱신한다.
