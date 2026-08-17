@@ -1,15 +1,21 @@
 package com.aivle.conservation_backend.vca.domain;
 
+import com.aivle.conservation_backend.vca.dto.ReportResponse;
+import com.aivle.conservation_backend.vca.dto.RunResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,42 +24,59 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "assessment_run",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_assessment_run_artifact_number",
-                columnNames = {"artifact_id", "run_number"}
-        )
+        uniqueConstraints = @UniqueConstraint(columnNames = {"artifact_id", "run_number"})
 )
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class AssessmentRun {
 
+    public static final String RUN_TYPE_VCA = "VCA";
+    public static final String RUN_TYPE_POTTERY_PATTERN = "POTTERY_PATTERN";
+
     @Id
-    @Column(name = "id", nullable = false, updatable = false)
+    @Column(name = "id")
     private UUID id;
 
-    /** Artifact 엔티티 통합 전까지 UUID만 보관한다. */
     @Column(name = "artifact_id", nullable = false)
     private UUID artifactId;
 
     @Column(name = "run_number", nullable = false)
     private int runNumber;
 
-    @Column(name = "legacy_project_name", columnDefinition = "text")
+    /**
+     * AssessmentRun의 종류.
+     * VCA          : 실제 부식/손상 상태 조사
+     * POTTERY_PATTERN : 도자기 문양 조사
+     */
+    @Column(name = "run_type", columnDefinition = "text")
+    private String runType;
+
+    @Column(name = "legacy_project_name")
     private String legacyProjectName;
 
-    @Column(name = "status", nullable = false, columnDefinition = "text")
+    /**
+     * 각 AssessmentRun row의 실행 상태.
+     * VCA와 Pottery는 서로 다른 row를 사용하므로 공통 컬럼으로 사용한다.
+     */
+    @Column(name = "status", nullable = false)
     private String status;
 
     @Column(name = "dry_run", nullable = false)
     private boolean dryRun;
 
-    @Column(name = "requested_device", columnDefinition = "text")
+    @Column(name = "requested_device")
     private String requestedDevice;
 
-    @Column(name = "resolved_device", columnDefinition = "text")
+    @Column(name = "resolved_device")
     private String resolvedDevice;
 
-    @Column(name = "current_stage", columnDefinition = "text")
+    @Column(name = "current_stage")
     private String currentStage;
 
+    // 모든 AssessmentRun은 생성 시 진행률 0부터 시작하므로 DB의 NOT NULL 제약과 맞춘다.
     @Column(name = "progress_percent", nullable = false)
     private int progressPercent;
 
@@ -67,29 +90,49 @@ public class AssessmentRun {
     @Column(name = "config_json", columnDefinition = "jsonb")
     private Map<String, Object> configJson;
 
+    @Column(name = "image_count", nullable = false)
+    private int imageCount;
+
+    @Column(name = "material")
+    private String material;
+
+    /**
+     * 각 AssessmentRun row에 대응하는 AI Job ID.
+     * runType으로 VCA/Pottery를 구분한다.
+     */
     @Column(name = "ai_run_id", columnDefinition = "text")
     private String aiRunId;
-
-    @Column(name = "image_count")
-    private Integer imageCount;
-
-    @Column(name = "material", columnDefinition = "text")
-    private String material;
 
     @Column(name = "failure_reason", columnDefinition = "text")
     private String failureReason;
 
+    /**
+     * VCA 실제 상태조사 AI의 파이프라인 단계.
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "stages_json", columnDefinition = "jsonb")
-    private Map<String, Object> stagesJson;
+    private List<RunResponse.Stage> stages;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "uploaded_image_ids_json", columnDefinition = "jsonb")
-    private List<UUID> uploadedImageIdsJson;
+    private List<String> uploadedImageIds;
 
-    protected AssessmentRun() {
-    }
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pottery_inspection_status_json", columnDefinition = "jsonb")
+    private ReportResponse.PotteryInspectionStatus potteryInspectionStatus;
 
+    /**
+     * 문양조사 비동기 Job의 폴링 상태/오류 등의 내부 메타데이터.
+     * VCA의 stages_json과 데이터 타입과 의미가 다르므로 별도 컬럼으로 저장한다.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pottery_job_state_json", columnDefinition = "jsonb")
+    private Map<String, Object> potteryJobStateJson;
+
+    /**
+     * 문양조사(Pottery) AssessmentRun 생성용.
+     * VCA는 기존 builder()를 사용한다.
+     */
     public static AssessmentRun create(
             UUID id,
             UUID artifactId,
@@ -99,93 +142,21 @@ public class AssessmentRun {
             String requestedDevice,
             Map<String, Object> configJson
     ) {
-        AssessmentRun run = new AssessmentRun();
-        run.id = id;
-        run.artifactId = artifactId;
-        run.runNumber = runNumber;
-        run.legacyProjectName = legacyProjectName;
-        run.status = "queued";
-        run.dryRun = dryRun;
-        run.requestedDevice = requestedDevice;
-        run.progressPercent = 0;
-        run.configJson = configJson == null ? null : new LinkedHashMap<>(configJson);
-        return run;
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public UUID getArtifactId() {
-        return artifactId;
-    }
-
-    public int getRunNumber() {
-        return runNumber;
-    }
-
-    public String getLegacyProjectName() {
-        return legacyProjectName;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public boolean isDryRun() {
-        return dryRun;
-    }
-
-    public String getRequestedDevice() {
-        return requestedDevice;
-    }
-
-    public String getResolvedDevice() {
-        return resolvedDevice;
-    }
-
-    public String getCurrentStage() {
-        return currentStage;
-    }
-
-    public int getProgressPercent() {
-        return progressPercent;
-    }
-
-    public Instant getStartedAt() {
-        return startedAt;
-    }
-
-    public Instant getCompletedAt() {
-        return completedAt;
-    }
-
-    public Map<String, Object> getConfigJson() {
-        return configJson;
-    }
-
-    public String getAiRunId() {
-        return aiRunId;
-    }
-
-    public Integer getImageCount() {
-        return imageCount;
-    }
-
-    public String getMaterial() {
-        return material;
-    }
-
-    public String getFailureReason() {
-        return failureReason;
-    }
-
-    public Map<String, Object> getStagesJson() {
-        return stagesJson;
-    }
-
-    public List<UUID> getUploadedImageIdsJson() {
-        return uploadedImageIdsJson;
+        return AssessmentRun.builder()
+                .id(id)
+                .artifactId(artifactId)
+                .runNumber(runNumber)
+                .runType(RUN_TYPE_POTTERY_PATTERN)
+                .legacyProjectName(legacyProjectName)
+                .status("queued")
+                .dryRun(dryRun)
+                .requestedDevice(requestedDevice)
+                .progressPercent(0)
+                .imageCount(0)
+                .configJson(configJson == null
+                        ? null
+                        : new LinkedHashMap<>(configJson))
+                .build();
     }
 
     public void bindAiRun(String aiRunId, String resolvedDevice) {
@@ -193,17 +164,15 @@ public class AssessmentRun {
         this.resolvedDevice = resolvedDevice;
     }
 
-    /**
-     * 기존 config_json을 유지하면서 작업 메타데이터만 합친다.
-     * 육안조사 원본 사진의 S3 key와 AI 옵션을 저장할 때 사용한다.
-     */
     public void mergeConfig(Map<String, Object> values) {
         if (values == null || values.isEmpty()) {
             return;
         }
+
         if (this.configJson == null) {
             this.configJson = new LinkedHashMap<>();
         }
+
         this.configJson.putAll(values);
     }
 
@@ -214,19 +183,24 @@ public class AssessmentRun {
     ) {
         this.imageCount = imageCount;
         this.material = material;
-        this.uploadedImageIdsJson = uploadedImageIds == null
+        this.uploadedImageIds = uploadedImageIds == null
                 ? null
-                : new ArrayList<>(uploadedImageIds);
+                : uploadedImageIds.stream()
+                        .map(UUID::toString)
+                        .toList();
     }
 
-    public void updateStages(Map<String, Object> stagesJson) {
-        this.stagesJson = stagesJson == null ? null : new LinkedHashMap<>(stagesJson);
+    public void updatePotteryJobState(Map<String, Object> state) {
+        this.potteryJobStateJson = state == null
+                ? null
+                : new LinkedHashMap<>(state);
     }
 
     public void markRunning(String resolvedDevice, String currentStage) {
         this.status = "running";
         this.resolvedDevice = resolvedDevice;
         this.currentStage = currentStage;
+
         if (this.startedAt == null) {
             this.startedAt = Instant.now();
         }
@@ -234,8 +208,11 @@ public class AssessmentRun {
 
     public void updateProgress(String currentStage, int progressPercent) {
         if (progressPercent < 0 || progressPercent > 100) {
-            throw new IllegalArgumentException("progressPercent must be between 0 and 100");
+            throw new IllegalArgumentException(
+                    "progressPercent must be between 0 and 100"
+            );
         }
+
         this.currentStage = currentStage;
         this.progressPercent = progressPercent;
     }

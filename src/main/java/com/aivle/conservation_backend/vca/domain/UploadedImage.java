@@ -36,10 +36,10 @@ public class UploadedImage {
     @Column(name = "artifact_id", nullable = false)
     private UUID artifactId;
 
-    @Column(name = "filename")
+    @Column(name = "filename", nullable = false)
     private String filename;
 
-    @Column(name = "object_key")
+    @Column(name = "object_key", nullable = false)
     private String objectKey;
 
     @Column(name = "thumbnail_object_key")
@@ -66,10 +66,10 @@ public class UploadedImage {
     @Column(name = "display_order", nullable = false)
     private int displayOrder;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @Column(name = "uploaded_at")
+    @Column(name = "uploaded_at", nullable = false)
     private Instant uploadedAt;
 
     // --- ERD 외 구현 필수 컬럼 ---

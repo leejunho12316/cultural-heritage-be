@@ -620,10 +620,13 @@ public class VcaService {
                 .id(assessmentRunId)
                 .artifactId(artifact.getId())
                 .runNumber(runNumber)
+                .runType(AssessmentRun.RUN_TYPE_VCA)
                 .legacyProjectName(projectName(artifactId, assessmentRunId.toString()))
                 .status("QUEUED")
                 .dryRun(false)
                 .imageCount(uploadedImages.size())
+                // 신규 VCA run도 DB의 progress_percent NOT NULL 조건에 맞춰 0부터 시작한다.
+                .progressPercent(0)
                 .startedAt(now)
                 .uploadedImageIds(uploadedImages.stream().map(image -> image.getId().toString()).toList())
                 .stages(List.of())

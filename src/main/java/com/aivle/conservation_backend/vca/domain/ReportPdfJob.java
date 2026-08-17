@@ -40,7 +40,7 @@ public class ReportPdfJob {
     @Column(name = "pdf_object_key")
     private String pdfObjectKey;
 
-    @Column(name = "requested_at")
+    @Column(name = "requested_at", nullable = false)
     private Instant requestedAt;
 
     @Column(name = "completed_at")
