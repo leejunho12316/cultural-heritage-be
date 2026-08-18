@@ -4,6 +4,7 @@ import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.photo.dto.PhotoUploadResponseDto;
 import com.aivle.conservation_backend.photo.service.S3PhotoStorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,7 +28,18 @@ public class PhotoUploadController {
             @RequestParam("artifactId") UUID artifactId
     ) {
         artifactAccessService.requireArtifact(artifactId);
-        String url = storageService.upload(artifactId, file);
-        return new PhotoUploadResponseDto(url);
+        S3PhotoStorageService.StoredPhoto stored = storageService.uploadStored(artifactId, file);
+        return new PhotoUploadResponseDto(stored.url(), stored.key());
+    }
+
+    /** 페이지 재진입 시 DB/checkpoint에 저장한 S3 key로 새 표시 URL을 발급한다. */
+    @GetMapping("/url")
+    public PhotoUploadResponseDto refreshUrl(
+            @RequestParam("artifactId") UUID artifactId,
+            @RequestParam("key") String key
+    ) {
+        artifactAccessService.requireArtifact(artifactId);
+        String url = storageService.presignedArtifactUploadUrl(artifactId, key);
+        return new PhotoUploadResponseDto(url, key);
     }
 }

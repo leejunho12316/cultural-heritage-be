@@ -71,7 +71,14 @@ public class ArtifactWorkflowStatusService {
     }
 
     private String visualStatus(UUID artifactId) {
-        List<AssessmentRun> runs = assessmentRunRepository.findAllByArtifactIdOrderByRunNumberDesc(artifactId);
+        // assessment_run은 VCA 상태조사와 문양조사가 공유한다. 문양조사
+        // POTTERY_PATTERN run까지 섞으면 문양조사만 완료돼도 육안 상태 조사가
+        // DONE으로 보일 수 있으므로 VCA run만 상태 판정에 사용한다.
+        List<AssessmentRun> runs = assessmentRunRepository
+                .findAllByArtifactIdOrderByRunNumberDesc(artifactId)
+                .stream()
+                .filter(this::isVcaRun)
+                .toList();
         if (runs.isEmpty()) return "NOT_STARTED";
         if (runs.stream().anyMatch(run -> "completed".equalsIgnoreCase(run.getStatus()))) return "DONE";
         if (runs.stream().anyMatch(run -> {
@@ -79,5 +86,13 @@ public class ArtifactWorkflowStatusService {
             return status != null && !"failed".equalsIgnoreCase(status);
         })) return "IN_PROGRESS";
         return "FAILED";
+    }
+
+    private boolean isVcaRun(AssessmentRun run) {
+        if (run == null) return false;
+        String runType = run.getRunType();
+        return runType == null
+                || runType.isBlank()
+                || AssessmentRun.RUN_TYPE_VCA.equals(runType);
     }
 }

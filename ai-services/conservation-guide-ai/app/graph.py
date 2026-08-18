@@ -207,6 +207,8 @@ def build_graph():
         route_after_wetting_test,
         {
             "retry": REINFORCEMENT_CHAIN_1[0],
+            # 사진만 교체해 재분석할 때는 강화제/용매 선택까지 되돌리지 않는다.
+            "retry_photo": "reinforcement_wetting_photos",
             "proceed": REINFORCEMENT_CHAIN_2[0],
         },
     )
