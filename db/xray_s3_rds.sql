@@ -24,7 +24,12 @@ CREATE TABLE IF NOT EXISTS public.xray_job (
             'STITCHING',
             'STITCHED',
             'DETECTING',
+            'DETECTING_FRAGMENTS',
+            'DETECTING_ASSEMBLED',
+            'MAPPING',
             'REVIEW_READY',
+            'REPORT_READY',
+            'REPORTING',
             'COMPLETED',
             'FAILED'
         )

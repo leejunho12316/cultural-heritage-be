@@ -193,6 +193,12 @@ public class XrayJob {
         touch();
     }
 
+    public void markReportReady() {
+        this.status = XrayJobStatus.REPORT_READY;
+        this.errorMessage = null;
+        touch();
+    }
+
     public void markReporting() {
         this.status = XrayJobStatus.REPORTING;
         this.errorMessage = null;

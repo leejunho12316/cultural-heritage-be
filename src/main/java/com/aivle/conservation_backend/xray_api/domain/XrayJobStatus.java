@@ -18,6 +18,7 @@ public enum XrayJobStatus {
     DETECTING_ASSEMBLED,
     MAPPING,
     REVIEW_READY,
+    REPORT_READY,
     REPORTING,
     COMPLETED,
     FAILED;

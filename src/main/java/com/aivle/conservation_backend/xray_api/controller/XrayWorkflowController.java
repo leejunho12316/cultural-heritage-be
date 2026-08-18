@@ -8,7 +8,10 @@ import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.DetectReques
 import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.ReportGenerateRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.ReportTextRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.ReportTextResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.StageResponse;
 import com.aivle.conservation_backend.xray_api.service.XrayWorkflowService;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +20,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestClientResponseException;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/xray/jobs")
@@ -24,10 +30,16 @@ public class XrayWorkflowController {
 
     private final XrayWorkflowService workflowService;
     private final ArtifactAccessService artifactAccessService;
+    private final ObjectMapper objectMapper;
 
-    public XrayWorkflowController(XrayWorkflowService workflowService, ArtifactAccessService artifactAccessService) {
+    public XrayWorkflowController(
+            XrayWorkflowService workflowService,
+            ArtifactAccessService artifactAccessService,
+            ObjectMapper objectMapper
+    ) {
         this.workflowService = workflowService;
         this.artifactAccessService = artifactAccessService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping("/{jobId}/detect")
@@ -56,13 +68,46 @@ public class XrayWorkflowController {
         return ResponseEntity.ok(workflowService.updateDefects(jobId, request));
     }
 
+    @PostMapping("/{jobId}/report-ready")
+    public ResponseEntity<StageResponse> markReportReady(@PathVariable String jobId) {
+        artifactAccessService.requireXrayJob(jobId);
+        return ResponseEntity.ok(workflowService.markReportReady(jobId));
+    }
+
     @PostMapping("/{jobId}/report-text/generate")
-    public ResponseEntity<ReportTextResponse> generateReportText(
+    public ResponseEntity<?> generateReportText(
             @PathVariable String jobId,
             @RequestBody(required = false) ReportGenerateRequest request
     ) {
         artifactAccessService.requireXrayJob(jobId);
-        return ResponseEntity.ok(workflowService.generateReportText(jobId, request));
+        try {
+            return ResponseEntity.ok(workflowService.generateReportText(jobId, request));
+        } catch (RestClientResponseException error) {
+            // xray-ai가 전달한 OpenAI 오류 상태/상세를 그대로 FE까지 전달한다.
+            // 예: 429 insufficient_quota, 401 invalid_api_key.
+            return ResponseEntity
+                    .status(error.getStatusCode())
+                    .body(Map.of("detail", upstreamDetail(error)));
+        }
+    }
+
+    private String upstreamDetail(RestClientResponseException error) {
+        String body = error.getResponseBodyAsString();
+        if (body == null || body.isBlank()) {
+            return "X-ray AI 문안 생성 요청이 실패했습니다.";
+        }
+
+        try {
+            JsonNode json = objectMapper.readTree(body);
+            JsonNode detail = json.get("detail");
+            if (detail != null && !detail.isNull()) {
+                return detail.isTextual() ? detail.asText() : detail.toString();
+            }
+        } catch (Exception ignored) {
+            // JSON이 아니면 원문을 그대로 사용한다.
+        }
+
+        return body;
     }
 
     @GetMapping("/{jobId}/report-text")

@@ -47,6 +47,13 @@ public final class XrayWorkflowDtos {
     ) {
     }
 
+    public record StageResponse(
+            String jobId,
+            String artifactId,
+            String status
+    ) {
+    }
+
     public record ReportTextRequest(String reportText) {
     }
 
