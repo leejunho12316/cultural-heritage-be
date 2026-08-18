@@ -17,6 +17,7 @@ import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.DefectReview
 import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.DefectReviewUpdate;
 import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.ReportGenerateRequest;
 import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.ReportTextResponse;
+import com.aivle.conservation_backend.xray_api.dto.XrayWorkflowDtos.StageResponse;
 import com.aivle.conservation_backend.xray_api.repository.XrayDefectRepository;
 import com.aivle.conservation_backend.xray_api.repository.XrayJobRepository;
 import com.aivle.conservation_backend.xray_api.storage.XrayS3Keys;
@@ -139,6 +140,7 @@ public class XrayWorkflowService {
     public DefectListResponse getDefects(String jobIdValue) {
         XrayJob job = requireJob(jobIdValue);
         if (job.getStatus() != XrayJobStatus.REVIEW_READY
+                && job.getStatus() != XrayJobStatus.REPORT_READY
                 && job.getStatus() != XrayJobStatus.REPORTING
                 && job.getStatus() != XrayJobStatus.COMPLETED) {
             throw new ResponseStatusException(
@@ -152,10 +154,11 @@ public class XrayWorkflowService {
     @Transactional
     public DefectListResponse updateDefects(String jobIdValue, DefectReviewRequest request) {
         XrayJob job = requireJob(jobIdValue);
-        if (job.getStatus() != XrayJobStatus.REVIEW_READY) {
+        if (job.getStatus() != XrayJobStatus.REVIEW_READY
+                && job.getStatus() != XrayJobStatus.REPORT_READY) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Defects can be reviewed only in REVIEW_READY status."
+                    "Defects can be reviewed only in REVIEW_READY or REPORT_READY status."
             );
         }
         if (request == null || request.defects() == null) {
@@ -201,11 +204,32 @@ public class XrayWorkflowService {
                 .toList());
     }
 
+    @Transactional
+    public StageResponse markReportReady(String jobIdValue) {
+        XrayJob job = requireJob(jobIdValue);
+        if (job.getStatus() != XrayJobStatus.REVIEW_READY
+                && job.getStatus() != XrayJobStatus.REPORT_READY) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "X-ray review must be ready before entering report step: " + job.getStatus()
+            );
+        }
+        if (job.getStatus() == XrayJobStatus.REVIEW_READY) {
+            job.markReportReady();
+            jobRepository.save(job);
+        }
+        return new StageResponse(
+                job.getId().toString(),
+                job.getArtifactId().toString(),
+                job.getStatus().name()
+        );
+    }
+
     public ReportTextResponse generateReportText(
             String jobIdValue,
             ReportGenerateRequest request
     ) {
-        XrayJob job = requireReviewReady(jobIdValue);
+        XrayJob job = requireReportReady(jobIdValue);
         job.markReporting();
         jobRepository.save(job);
 
@@ -248,12 +272,12 @@ public class XrayWorkflowService {
 
             // 생성 중 페이지를 벗어나도 재진입 시 복원할 수 있도록 AI 초안을 즉시 저장한다.
             job.updateReportText(reportText.trim());
-            job.markReviewReady();
+            job.markReportReady();
             jobRepository.save(job);
             return reportResponse(job);
         } catch (RuntimeException e) {
             // 문안 생성 실패가 앞 단계의 결함 검수 결과까지 무효화하지 않도록 복구한다.
-            job.markReviewReady();
+            job.markReportReady();
             jobRepository.save(job);
             throw e;
         }
@@ -267,7 +291,7 @@ public class XrayWorkflowService {
 
     @Transactional
     public ReportTextResponse saveReportText(String jobIdValue, String reportText) {
-        XrayJob job = requireReviewReady(jobIdValue);
+        XrayJob job = requireReportReady(jobIdValue);
         if (reportText == null || reportText.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reportText is required.");
         }
@@ -278,7 +302,7 @@ public class XrayWorkflowService {
 
     @Transactional
     public CompleteResponse complete(String jobIdValue) {
-        XrayJob job = requireReviewReady(jobIdValue);
+        XrayJob job = requireReportReady(jobIdValue);
         if (job.getReportText() == null || job.getReportText().isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -621,12 +645,12 @@ public class XrayWorkflowService {
         );
     }
 
-    private XrayJob requireReviewReady(String jobIdValue) {
+    private XrayJob requireReportReady(String jobIdValue) {
         XrayJob job = requireJob(jobIdValue);
-        if (job.getStatus() != XrayJobStatus.REVIEW_READY) {
+        if (job.getStatus() != XrayJobStatus.REPORT_READY) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "X-ray job must be REVIEW_READY: " + job.getStatus()
+                    "X-ray job must be REPORT_READY: " + job.getStatus()
             );
         }
         return job;
