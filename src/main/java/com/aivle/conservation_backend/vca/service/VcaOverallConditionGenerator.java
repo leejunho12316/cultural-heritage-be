@@ -140,6 +140,13 @@ final class VcaOverallConditionGenerator {
         ObjectNode root = mapper.createObjectNode();
         var findingsNode = root.putArray("findings");
         for (ReportResponse.Finding finding : findings) {
+            // 개념 분류가 안 된(concept_family가 null이거나 "unknown") finding은
+            // LLM한테 아예 안 넘긴다 - "미분류 항목이 여러 차례 관찰되었습니다"처럼
+            // 근거 없는 뭉뚱그린 문장이 요약에 섞이는 걸 막는다. FE의 웹 화면
+            // 필터(withPreviewReport)와 같은 기준.
+            if (isUnclassified(finding.conceptFamily())) {
+                continue;
+            }
             ObjectNode findingNode = findingsNode.addObject();
             findingNode.put("familyLabel", conceptFamilyLabel(finding.conceptFamily()));
             findingNode.put("descriptorLabel", translateDescriptor(finding.descriptor()));
@@ -184,6 +191,10 @@ final class VcaOverallConditionGenerator {
         if (value != null) {
             node.put(key, String.valueOf(value));
         }
+    }
+
+    private static boolean isUnclassified(String conceptFamily) {
+        return conceptFamily == null || "unknown".equalsIgnoreCase(conceptFamily);
     }
 
     private static String conceptFamilyLabel(String conceptFamily) {
