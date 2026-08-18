@@ -211,11 +211,22 @@ def reinforcement_confirm_agent_node(state: State):
 
 
 # (2-2) 습윤 효과 테스트용 전/후 사진 입력 : interrupt() 만 담당.
-# FE input 형식 : {"before_photo_urls": [str], "after_photo_urls": [str]}
+# FE input 형식 : {"before_photo_urls": [str], "after_photo_urls": [str],
+#                  "before_photo_keys": [str], "after_photo_keys": [str]}
 @stage_guard("reinforcement")
 def reinforcement_wetting_photos_node(state: State):
+  # 같은 단계로 다시 들어오는 경우 직전 사진을 함께 내려준다. 새 task에서는
+  # URL과 S3 key를 같이 보관하므로 FE가 페이지 재진입 시 key로 새 presigned
+  # URL을 발급해 동일한 사진을 다시 표시할 수 있다.
+  previous_wetting_photos = (
+      state.get("results", {}).get("reinforcement", {}).get("wetting_test_photos", {})
+  )
   wetting_photos = interrupt({
     "stage": "강화처리 - 습윤 효과 테스트용 전/후 사진을 입력하세요!",
+    "before_photo_urls": previous_wetting_photos.get("before_photo_urls", []),
+    "after_photo_urls": previous_wetting_photos.get("after_photo_urls", []),
+    "before_photo_keys": previous_wetting_photos.get("before_photo_keys", []),
+    "after_photo_keys": previous_wetting_photos.get("after_photo_keys", []),
   })
 
   return {
@@ -249,14 +260,21 @@ def reinforcement_wetting_test_node(state: State):
 
 
 # (2-2) 습윤 효과 테스트 결과 확인 : interrupt() 만 담당.
-# FE input 형식 : {"action": "proceed" 또는 "retry"}
+# FE input 형식 : {"action": "proceed", "retry", "retry_photo" 중 하나}
 @stage_guard("reinforcement")
 def reinforcement_confirm_wetting_test_node(state: State):
   ai_color_analysis = state["results"]["reinforcement"]["ai_color_analysis"]
+  wetting_photos = state.get("results", {}).get("reinforcement", {}).get("wetting_test_photos", {})
 
   confirmed_wetting_test = interrupt({
     "stage": "강화처리 - 색 변화 분석 결과를 확인하고 진행 여부를 선택하세요!",
     "ai_color_analysis": ai_color_analysis,
+    # 분석 결과가 나온 뒤에도 실제 분석에 사용한 사진을 함께 보여주고,
+    # Spring Task.currentInterrupt에 URL/key가 저장되도록 사진 참조를 유지한다.
+    "before_photo_urls": wetting_photos.get("before_photo_urls", []),
+    "after_photo_urls": wetting_photos.get("after_photo_urls", []),
+    "before_photo_keys": wetting_photos.get("before_photo_keys", []),
+    "after_photo_keys": wetting_photos.get("after_photo_keys", []),
     "default_action": "proceed",
   })
 
@@ -268,14 +286,23 @@ def reinforcement_confirm_wetting_test_node(state: State):
   }
 
 
-# 습윤 효과 테스트 결과에 따른 분기 : "retry" 면 2-1(강화제/용매 재선택)로, "proceed" 면 2-3(처리방법)으로.
+# 습윤 효과 테스트 결과에 따른 분기.
+# - retry: 강화제/용매부터 다시 선택
+# - retry_photo: 강화제/용매는 유지하고 습윤 테스트 사진 입력부터 다시 수행
+# - proceed: 강화 처리 방법으로 진행
 # reinforcement 단계 자체가 flow에 없어 stage_guard에 의해 스킵된 경우 confirmed_wetting_test가
 # 아예 존재하지 않을 수 있으므로, 그 경우는 그냥 다음 단계로 진행시킨다.
 def route_after_wetting_test(state: State) -> str:
   confirmed_wetting_test = state.get("results", {}).get("reinforcement", {}).get("confirmed_wetting_test")
   if not confirmed_wetting_test:
       return "proceed"
-  return "retry" if confirmed_wetting_test.get("action") == "retry" else "proceed"
+
+  action = confirmed_wetting_test.get("action")
+  if action == "retry":
+      return "retry"
+  if action == "retry_photo":
+      return "retry_photo"
+  return "proceed"
 
 
 # (2-3) 강화 처리 방법 생성 : LLM 호출 1회.

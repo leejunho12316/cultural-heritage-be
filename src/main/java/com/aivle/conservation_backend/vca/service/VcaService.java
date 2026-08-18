@@ -579,6 +579,7 @@ public class VcaService {
     private void requireImageNotReferencedByAnyRun(VcaArtifactEntity artifact, UUID imageId) {
         String imageIdText = imageId.toString();
         boolean referenced = runStore.findByArtifactId(artifact.getId()).stream()
+                .filter(this::isVcaRun)
                 .anyMatch(run -> run.getUploadedImageIds().contains(imageIdText));
         if (referenced) {
             throw new VcaApiException(
@@ -619,7 +620,10 @@ public class VcaService {
     // createRun의 첫 단계 - 아직 vca-ai에는 아무 것도 요청하지 않은 상태.
     private synchronized RunReservation reserveRun(String artifactId, boolean resumeRequested) {
         VcaArtifactEntity artifact = requireArtifact(artifactId);
-        List<AssessmentRun> existingRuns = runStore.findByArtifactId(artifact.getId());
+        List<AssessmentRun> allRuns = runStore.findByArtifactId(artifact.getId());
+        List<AssessmentRun> existingRuns = allRuns.stream()
+                .filter(this::isVcaRun)
+                .toList();
         boolean activeRunExists = existingRuns.stream()
                 .anyMatch(run -> "QUEUED".equals(run.getStatus()) || "RUNNING".equals(run.getStatus()));
         if (activeRunExists) {
@@ -647,7 +651,10 @@ public class VcaService {
 
         Instant now = Instant.now();
         UUID assessmentRunId = UUID.randomUUID();
-        int runNumber = existingRuns.size() + 1;
+        int runNumber = allRuns.stream()
+                .mapToInt(AssessmentRun::getRunNumber)
+                .max()
+                .orElse(0) + 1;
         AssessmentRun run = AssessmentRun.builder()
                 .id(assessmentRunId)
                 .artifactId(artifact.getId())
@@ -790,6 +797,7 @@ public class VcaService {
     public synchronized void reconcileStuckRunsOnStartup() {
         Instant now = Instant.now();
         List<AssessmentRun> stuckRuns = runStore.findAll().stream()
+                .filter(this::isVcaRun)
                 .filter(run -> ("QUEUED".equals(run.getStatus()) || "RUNNING".equals(run.getStatus()))
                         && run.getAiRunId() == null)
                 .toList();
@@ -1270,7 +1278,9 @@ public class VcaService {
     private List<AssessmentRun> advanceDemoRuns(VcaArtifactEntity artifact) {
         Instant now = Instant.now();
         boolean artifactTouched = false;
-        List<AssessmentRun> runs = runStore.findByArtifactId(artifact.getId());
+        List<AssessmentRun> runs = runStore.findByArtifactId(artifact.getId()).stream()
+                .filter(this::isVcaRun)
+                .toList();
         for (AssessmentRun run : runs) {
             if ("COMPLETED".equals(run.getStatus()) || "FAILED".equals(run.getStatus())) {
                 continue;
@@ -1895,6 +1905,24 @@ public class VcaService {
         return artifact;
     }
 
+    /**
+     * VCA 상태조사 전용 run 판별.
+     *
+     * assessment_run 테이블은 문양조사(POTTERY_PATTERN)와 VCA가 공유한다.
+     * 구버전 VCA row는 run_type 도입 전에 생성되어 null/blank일 수 있으므로
+     * 호환을 위해 null/blank도 VCA로 취급한다. 명시적으로 POTTERY_PATTERN인
+     * row는 VCA 조회/폴링/재개/중지 대상에서 반드시 제외한다.
+     */
+    private boolean isVcaRun(AssessmentRun run) {
+        if (run == null) {
+            return false;
+        }
+        String runType = run.getRunType();
+        return runType == null
+                || runType.isBlank()
+                || AssessmentRun.RUN_TYPE_VCA.equals(runType);
+    }
+
     private UploadedImage requireImage(VcaArtifactEntity artifact, UUID imageId) {
         return imageStore.findById(imageId)
                 .filter(image -> image.getArtifactId().equals(artifact.getId()))
@@ -1909,6 +1937,7 @@ public class VcaService {
         UUID id = validateUuid(assessmentRunId, "assessmentRunId");
         return runStore.findById(id)
                 .filter(run -> run.getArtifactId().equals(artifact.getId()))
+                .filter(this::isVcaRun)
                 .orElseThrow(() -> new VcaApiException(
                         HttpStatus.NOT_FOUND,
                         "RUN_NOT_FOUND",

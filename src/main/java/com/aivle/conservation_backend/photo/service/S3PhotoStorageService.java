@@ -38,6 +38,15 @@ public class S3PhotoStorageService {
     }
 
     public String upload(UUID artifactId, MultipartFile file) {
+        return uploadStored(artifactId, file).url();
+    }
+
+    /**
+     * 보존가이드 작업 사진을 S3에 저장하고 영구 식별자인 key와 즉시 표시용
+     * presigned URL을 함께 반환한다. Task/AI checkpoint에는 만료되는 URL만
+     * 저장하지 않고 key도 함께 보관해 페이지 재진입 시 URL을 새로 발급한다.
+     */
+    public StoredPhoto uploadStored(UUID artifactId, MultipartFile file) {
         String prefix = artifactId == null
                 ? "wetting-photos/"
                 : "artifacts/" + artifactId + "/uploads/";
@@ -49,7 +58,27 @@ public class S3PhotoStorageService {
 
         uploadToS3(key, file);
 
+        return new StoredPhoto(key, presignedUrl(key));
+    }
+
+    /**
+     * 특정 유물의 보존가이드 업로드 사진 key에 대해서만 새 presigned URL을 발급한다.
+     * 다른 유물의 S3 key를 임의로 전달해 조회할 수 없도록 prefix를 검증한다.
+     */
+    public String presignedArtifactUploadUrl(UUID artifactId, String key) {
+        if (artifactId == null || key == null || key.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사진 key가 올바르지 않습니다.");
+        }
+
+        String expectedPrefix = "artifacts/" + artifactId + "/uploads/";
+        if (!key.startsWith(expectedPrefix)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "이 유물의 사진이 아닙니다.");
+        }
+
         return presignedUrl(key);
+    }
+
+    public record StoredPhoto(String key, String url) {
     }
 
     /**

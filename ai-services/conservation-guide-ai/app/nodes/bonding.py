@@ -212,8 +212,16 @@ def bonding_confirm_adhesive_node(state: State):
 # FE input 형식 : {"before_photo_urls": [str], "after_photo_urls": [str]}
 @stage_guard("bonding")
 def bonding_temp_node(state: State):
+  # retry로 이 노드에 다시 들어온 경우에도 직전 업로드 사진 URL을 interrupt에
+  # 함께 내려준다. Spring Task.currentInterrupt가 이 payload를 저장하므로,
+  # 사용자가 페이지를 이탈했다가 재진입해도 기존 전/후 사진을 복원할 수 있다.
+  previous_temp_bonding = state.get("results", {}).get("bonding", {}).get("temp_bonding", {})
   temp_bonding = interrupt({
     "stage": "접합 - 임시접합 전/후 사진을 입력하세요!",
+    "before_photo_urls": previous_temp_bonding.get("before_photo_urls", []),
+    "after_photo_urls": previous_temp_bonding.get("after_photo_urls", []),
+    "before_photo_keys": previous_temp_bonding.get("before_photo_keys", []),
+    "after_photo_keys": previous_temp_bonding.get("after_photo_keys", []),
   })
 
   return {
@@ -251,11 +259,28 @@ def bonding_temp_analysis_node(state: State):
 @stage_guard("bonding")
 def bonding_confirm_temp_analysis_node(state: State):
   ai_temp_analysis = state["results"]["bonding"]["ai_temp_analysis"]
+  temp_bonding = state.get("results", {}).get("bonding", {}).get("temp_bonding", {})
+
+  # 자동 통과는 두 평가축이 모두 good이고 종합 심각도가 mild인 경우로 제한한다.
+  # 사진 판단 불가/경미 이상 이상은 retry를 기본 권고하되, 최종 결정은 작업자가
+  # 두 버튼 중 직접 선택하도록 남겨 HITL 구조는 유지한다.
+  analysis_passed = (
+      ai_temp_analysis.get("is_analyzable") is True
+      and ai_temp_analysis.get("axis_alignment") == "good"
+      and ai_temp_analysis.get("fracture_match_quality") == "good"
+      and ai_temp_analysis.get("overall_severity") == "mild"
+  )
 
   confirmed_temp_analysis = interrupt({
     "stage": "접합 - 임시접합 검증 결과를 확인하고 진행 여부를 선택하세요!",
     "ai_temp_analysis": ai_temp_analysis,
-    "default_action": "proceed",
+    # 검증 결과 화면에서도 입력 사진을 계속 보여주고, 페이지 재진입 시
+    # 같은 사진을 복원할 수 있도록 현재 분석에 사용한 URL/key를 함께 보낸다.
+    "before_photo_urls": temp_bonding.get("before_photo_urls", []),
+    "after_photo_urls": temp_bonding.get("after_photo_urls", []),
+    "before_photo_keys": temp_bonding.get("before_photo_keys", []),
+    "after_photo_keys": temp_bonding.get("after_photo_keys", []),
+    "default_action": "proceed" if analysis_passed else "retry",
   })
 
   return {
