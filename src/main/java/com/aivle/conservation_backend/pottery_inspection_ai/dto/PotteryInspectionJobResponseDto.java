@@ -14,6 +14,7 @@ public record PotteryInspectionJobResponseDto(
         String currentStage,
         int progressPercent,
         String photoUrl,
+        String annotatedPhotoUrl,
         PotteryInspectionResponseDto result,
         Integer errorStatus,
         Object errorDetail
