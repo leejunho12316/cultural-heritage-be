@@ -68,6 +68,8 @@ def pre_investigation_node(state: State) -> dict[str, Any]:
     vca_lines = []
     if vca_summary.get("description"):
         vca_lines.append(f"종합: {vca_summary.get('description')}")
+    if vca_summary.get("overall_condition"):
+        vca_lines.append(f"전반적 상태: {vca_summary.get('overall_condition')}")
     for finding in vca_findings:
         description = finding.get("description") or ""
         category = finding.get("category") or "미분류"
