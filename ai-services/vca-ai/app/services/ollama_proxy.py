@@ -14,6 +14,13 @@ import urllib.error
 import urllib.request
 
 OLLAMA_BASE_URL = "http://localhost:11434"
+# BE(VcaOverallConditionGenerator)의 읽기 타임아웃(120s)보다 길어야 한다 -
+# 짧으면 이 프록시가 BE보다 먼저 포기하고, Ollama가 그 뒤에 실제로 완성한
+# 응답은 이미 끊긴 연결로 버려진다. 실측(2026-08-18): 콜드 로드(~15s) +
+# findings가 많은 run의 생성 시간이 60s를 넘겨 여기서 먼저 잘렸다(Ollama
+# 자체 GIN 로그에 "500 | 1m0s"로 남음 - 클라이언트가 연결을 끊어버린 뒤
+# Ollama 쪽에서 뒤늦게 실패로 기록된 것으로 보인다).
+_TIMEOUT_SECONDS = 150
 
 
 class OllamaProxyError(RuntimeError):
@@ -29,7 +36,7 @@ def forward_chat(payload: bytes) -> bytes:
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
             return response.read()
     except urllib.error.URLError as exc:
         raise OllamaProxyError(f"Ollama request failed: {exc}") from exc
