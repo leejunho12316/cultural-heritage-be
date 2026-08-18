@@ -1740,11 +1740,14 @@ public class VcaService {
         Instant createdAt = reportStore.findById(run.getId())
                 .map(AssessmentReport::getCreatedAt)
                 .orElse(now);
+        // overallCondition은 report_json(summary.overallCondition)에만 싣는다 -
+        // 이 플랫 컬럼은 아직 구현 안 된 위험도 분류용으로 남겨둔 자리라
+        // 건드리지 않는다(예전엔 여기도 같이 썼다가 LLM 문단이 기본
+        // varchar(255) 제한을 넘겨 리포트 저장 자체가 깨졌었다).
         reportStore.save(AssessmentReport.builder()
                 .assessmentRunId(run.getId())
                 .reportJson(report)
                 .status(report.status())
-                .overallCondition(report.summary() == null ? null : report.summary().overallCondition())
                 .riskLevel(report.summary() == null ? null : report.summary().riskLevel())
                 .generatedAt(report.generatedAt())
                 .createdAt(createdAt)
