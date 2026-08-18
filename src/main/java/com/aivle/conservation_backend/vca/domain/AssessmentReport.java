@@ -38,7 +38,11 @@ public class AssessmentReport {
     @Column(name = "status", nullable = false)
     private String status;
 
-    @Column(name = "overall_condition")
+    // 기본 varchar(255)로 만들어졌던 컬럼이라(짧은 위험도 분류용으로
+    // 설계됐던 자리) LLM이 생성하는 문장 수 제한 없는 전체 문단을 못
+    // 담았다 - db/assessment_report_overall_condition_text_migration.sql로
+    // text로 넓힘.
+    @Column(name = "overall_condition", columnDefinition = "text")
     private String overallCondition;
 
     @Column(name = "risk_level")
