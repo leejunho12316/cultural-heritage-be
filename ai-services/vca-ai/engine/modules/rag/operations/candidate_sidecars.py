@@ -10,6 +10,7 @@ from modules.rag.evidence.prompt_adapter import render_rag_prompt_variants
 from modules.rag.operations.candidate_card_terms import (
     concept_family,
     context_terms,
+    corrected_concept_family,
     descriptor_terms,
     is_actionable_visual_cue,
     is_usable_retrieval_result,
@@ -130,7 +131,8 @@ def _build_candidate(
     row = _evidence_row(rough, outcome)
     if state != RAG_EVIDENCE_READY:
         return row, None
-    card = _first_prompt_ready_card(rough, results, cue, family)
+    corrected_family = corrected_concept_family(family, results)
+    card = _first_prompt_ready_card(rough, results, cue, corrected_family)
     return row, card
 
 

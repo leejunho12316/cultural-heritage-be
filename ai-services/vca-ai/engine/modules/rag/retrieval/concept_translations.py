@@ -1,9 +1,10 @@
-"""검색 쿼리 확장을 위한, 결정적인(deterministic) 영→한 조회 테이블.
+"""Deterministic English-to-Korean lookup for retrieval query expansion.
 
-기존에 allowlist에 등록된 시각 어휘(modules/rag/operations/candidate_term_constants.py
-참고)를 고정된 사전으로 번역한 것이며, 후보별로 즉석에서 만들어내는 표현이
-아니다. 이건 오직 한국어 문서 코퍼스에 대한 검색 쿼리를 넓히기 위해서만
-존재하며, 관찰된 근거/인용/리포트 주장으로는 절대 노출되지 않는다.
+These are fixed dictionary translations of the existing allowlisted visual
+vocabulary (see modules/rag/operations/candidate_term_constants.py) - never
+invented per-candidate wording. They exist only to widen retrieval queries
+against a Korean-language document corpus; they are never surfaced as
+observed evidence, citations, or report claims.
 """
 
 from typing import Final

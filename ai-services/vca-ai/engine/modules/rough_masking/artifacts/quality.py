@@ -1,6 +1,7 @@
 """Mask quality scoring for clipped rough-mask candidates."""
 
 # ruff: noqa: PLC0415
+# pyright: reportArgumentType=false, reportGeneralTypeIssues=false, reportMissingTypeStubs=false, reportUnknownMemberType=false, reportUnknownVariableType=false
 
 from __future__ import annotations
 
@@ -51,9 +52,19 @@ class _MaskBounds:
 
 
 def assess_mask_quality(
-    mask: NDArray[np.bool_], object_foreground: NDArray[np.bool_]
+    mask: NDArray[np.bool_],
+    object_foreground: NDArray[np.bool_],
+    *,
+    apply_area_quality_gates: bool = True,
 ) -> _QualityDecision:
-    """Score one clipped mask and decide whether v1 should keep it."""
+    """Score one clipped mask and decide whether v1 should keep it.
+
+    `apply_area_quality_gates=False` still computes every metric (for
+    reporting) but never rejects on area_ratio/bbox_fill_ratio/
+    boundary_pixel_ratio - those thresholds assume the mask sits inside a
+    whole-object ROI, and misfire against a tight candidate-centered crop
+    where a real anomaly can legitimately fill most of the ROI.
+    """
     import numpy as np
 
     area_px = int(np.count_nonzero(mask))
@@ -89,7 +100,9 @@ def assess_mask_quality(
         component_count,
         largest_component_ratio,
     )
-    reject_reason = _reject_reason(quality, area_px)
+    reject_reason = (
+        _reject_reason(quality, area_px) if apply_area_quality_gates else None
+    )
     return _QualityDecision(quality, reject_reason is None, reject_reason)
 
 
@@ -176,56 +189,20 @@ def _border_touch_count(mask: NDArray[np.bool_]) -> int:
 
 # 마스크의 연결 요소 개수와 최대 요소의 면적 비율을 계산한다.
 # 파편화(fragmentation) 정도를 판단하는 데 쓰이며 _quality_score의 입력이 된다.
+# scipy.ndimage.label의 기본 structure(십자형, 4-이웃)가 예전 순수 Python
+# flood-fill의 상하좌우 전용 이웃 판정과 동일해 결과가 그대로 유지된다 -
+# 오브젝트 크롭처럼 수백만 픽셀짜리 마스크에서 Python 루프 flood-fill이
+# 병목이었던 걸 C로 컴파일된 벡터 연산으로 대체한다.
 def _component_stats(mask: NDArray[np.bool_], area_px: int) -> tuple[int, float]:
     import numpy as np
+    from scipy import ndimage
 
-    visited = np.zeros(mask.shape, dtype=np.bool_)
-    component_count = 0
-    largest_component_px = 0
-    rows, columns = np.nonzero(mask)
-    for row, column in zip(rows.tolist(), columns.tolist(), strict=True):
-        if visited[row, column]:
-            continue
-        component_count += 1
-        component_px = _flood_component(mask, visited, row, column)
-        largest_component_px = max(largest_component_px, component_px)
+    labeled, component_count = ndimage.label(mask)
+    if component_count == 0:
+        return 0, 0.0
+    counts = np.bincount(labeled.ravel())
+    largest_component_px = int(counts[1:].max())
     return component_count, float(largest_component_px) / float(area_px)
-
-
-def _flood_component(
-    mask: NDArray[np.bool_],
-    visited: NDArray[np.bool_],
-    start_row: int,
-    start_column: int,
-) -> int:
-    stack = [(start_row, start_column)]
-    visited[start_row, start_column] = True
-    component_px = 0
-    while stack:
-        row, column = stack.pop()
-        component_px += 1
-        for next_row, next_column in _neighbors(row, column, mask.shape):
-            if visited[next_row, next_column] or not mask[next_row, next_column]:
-                continue
-            visited[next_row, next_column] = True
-            stack.append((next_row, next_column))
-    return component_px
-
-
-def _neighbors(
-    row: int, column: int, shape: tuple[int, int]
-) -> tuple[tuple[int, int], ...]:
-    height, width = shape
-    neighbors: list[tuple[int, int]] = []
-    if row > 0:
-        neighbors.append((row - 1, column))
-    if row + 1 < height:
-        neighbors.append((row + 1, column))
-    if column > 0:
-        neighbors.append((row, column - 1))
-    if column + 1 < width:
-        neighbors.append((row, column + 1))
-    return tuple(neighbors)
 
 
 # 면적/경계/파편화 페널티를 가중합하여 0~1 품질 점수를 만든다.

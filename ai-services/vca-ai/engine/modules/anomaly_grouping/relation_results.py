@@ -40,9 +40,12 @@ _MERGE_CLASSES: frozenset[RelationClass] = frozenset(
 )
 
 
-# relations.py의 merge_post_rag_relations가 호출한다. 병합 클래스 관계들로
-# 연결요소(병합 그룹)를 만들고, 그룹마다 마스크를 픽셀 union으로 합쳐
-# mask_output_dir에 기록한 뒤, 후보별 최종 유지/흡수 상태를 반환한다. 그룹의
+# pipeline.py의 run_anomaly_grouping이 호출한다. relation_groups가 비어 있으면
+# (지금 기본 경로 - 병합은 mask_refining 이전 단계에서 이미 끝남) 모든 후보가
+# 그대로 kept=True인 크기 1 컴포넌트가 된다. relation_groups가 있는 경우엔
+# 병합 클래스 관계들로 연결요소(병합 그룹)를 만들고, 그룹마다 마스크를 픽셀
+# union으로 합쳐 mask_output_dir에 기록한 뒤, 후보별 최종 유지/흡수 상태를
+# 반환한다. 그룹의
 # 대표 id는 병합 전 어떤 후보가 "더 나았는지"와 무관하게 결정적으로 정해지는
 # 최소 candidate_id일 뿐이다 - 실제 내용(마스크/bbox)은 항상 union이다. 3개
 # 이상이 서로 다른 관계 클래스로 섞여 병합될 때 "이 그룹의 대표 관계"를

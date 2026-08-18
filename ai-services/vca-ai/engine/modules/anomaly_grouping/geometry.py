@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
     from modules.anomaly_grouping.models import MaskReference
 
-_POLYGON_EPSILON_RATIO = 0.01  # cv2.approxPolyDP 허용 오차, 둘레 길이 대비 비율
+_POLYGON_EPSILON_RATIO = 0.01  # cv2.approxPolyDP tolerance, as a fraction of perimeter
 
 
 # 두 박스의 교차 영역을 계산하는 기본 연산. overlaps가 이 위에서 파생된다.

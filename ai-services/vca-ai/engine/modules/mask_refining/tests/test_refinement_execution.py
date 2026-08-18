@@ -127,6 +127,8 @@ def _rough_candidate() -> RoughQwenCandidate:
         "object-001",
         None,
         (),
+        (10.0, 20.0, 42.0, 36.0),
+        None,
     )
     return RoughQwenCandidate(
         rough=RoughRagCandidate(
@@ -143,12 +145,11 @@ def _rough_candidate() -> RoughQwenCandidate:
 
 def _fake_qwen_evidence_factory(
     candidate: RawDetectorCandidate,
-    source_asset: AssetReference | None,
     assets: object,
     lane_output_dir: Path,
 ) -> PostRefinementQwenEvidence:
     # Given: a stand-in that never loads the real Qwen model in unit tests.
-    _ = (candidate, source_asset, assets, lane_output_dir)
+    _ = (candidate, assets, lane_output_dir)
     return PostRefinementQwenEvidence(
         final_success=True, report_display_text="테스트 관찰 문구", confidence=0.9
     )
@@ -181,7 +182,9 @@ def test_refinement_execution_materializes_rag_prompt_outputs(
     _write_prompt_inputs(prompt_root)
     _write_preprocessing_assets(asset_root)
 
-    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+    def rough_candidates(
+        _rough_root: Path, _asset_root: Path
+    ) -> tuple[RoughQwenCandidate, ...]:
         return (_rough_candidate(),)
 
     monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
@@ -193,7 +196,7 @@ def test_refinement_execution_materializes_rag_prompt_outputs(
             output = AnomalyMaskOutput(
                 prompt=request.prompts[0],
                 score=0.8,
-                bbox_xyxy=(1.0, 1.0, 8.0, 8.0),
+                bbox_xyxy=(4.0, 4.0, 12.0, 12.0),
                 mask_png=PNG_HEADER + b"mask",
                 overlay_jpeg=JPEG_HEADER + b"overlay",
                 quality_filter_version="test",
@@ -206,7 +209,7 @@ def test_refinement_execution_materializes_rag_prompt_outputs(
                 component_count=1,
                 largest_component_ratio=1.0,
             )
-            materialize_anomaly_outputs(request, (output,))
+            materialize_anomaly_outputs(request, (output,), tmp_path / "roi.jpg")
             return RunnerOutcome(runner_invoked=True)
 
         _ = details
@@ -227,7 +230,7 @@ def test_refinement_execution_materializes_rag_prompt_outputs(
     result = run_refinement(request, runner_factory, _fake_qwen_evidence_factory)
 
     # Then: the RAG text reaches AdapterRequest and all public artifacts are written.
-    assert captured_prompts == ["surface crack"]
+    assert captured_prompts == ["mark", "surface crack"]
     assert result.executed_groups == 1
     assert (output_root / "refined_records.jsonl").is_file()
     assert (output_root / "skips.jsonl").is_file()
@@ -240,8 +243,8 @@ def test_refinement_execution_materializes_rag_prompt_outputs(
     normalized_candidate_id = result.records[0].accepted_candidate_ids[0]
     assert record["accepted_candidates"] == [
         {
-            "bbox_xyxy": [1.0, 1.0, 8.0, 8.0],
-            "original_bbox_xyxy": [11.0, 21.0, 18.0, 28.0],
+            "bbox_xyxy": [4.0, 4.0, 12.0, 12.0],
+            "original_bbox_xyxy": [14.0, 24.0, 22.0, 32.0],
             "candidate_id": normalized_candidate_id,
             "image_id": "image-001",
             "prompt": "surface crack",
@@ -289,7 +292,9 @@ def test_refinement_execution_passes_through_candidates_without_rag_prompts(
     _ = (prompt_root / "rag_refinement_prompt_variants.jsonl").write_text("")
     _write_preprocessing_assets(asset_root)
 
-    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+    def rough_candidates(
+        _rough_root: Path, _asset_root: Path
+    ) -> tuple[RoughQwenCandidate, ...]:
         return (_rough_candidate(),)
 
     monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
@@ -347,7 +352,9 @@ def test_no_evidence_candidate_gets_self_refined_instead_of_raw_passthrough(
     _ = (prompt_root / "rag_refinement_prompt_variants.jsonl").write_text("")
     _write_preprocessing_assets(asset_root)
 
-    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+    def rough_candidates(
+        _rough_root: Path, _asset_root: Path
+    ) -> tuple[RoughQwenCandidate, ...]:
         return (_rough_candidate(),)
 
     monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
@@ -359,7 +366,7 @@ def test_no_evidence_candidate_gets_self_refined_instead_of_raw_passthrough(
             output = AnomalyMaskOutput(
                 prompt=request.prompts[0],
                 score=0.8,
-                bbox_xyxy=(1.0, 1.0, 8.0, 8.0),
+                bbox_xyxy=(4.0, 4.0, 12.0, 12.0),
                 mask_png=PNG_HEADER + b"mask",
                 overlay_jpeg=JPEG_HEADER + b"overlay",
                 quality_filter_version="test",
@@ -372,7 +379,7 @@ def test_no_evidence_candidate_gets_self_refined_instead_of_raw_passthrough(
                 component_count=1,
                 largest_component_ratio=1.0,
             )
-            materialize_anomaly_outputs(request, (output,))
+            materialize_anomaly_outputs(request, (output,), tmp_path / "roi.jpg")
             return RunnerOutcome(runner_invoked=True)
 
         _ = details
@@ -464,7 +471,9 @@ def test_max_groups_truncation_does_not_passthrough_a_candidate_with_real_eviden
     )
     _ = manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+    def rough_candidates(
+        _rough_root: Path, _asset_root: Path
+    ) -> tuple[RoughQwenCandidate, ...]:
         return (_rough_candidate(), _second_rough_candidate())
 
     monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
@@ -487,7 +496,7 @@ def test_max_groups_truncation_does_not_passthrough_a_candidate_with_real_eviden
                 component_count=1,
                 largest_component_ratio=1.0,
             )
-            materialize_anomaly_outputs(request, (output,))
+            materialize_anomaly_outputs(request, (output,), tmp_path / "roi.jpg")
             return RunnerOutcome(runner_invoked=True)
 
         _ = details
@@ -540,6 +549,8 @@ def _second_rough_candidate() -> RoughQwenCandidate:
         "object-002",
         None,
         (),
+        (10.0, 20.0, 42.0, 36.0),
+        None,
     )
     return RoughQwenCandidate(
         rough=RoughRagCandidate(
@@ -586,7 +597,9 @@ def test_passthrough_skips_one_candidate_instead_of_crashing_the_whole_run(
         )
     )
 
-    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+    def rough_candidates(
+        _rough_root: Path, _asset_root: Path
+    ) -> tuple[RoughQwenCandidate, ...]:
         return (_rough_candidate(),)
 
     monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
@@ -643,7 +656,9 @@ def test_refinement_execution_fails_group_when_original_bbox_exceeds_image_bound
         )
     )
 
-    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+    def rough_candidates(
+        _rough_root: Path, _asset_root: Path
+    ) -> tuple[RoughQwenCandidate, ...]:
         return (_rough_candidate(),)
 
     monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)
@@ -666,7 +681,7 @@ def test_refinement_execution_fails_group_when_original_bbox_exceeds_image_bound
                 component_count=1,
                 largest_component_ratio=1.0,
             )
-            materialize_anomaly_outputs(request, (output,))
+            materialize_anomaly_outputs(request, (output,), tmp_path / "roi.jpg")
             return RunnerOutcome(runner_invoked=True)
 
         _ = details

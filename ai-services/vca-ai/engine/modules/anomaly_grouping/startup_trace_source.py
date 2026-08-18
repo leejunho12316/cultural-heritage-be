@@ -35,12 +35,12 @@ class StartupCandidate:
 
 # startup_trace_source_payload의 no_fake_claim_audit 계산에 쓰인다.
 def _fabricated_candidate_count(stage_candidates: tuple[StartupCandidate, ...]) -> int:
-    """이전에 나온 candidate_id와 충돌하는(identity가 겹치는) 후보 수를 센다.
+    """Count candidates whose identity collides with an earlier one.
 
-    진짜 accepted-candidate 행은 항상 고유한 candidate_id를 갖는다
-    (mask_refining의 normalize_candidate 참고). 여기서 중복이 발견됐다는
-    건 같은 identity가 두 번 이상 주장됐다는 뜻이며 - 이 스테이지에서
-    확인할 수 있는, 조작되었거나 중복 집계된 후보의 유일한 구체적 신호다.
+    A real accepted-candidate row always has a unique candidate_id (see
+    mask_refining's normalize_candidate). Any duplicate here means the same
+    identity was claimed more than once - the one concrete, checkable
+    signal of a fabricated/double-counted candidate available at this stage.
     """
     seen_ids: set[str] = set()
     fabricated = 0
@@ -70,10 +70,10 @@ def startup_trace_source_payload(
     relation_ids: list[JsonValue] = [
         group.relation_group_id for group in result.relation_merge.relation_groups
     ]
-    # 후보가 결국 kept=False가 됐다는 건 relation authority가 그걸 canonical한
-    # duplicate/refinement 부모로 병합했다는 뜻일 뿐이다(relation_results.py
-    # 참고) - 이는 정상적인 중복 제거이지 실패가 아니다. 병합 이후 살아남는
-    # 후보가 *하나도* 없을 때만 보고할 게 없는 실행이 된다.
+    # A candidate ending up kept=False just means relation authority merged it
+    # into a canonical duplicate/refinement parent (see relation_results.py) -
+    # that is normal dedup, not a failure. The run only has nothing to report
+    # when *no* candidate survives merging.
     relation_results = tuple(result.relation_merge.candidate_results.values())
     final_success = bool(relation_results) and any(
         relation.kept for relation in relation_results
@@ -86,11 +86,11 @@ def startup_trace_source_payload(
         "no_fake_claim_audit": {
             "claimed_candidate_count": len(stage_candidates),
             "fabricated_candidate_count": fabricated_candidate_count,
-            # 여기 있는 모든 StartupCandidate는 mask_refining의
-            # accepted_candidates 행에서 만들어졌고(startup_runner._stage_candidates
-            # 참고), rough_masking의 execute_adapter는 자기 자신의 runner가
-            # 실제로 호출되지 않았을 때 이미 fail closed로 막아버린다 - 그래서
-            # 후보가 이 지점에 도달했을 때는 항상 진짜다.
+            # Every StartupCandidate here was built from a mask_refining
+            # accepted_candidates row (see startup_runner._stage_candidates),
+            # and rough_masking's execute_adapter already fails closed when
+            # its own runner was never really invoked - so by the time a
+            # candidate reaches this point it is always real.
             "runner_invoked": True,
             "status": "pass" if fabricated_candidate_count == 0 else "fail",
         },
@@ -120,12 +120,12 @@ def _trace_candidate_payload(
     return {
         "candidate_id": candidate_id,
         "citations": citation_payloads,
-        # relation.bbox/polygons는 둘 다 (원래 detector bbox가 아니라) 최종
-        # (마스크 합집합으로 병합됐을 수도 있는) 마스크에서 파생된다 -
-        # 기준(standard)은 마스크고, 이것들은 표시 전용이다. polygons는 FE가
-        # 렌더링하는 벡터화된 윤곽선이고(끊어진 마스크 조각마다 하나씩);
-        # bbox는 보조/레거시 표시용으로 남아 있다. absorbed된 후보는 둘 다
-        # 없다: 그 픽셀은 이제 그룹의 합집합 안에 계속 남아 있을 뿐이다.
+        # relation.bbox/polygons are both derived from the final (possibly
+        # mask-union-merged) mask, not the original detector bbox - mask is
+        # the standard, these are display-only. polygons are the vectorized
+        # outlines the FE renders (one per disconnected mask fragment); bbox
+        # stays for auxiliary/legacy display. Absorbed candidates have
+        # neither: their pixels now live on inside the group's union.
         "bbox": _bbox_payload(relation.bbox),
         "polygons": _polygons_payload(relation.polygons),
         "concept_family": candidate.evidence.concept_family,
@@ -238,8 +238,8 @@ def _citation_payload(
         "citation_id": citation_id,
         "status": "exported",
         "source_citation": source_citation,
-        # 업스트림에 별도의 표시용 title이 없다; 검색이 갖고 다니는 유일한
-        # 사람이 읽을 수 있는 식별자는 소스 문서 이름뿐이다.
+        # No separate display title exists upstream; the source document
+        # name is the only human-readable identifier retrieval carries.
         "title": source_citation,
         "page_number": page_number,
         "score": float_value(detail, "score"),

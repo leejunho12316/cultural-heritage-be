@@ -68,11 +68,6 @@ static_seed_minimal_pack: Final = PromptPack(
         _seed_record(RagLane.GROUNDINGDINO, "dark discoloration or stain", 3),
         _seed_record(RagLane.GROUNDINGDINO, "hard mineral deposit or accretion", 4),
         _seed_record(RagLane.GROUNDINGDINO, "corrosion spot with pitting", 5),
-        _seed_record(RagLane.FLORENCE2, "a thin crack or fissure on the surface", 1),
-        _seed_record(RagLane.FLORENCE2, "an area of flaking, spalling or loss", 2),
-        _seed_record(RagLane.FLORENCE2, "a dark stain or area of discoloration", 3),
-        _seed_record(RagLane.FLORENCE2, "a crust of mineral deposit or accretion", 4),
-        _seed_record(RagLane.FLORENCE2, "a spot of corrosion or metal pitting", 5),
     ),
 )
 
@@ -90,11 +85,6 @@ static_object_detection_pack: Final = PromptPack(
         _object_record(RagLane.GROUNDINGDINO, "whole artifact", 3),
         _object_record(RagLane.GROUNDINGDINO, "separate object on white background", 4),
         _object_record(RagLane.GROUNDINGDINO, "metal artifact on white background", 5),
-        _object_record(RagLane.FLORENCE2, "artifact object", 1),
-        _object_record(RagLane.FLORENCE2, "individual artifact", 2),
-        _object_record(RagLane.FLORENCE2, "whole artifact", 3),
-        _object_record(RagLane.FLORENCE2, "separate object on white background", 4),
-        _object_record(RagLane.FLORENCE2, "metal artifact on white background", 5),
     ),
 )
 

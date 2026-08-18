@@ -83,6 +83,8 @@ def make_candidate(root: Path) -> tuple[RawDetectorCandidate, AssetReference]:
         source_object_id=None,
         source_tile_view_id=None,
         diagnostics=(),
+        view_origin_xyxy=(0.0, 0.0, 100.0, 100.0),
+        view_image_path=None,
     )
     return candidate, source
 

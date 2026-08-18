@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final, TypeGuard
 
-from modules.anomaly_grouping.startup_runner import run_anomaly_grouping_stage
+from modules.anomaly_grouping.startup_runner import (
+    run_pre_refinement_grouping_stage,
+    run_report_trace_assembly_stage,
+)
 from modules.orchestration import startup
 from modules.orchestration.stage_execution import StartupStageRunners
 from modules.prompt_generating.startup_runner import run_prompt_generating_stage
@@ -19,13 +22,13 @@ if TYPE_CHECKING:
 MASK_DRY_RUN_REASON: Final = (
     "skipped during startup dry-run because mask_refining has no dry-run contract"
 )
-ANOMALY_GROUPING_DRY_RUN_REASON: Final = (
-    "skipped during startup dry-run because anomaly_grouping requires "
+REPORT_TRACE_ASSEMBLY_DRY_RUN_REASON: Final = (
+    "skipped during startup dry-run because report_trace_assembly requires "
     "mask_refining outputs"
 )
 REPORT_GENERATING_DRY_RUN_REASON: Final = (
     "skipped during startup dry-run because report_generating requires "
-    "anomaly_grouping outputs"
+    "report_trace_assembly outputs"
 )
 def _write_image(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,9 +108,10 @@ def test_startup_reaches_mask_refining_with_injected_stage_runners(
             rough_masking=_successful_project_runner,
             visual_cue_generation=_successful_project_runner,
             rag=_successful_project_runner,
+            anomaly_grouping=_successful_project_runner,
             prompt_generating=_successful_project_runner,
             mask_refining=mask_refining,
-            anomaly_grouping=_successful_project_runner,
+            report_trace_assembly=_successful_project_runner,
             report_generating=_successful_project_runner,
         ),
     )
@@ -124,14 +128,16 @@ def test_startup_reaches_mask_refining_with_injected_stage_runners(
     assert stages[2]["status"] == "completed"
     assert stages[3]["name"] == "rag"
     assert stages[3]["status"] == "completed"
-    assert stages[4]["name"] == "prompt_generating"
+    assert stages[4]["name"] == "anomaly_grouping"
     assert stages[4]["status"] == "completed"
-    assert stages[5]["name"] == "mask_refining"
+    assert stages[5]["name"] == "prompt_generating"
     assert stages[5]["status"] == "completed"
-    assert stages[6]["name"] == "anomaly_grouping"
+    assert stages[6]["name"] == "mask_refining"
     assert stages[6]["status"] == "completed"
-    assert stages[7]["name"] == "report_generating"
+    assert stages[7]["name"] == "report_trace_assembly"
     assert stages[7]["status"] == "completed"
+    assert stages[8]["name"] == "report_generating"
+    assert stages[8]["status"] == "completed"
 
 
 def test_startup_local_hash_bypass_reaches_model_backed_stages(
@@ -164,9 +170,10 @@ def test_startup_local_hash_bypass_reaches_model_backed_stages(
             rough_masking=rough_masking,
             visual_cue_generation=_successful_project_runner,
             rag=_successful_project_runner,
+            anomaly_grouping=_successful_project_runner,
             prompt_generating=_successful_project_runner,
             mask_refining=mask_refining,
-            anomaly_grouping=_successful_project_runner,
+            report_trace_assembly=_successful_project_runner,
             report_generating=_successful_project_runner,
         ),
     )
@@ -186,7 +193,8 @@ def test_default_startup_stage_runners_keep_standalone_project_runners() -> None
     # Then: connected executed stages keep real runners.
     assert runners.rag == run_rag_stage
     assert runners.prompt_generating == run_prompt_generating_stage
-    assert runners.anomaly_grouping == run_anomaly_grouping_stage
+    assert runners.anomaly_grouping == run_pre_refinement_grouping_stage
+    assert runners.report_trace_assembly == run_report_trace_assembly_stage
     assert runners.report_generating == run_report_generating_stage
     assert (
         runners.visual_cue_generation.__module__
@@ -194,10 +202,14 @@ def test_default_startup_stage_runners_keep_standalone_project_runners() -> None
     )
 
 
-def test_startup_dry_run_skips_post_prompt_real_stages_without_calling_them(
+def test_startup_dry_run_skips_post_mask_real_stages_without_calling_them(
     tmp_path: Path,
 ) -> None:
-    # Given: startup dry-run reaches the mask-refining stage.
+    # Given: startup dry-run reaches the mask-refining stage. anomaly_grouping
+    # now sits before mask_refining (like rag/prompt_generating), so unlike
+    # mask_refining/report_trace_assembly/report_generating it is still
+    # *called* during dry-run - it just has to no-op internally in production
+    # (this injected double doesn't, so it still records the call).
     image_root = tmp_path / "inputs"
     _ = _write_image(image_root / "source.jpg")
     mask_calls: list[tuple[str, ...]] = []
@@ -205,6 +217,10 @@ def test_startup_dry_run_skips_post_prompt_real_stages_without_calling_them(
 
     def mask_refining(arguments: tuple[str, ...]) -> int:
         mask_calls.append(arguments)
+        return 0
+
+    def pre_mask_runner(request: ProjectStageRequest) -> int:
+        project_calls.append(request.stage_name)
         return 0
 
     def post_mask_runner(request: ProjectStageRequest) -> int:
@@ -218,29 +234,34 @@ def test_startup_dry_run_skips_post_prompt_real_stages_without_calling_them(
         stage_runners=StartupStageRunners(
             preprocessing=_successful_cli,
             rough_masking=_successful_project_runner,
-            visual_cue_generation=post_mask_runner,
+            visual_cue_generation=pre_mask_runner,
+            anomaly_grouping=pre_mask_runner,
             mask_refining=mask_refining,
-            anomaly_grouping=post_mask_runner,
+            report_trace_assembly=post_mask_runner,
             report_generating=post_mask_runner,
         ),
     )
 
-    # Then: visual cue can dry-run, while real post-prompt stages are skipped.
+    # Then: visual_cue_generation/anomaly_grouping can dry-run (both sit
+    # before mask_refining), while the real post-mask stages are skipped
+    # without ever being called.
     assert exit_code == 0
     assert mask_calls == []
-    assert project_calls == ["visual_cue_generation"]
+    assert project_calls == ["visual_cue_generation", "anomaly_grouping"]
     stages = _stage_records(_receipt(tmp_path, "dry-run-mask"))
     assert stages[2]["name"] == "visual_cue_generation"
     assert stages[2]["status"] == "completed"
-    assert stages[5]["name"] == "mask_refining"
-    assert stages[5]["status"] == "skipped"
-    assert stages[5]["reason"] == MASK_DRY_RUN_REASON
-    assert stages[6]["name"] == "anomaly_grouping"
+    assert stages[4]["name"] == "anomaly_grouping"
+    assert stages[4]["status"] == "completed"
+    assert stages[6]["name"] == "mask_refining"
     assert stages[6]["status"] == "skipped"
-    assert stages[6]["reason"] == ANOMALY_GROUPING_DRY_RUN_REASON
-    assert stages[7]["name"] == "report_generating"
+    assert stages[6]["reason"] == MASK_DRY_RUN_REASON
+    assert stages[7]["name"] == "report_trace_assembly"
     assert stages[7]["status"] == "skipped"
-    assert stages[7]["reason"] == REPORT_GENERATING_DRY_RUN_REASON
+    assert stages[7]["reason"] == REPORT_TRACE_ASSEMBLY_DRY_RUN_REASON
+    assert stages[8]["name"] == "report_generating"
+    assert stages[8]["status"] == "skipped"
+    assert stages[8]["reason"] == REPORT_GENERATING_DRY_RUN_REASON
 
 
 def test_startup_stops_when_visual_cue_generation_fails_before_rag(
@@ -272,9 +293,10 @@ def test_startup_stops_when_visual_cue_generation_fails_before_rag(
             rough_masking=_successful_project_runner,
             visual_cue_generation=visual_cue_generation,
             rag=rag,
+            anomaly_grouping=post_mask_runner,
             prompt_generating=_successful_project_runner,
             mask_refining=_successful_cli,
-            anomaly_grouping=post_mask_runner,
+            report_trace_assembly=post_mask_runner,
             report_generating=post_mask_runner,
         ),
     )
@@ -286,7 +308,7 @@ def test_startup_stops_when_visual_cue_generation_fails_before_rag(
     assert stages[2]["name"] == "visual_cue_generation"
     assert stages[2]["status"] == "failed"
     assert stages[2]["exit_code"] == 9
-    assert [stage["status"] for stage in stages[3:]] == ["skipped"] * 5
+    assert [stage["status"] for stage in stages[3:]] == ["skipped"] * 6
     progress = _progress(tmp_path, "qwen-not-required")
     assert progress["status"] == "failed"
     progress_stages = _stage_records(progress)
@@ -294,7 +316,7 @@ def test_startup_stops_when_visual_cue_generation_fails_before_rag(
         "completed",
         "completed",
         "failed",
-        *(["skipped"] * 5),
+        *(["skipped"] * 6),
     ]
 
 

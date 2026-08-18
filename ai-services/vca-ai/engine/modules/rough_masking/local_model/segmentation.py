@@ -41,6 +41,7 @@ class LocalInferenceSettings:
     max_mask_area_ratio: float
     object_mask_path: Path
     roi_source_bbox: tuple[float, float, float, float]
+    apply_area_quality_gates: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,7 +150,8 @@ def segment_detections(
         if not np.any(mask):
             continue
         mask_area_ratio = float(np.count_nonzero(mask)) / float(mask.size)
-        if mask_area_ratio > settings.max_mask_area_ratio:
+        area_exceeded = mask_area_ratio > settings.max_mask_area_ratio
+        if settings.apply_area_quality_gates and area_exceeded:
             outputs.append(
                 RejectedMaskOutput(
                     prompt=detection.prompt,
@@ -168,7 +170,11 @@ def segment_detections(
                 )
             )
             continue
-        quality_decision = assess_mask_quality(mask, object_foreground)
+        quality_decision = assess_mask_quality(
+            mask,
+            object_foreground,
+            apply_area_quality_gates=settings.apply_area_quality_gates,
+        )
         if not quality_decision.accepted:
             quality = quality_decision.quality
             outputs.append(

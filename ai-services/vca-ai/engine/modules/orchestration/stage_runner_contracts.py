@@ -11,7 +11,10 @@ if TYPE_CHECKING:
 
     from modules.orchestration.stage_paths import StagePathMap
 
-from modules.anomaly_grouping.startup_runner import run_anomaly_grouping_stage
+from modules.anomaly_grouping.startup_runner import (
+    run_pre_refinement_grouping_stage,
+    run_report_trace_assembly_stage,
+)
 from modules.mask_refining import refinement_cli
 from modules.prompt_generating.startup_runner import run_prompt_generating_stage
 from modules.rag.startup_runner import run_rag_stage
@@ -85,7 +88,8 @@ class StartupStageRunners:
     rough_masking: ProjectStageRunner = _run_lazy_rough_masking_stage
     visual_cue_generation: ProjectStageRunner = _run_lazy_visual_cue_generation_stage
     rag: ProjectStageRunner = run_rag_stage
+    anomaly_grouping: ProjectStageRunner = run_pre_refinement_grouping_stage
     prompt_generating: ProjectStageRunner = run_prompt_generating_stage
     mask_refining: CliStageRunner = refinement_cli.main
-    anomaly_grouping: ProjectStageRunner = run_anomaly_grouping_stage
+    report_trace_assembly: ProjectStageRunner = run_report_trace_assembly_stage
     report_generating: ProjectStageRunner = run_report_generating_stage

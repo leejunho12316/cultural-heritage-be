@@ -1,11 +1,11 @@
-"""표시 목적으로만 쓰는, 읽기 전용 환경/모델 진단.
+"""Read-only environment/model diagnostics for display purposes only.
 
-파이프라인의 일부가 아니다. vca-ai의 system-info 엔드포인트는 이걸
-`uv run python -m modules.orchestration.system_info`로 셸아웃해서 실행한다
-(이 uv 환경에서, vca-ai 자신의 FastAPI 프로세스와는 별도의 프로세스).
-그래야 torch/transformers가 설치돼 있지 않은 vca-ai 자체 런타임이 아니라,
-이 엔진이 실제로 확정한 CPU/GPU 디바이스와 여기 설치된 라이브러리/모델
-버전을 보고할 수 있다.
+Not part of the pipeline. vca-ai's system-info endpoint shells this out as
+`uv run python -m modules.orchestration.system_info` (a separate process
+from vca-ai's own FastAPI process, in this uv environment) so it can report
+the CPU/GPU device this engine actually resolves to, plus the library and
+model versions installed here - rather than vca-ai's own runtime, which
+does not have torch/transformers installed.
 """
 
 from __future__ import annotations

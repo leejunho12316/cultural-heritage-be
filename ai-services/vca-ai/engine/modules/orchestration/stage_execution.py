@@ -41,26 +41,34 @@ STARTUP_FAILURE_EXIT_CODE: Final = 2
 MASK_REFINING_DRY_RUN_REASON: Final = (
     "skipped during startup dry-run because mask_refining has no dry-run contract"
 )
-ANOMALY_GROUPING_DRY_RUN_REASON: Final = (
-    "skipped during startup dry-run because anomaly_grouping requires "
+REPORT_TRACE_ASSEMBLY_DRY_RUN_REASON: Final = (
+    "skipped during startup dry-run because report_trace_assembly requires "
     "mask_refining outputs"
 )
 REPORT_GENERATING_DRY_RUN_REASON: Final = (
     "skipped during startup dry-run because report_generating requires "
-    "anomaly_grouping outputs"
+    "report_trace_assembly outputs"
 )
 POST_MASK_DRY_RUN_REASONS: Final = {
-    "anomaly_grouping": ANOMALY_GROUPING_DRY_RUN_REASON,
+    "report_trace_assembly": REPORT_TRACE_ASSEMBLY_DRY_RUN_REASON,
     "report_generating": REPORT_GENERATING_DRY_RUN_REASON,
 }
+# anomaly_grouping이 rag 직후·prompt_generating 이전으로 옮겨온 이유는
+# modules/anomaly_grouping/pre_refinement_merge.py의 모듈 docstring 참고 -
+# 마스크 겹침+개념 일치 기준 병합을 mask_refining이 각 rough 후보를 독립적으로
+# 재탐지하기 전에 끝내기 위함이다. report_trace_assembly는 그 자리(예전
+# anomaly_grouping의 위치)에서 이름만 바뀐 것 - 병합은 더 이상 여기서 하지
+# 않고, mask_refining이 이미 병합-완료 상태로 낸 후보들을 report_generating이
+# 기대하는 모양으로 조립만 한다.
 EXECUTED_STAGE_NAMES: Final = (
     "preprocessing",
     "rough_masking",
     "visual_cue_generation",
     "rag",
+    "anomaly_grouping",
     "prompt_generating",
     "mask_refining",
-    "anomaly_grouping",
+    "report_trace_assembly",
     "report_generating",
 )
 
@@ -113,11 +121,11 @@ def execute_startup_stages(
     active_request = request
     executed_stage_names = EXECUTED_STAGE_NAMES
     if request.resume_from_stage is not None:
-        # vca-ai는 이전에 실패한 실행의 완료된 스테이지 출력 디렉터리(와 그
-        # startup.json)를 이번 실행 자신의 output_root로 복사한 뒤에만
-        # resume_from_stage를 설정한다 - resume_from_stage 이전 스테이지들은
-        # 다시 실행하지 않고 그 receipt를 그대로 신뢰하며, 실제 실행은 한
-        # 번도 끝나지 않은 첫 스테이지부터 시작한다.
+        # vca-ai only sets resume_from_stage after copying a prior failed
+        # run's completed-stage output directories (and its startup.json)
+        # into this run's own output_root - trust that receipt for the
+        # stages before resume_from_stage instead of re-running them, and
+        # start real execution at the first stage that never finished.
         stages.extend(
             read_prior_completed_stages(request.output_root, request.resume_from_stage)
         )
@@ -195,7 +203,9 @@ def _evaluate_final_success(
 
 
 def _accepted_candidate_count(paths: StagePathMap) -> int:
-    result_path = paths.anomaly_grouping / _ANOMALY_GROUPING_RESULT_FILENAME
+    # report_trace_assembly (mask_refining 직후, report_generating 직전)이
+    # 남기는 파일 - 자기 전용 디렉터리 없이 report_generating의 디렉터리에 쓴다.
+    result_path = paths.report_generating / _ANOMALY_GROUPING_RESULT_FILENAME
     try:
         payload = parse_json_object(result_path.read_text(encoding="utf-8"))
     except (OSError, ContractValidationError):
@@ -300,8 +310,9 @@ def _run_stage(
                 "rough_masking"
                 | "visual_cue_generation"
                 | "rag"
-                | "prompt_generating"
                 | "anomaly_grouping"
+                | "prompt_generating"
+                | "report_trace_assembly"
                 | "report_generating"
             ):
                 outcome = _run_project_stage(stage_name, request, runners)
@@ -382,8 +393,9 @@ def _project_runner(
         "rough_masking": runners.rough_masking,
         "visual_cue_generation": runners.visual_cue_generation,
         "rag": runners.rag,
-        "prompt_generating": runners.prompt_generating,
         "anomaly_grouping": runners.anomaly_grouping,
+        "prompt_generating": runners.prompt_generating,
+        "report_trace_assembly": runners.report_trace_assembly,
         "report_generating": runners.report_generating,
     }
     runner = project_runners.get(stage_name)

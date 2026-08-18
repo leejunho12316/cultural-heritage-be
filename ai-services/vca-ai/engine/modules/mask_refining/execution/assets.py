@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from modules.mask_refining.execution.models import JoinedRefinementAssets
 from modules.preprocessing import (
@@ -17,7 +17,20 @@ from modules.preprocessing import (
     ViewRecord,
 )
 from modules.rag.qwen.qwen_bridge_json import JsonValue, parse_json_object
+from modules.rough_masking import candidate_view_transform, restore_original_bbox
 from modules.shared import ContractValidationError, ImageId
+
+if TYPE_CHECKING:
+    from PIL import Image
+
+    from modules.rough_masking import RawDetectorCandidate
+
+_ROI_PADDING_RATIO: Final = 1.0
+_MIN_ROI_PADDING_PX: Final = 32.0
+_MIN_ROI_DIMENSION_PX: Final = 16.0
+# 오브젝트 경계가 후보 자신의 bbox보다 이 배수만큼도 안 크면(=여백을 줄
+# 실질적 여지가 없으면) "퇴화 오브젝트"로 보고 원본 사진으로 탈출한다.
+_DEGENERATE_OBJECT_MARGIN_RATIO: Final = 1.2
 
 _BBOX_COORDINATES: Final = 4
 _PNG_DIMENSION_HEADER_BYTES: Final = 24
@@ -245,7 +258,7 @@ def _webp_dimensions(contents: bytes) -> tuple[int, int] | None:
         dimensions = _webp_chunk_dimensions(fourcc, contents[payload_start:payload_end])
         if dimensions is not None:
             return dimensions
-        # RIFF 청크는 짝수 바이트 수로 패딩된다.
+        # RIFF chunks are padded to an even byte count.
         index = payload_end + (chunk_size % 2)
     return None
 
@@ -361,10 +374,7 @@ def _manifest_entry_dimensions(
 ) -> tuple[int, int] | None:
     if not isinstance(raw, dict):
         return None
-    raw_path = raw.get("run_root_asset_path")
-    if not isinstance(raw_path, str):
-        return None
-    original_image = _contained_asset(Path(raw_path), asset_root)
+    original_image = _manifest_entry_image_path(raw, asset_root)
     if original_image is None:
         return None
     try:
@@ -372,6 +382,35 @@ def _manifest_entry_dimensions(
     except OSError:
         return None
     return _decoded_dimensions(contents)
+
+
+def _manifest_entry_image_path(raw: JsonValue, asset_root: Path) -> Path | None:
+    if not isinstance(raw, dict):
+        return None
+    raw_path = raw.get("run_root_asset_path")
+    if not isinstance(raw_path, str):
+        return None
+    return _contained_asset(Path(raw_path), asset_root)
+
+
+# candidate_centered_assets가 퇴화 오브젝트(오브젝트 경계가 후보 자신의
+# bbox와 거의 같아 여백을 줄 여지가 없는 경우) 탈출용으로 쓴다. 오브젝트의
+# 미리 잘린 crop 파일과 달리 원본 사진은 여백을 줄 실제 픽셀을 갖고 있다.
+def _original_image_path(asset_root: Path, image_id: str) -> Path | None:
+    """Best-effort original-image file path, read from `input_manifest.json`."""
+    path = asset_root / "manifests" / "input_manifest.json"
+    try:
+        decoded = parse_json_object(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ContractValidationError):
+        return None
+    raw_images = decoded.get("images")
+    if not isinstance(raw_images, list):
+        return None
+    for raw in raw_images:
+        if not isinstance(raw, dict) or raw.get("image_id") != image_id:
+            continue
+        return _manifest_entry_image_path(raw, asset_root)
+    return None
 
 
 def join_preprocessing_assets(
@@ -426,4 +465,202 @@ def join_preprocessing_assets(
         *dimensions,
         view,
         *(original_dimensions or (None, None)),
+    )
+
+
+# 후보(또는 병합 그룹)의 원본-사진 좌표 bbox 둘레에 bbox 자체 크기에 비례하는
+# 여백을 두고, 그 여백을 오브젝트 자신의 bbox 밖으로 벗어나지 않게 자른다.
+# 여백/최소 치수를 만족 못 하면(퇴화 케이스) None을 반환해 호출부가 예전
+# 오브젝트 전체 ROI로 폴백하게 한다. padding_multiplier(기본 1.0)는
+# runner.py의 1단계(원본 프롬프트로 진짜 경계를 찾는 재탐지)가 결과가
+# 크롭 경계에 그대로 닿을 때 여백을 통째로 키워 재시도하는 데 쓴다 -
+# 원래 100%/32px는 정상적으로 잘 잡힌 rough 후보 기준이라, 애초에 타일
+# 경계에 심하게 잘려 좁게 잡힌 후보에는 그대로는 부족할 수 있다.
+def _padded_candidate_bbox(
+    bbox: tuple[float, float, float, float],
+    clamp: BoundingBox,
+    padding_multiplier: float = 1.0,
+) -> tuple[float, float, float, float] | None:
+    left, top, right, bottom = bbox
+    width, height = right - left, bottom - top
+    if width <= 0 or height <= 0:
+        return None
+    pad_x = max(width * _ROI_PADDING_RATIO, _MIN_ROI_PADDING_PX) * padding_multiplier
+    pad_y = max(height * _ROI_PADDING_RATIO, _MIN_ROI_PADDING_PX) * padding_multiplier
+    clamp_right = clamp.left + clamp.width
+    clamp_bottom = clamp.top + clamp.height
+    padded_left = max(left - pad_x, clamp.left)
+    padded_top = max(top - pad_y, clamp.top)
+    padded_right = min(right + pad_x, clamp_right)
+    padded_bottom = min(bottom + pad_y, clamp_bottom)
+    if (
+        padded_right - padded_left < _MIN_ROI_DIMENSION_PX
+        or padded_bottom - padded_top < _MIN_ROI_DIMENSION_PX
+    ):
+        return None
+    return padded_left, padded_top, padded_right, padded_bottom
+
+
+# 오브젝트 경계 자체가 후보 bbox와 거의 같은 크기면(퇴화 오브젝트),
+# 오브젝트 안에 여백을 줄 실제 픽셀이 없다는 뜻이다 - 오브젝트의 미리 잘린
+# crop 파일에도 그 이상의 픽셀이 없으므로(실측 확인됨), 클램프를 완화해도
+# 검은 여백만 늘어날 뿐 실제로 도움이 안 된다.
+def _is_degenerate_object_bbox(
+    original_bbox: tuple[float, float, float, float], object_bbox: BoundingBox
+) -> bool:
+    left, top, right, bottom = original_bbox
+    width, height = right - left, bottom - top
+    return (
+        object_bbox.width < width * _DEGENERATE_OBJECT_MARGIN_RATIO
+        and object_bbox.height < height * _DEGENERATE_OBJECT_MARGIN_RATIO
+    )
+
+
+# join_preprocessing_assets가 준 "오브젝트 전체" ROI를 후보(또는 병합
+# 그룹) 중심의 좁은 크롭으로 좁힌다. SAM2 재탐지가 오브젝트 전체가 아니라
+# 실제 이상 부위 주변만 다시 보게 하는 것이 이 함수의 목적이다. 보통은
+# 오브젝트 자신의 bbox_crop 파일을 소스로 재사용하므로(원본 사진을 따로 열
+# 필요 없음) 여백이 오브젝트 크롭 경계를 넘지 못한다 - 실무에서는
+# preprocessing이 오브젝트 실루엣 둘레에 이미 여유를 두고 크롭하므로 거의
+# 문제되지 않는다.
+#
+# 예외: 오브젝트 경계 자체가 후보 bbox와 거의 같은 크기인 퇴화 케이스에서는
+# (예: 클로즈업 사진에서 "artifact object" 탐지가 손상 부위 하나하나를
+# 별개 오브젝트로 잘못 쪼갠 경우) 오브젝트 크롭 안에 줄 여백이 물리적으로
+# 없어 재탐지 마스크가 타일 경계를 그대로 반듯하게 물고 나온다 - 이 경우만
+# 오브젝트 경계를 넘어 원본 사진에서 직접 크롭한다(오브젝트 개념 자체를
+# 버리는 게 아니라, 그 오브젝트가 신뢰할 만한 경계를 못 준 경우의 국소적
+# 예외).
+#
+# 좌표/이미지 처리가 실패하거나 퇴화 케이스도 아니고 패딩도 못 만들면
+# 원래 assets를 그대로 돌려줘 예전 오브젝트 전체 ROI로 안전하게 폴백한다.
+def candidate_centered_assets(
+    candidate: RawDetectorCandidate,
+    assets: JoinedRefinementAssets,
+    output_dir: Path,
+    asset_root: Path,
+    padding_multiplier: float = 1.0,
+) -> JoinedRefinementAssets:
+    """Narrow re-detection ROI to a padded crop around the candidate's own region."""
+    object_transform = assets.view.coordinate_transform
+    if object_transform is None:
+        return assets
+    try:
+        transform = candidate_view_transform(candidate)
+        original_bbox = restore_original_bbox(
+            candidate.bbox_xyxy,
+            transform,
+            assets.original_image_width_px,
+            assets.original_image_height_px,
+        )
+    except ContractValidationError:
+        return assets
+    object_bbox = object_transform.source_bbox
+    if _is_degenerate_object_bbox(original_bbox, object_bbox):
+        escaped = _escape_to_original_image(
+            candidate, assets, original_bbox, output_dir, asset_root, padding_multiplier
+        )
+        if escaped is not None:
+            return escaped
+    padded = _padded_candidate_bbox(original_bbox, object_bbox, padding_multiplier)
+    if padded is None:
+        return assets
+    padded_left, padded_top, padded_right, padded_bottom = padded
+    local_box = (
+        round(padded_left - object_bbox.left),
+        round(padded_top - object_bbox.top),
+        round(padded_right - object_bbox.left),
+        round(padded_bottom - object_bbox.top),
+    )
+    crop = _crop_from_file(assets.roi_image_path, local_box)
+    if crop is None:
+        return assets
+    return _replace_with_crop(
+        assets, candidate, output_dir, crop, (padded_left, padded_top)
+    )
+
+
+# 퇴화 오브젝트 탈출 경로: 오브젝트 크롭이 아니라 원본 사진 전체를 클램프로
+# 삼아 패딩을 다시 계산하고, 원본 사진 파일에서 직접 크롭한다. 원본 사진
+# 경로/치수를 못 구하거나(오래된 산출물 등) 패딩이 안 만들어지면 None을
+# 돌려줘 호출부가 기존 오브젝트-클램프 경로로 계속 진행하게 한다.
+def _escape_to_original_image(  # noqa: PLR0913
+    candidate: RawDetectorCandidate,
+    assets: JoinedRefinementAssets,
+    original_bbox: tuple[float, float, float, float],
+    output_dir: Path,
+    asset_root: Path,
+    padding_multiplier: float = 1.0,
+) -> JoinedRefinementAssets | None:
+    width_px = assets.original_image_width_px
+    height_px = assets.original_image_height_px
+    if width_px is None or height_px is None:
+        return None
+    image_path = _original_image_path(asset_root, str(candidate.image_id))
+    if image_path is None:
+        return None
+    photo_bounds = BoundingBox(0.0, 0.0, float(width_px), float(height_px))
+    padded = _padded_candidate_bbox(original_bbox, photo_bounds, padding_multiplier)
+    if padded is None:
+        return None
+    padded_left, padded_top, padded_right, padded_bottom = padded
+    local_box = (
+        round(padded_left),
+        round(padded_top),
+        round(padded_right),
+        round(padded_bottom),
+    )
+    crop = _crop_from_file(image_path, local_box)
+    if crop is None:
+        return None
+    return _replace_with_crop(
+        assets, candidate, output_dir, crop, (padded_left, padded_top)
+    )
+
+
+# candidate_centered_assets/_escape_to_original_image가 공유하는 크롭 로직.
+# 파일이 깨졌거나(OSError) 결과 크롭이 비었으면 None을 돌려줘 호출부가 각자의
+# 폴백을 타게 한다.
+def _crop_from_file(
+    image_path: Path, box: tuple[int, int, int, int]
+) -> Image.Image | None:
+    from PIL import Image as PILImage  # noqa: PLC0415
+
+    try:
+        with PILImage.open(image_path) as source_image:
+            crop = source_image.convert("RGB").crop(box)
+    except OSError:
+        return None
+    width, height = crop.size
+    return crop if width >= 1 and height >= 1 else None
+
+
+def _replace_with_crop(
+    assets: JoinedRefinementAssets,
+    candidate: RawDetectorCandidate,
+    output_dir: Path,
+    crop: Image.Image,
+    origin: tuple[float, float],
+) -> JoinedRefinementAssets:
+    origin_left, origin_top = origin
+    crop_width, crop_height = crop.size
+    output_path = output_dir / "candidate_roi" / f"{candidate.candidate_id}.jpg"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    crop.save(output_path, format="JPEG", quality=95)
+    view = replace(
+        assets.view,
+        view_id=f"refinement-candidate:{candidate.candidate_id}",
+        source_view_id=assets.view.view_id,
+        coordinate_transform=CoordinateTransform(
+            BoundingBox(origin_left, origin_top, crop_width, crop_height),
+            origin_left,
+            origin_top,
+        ),
+    )
+    return replace(
+        assets,
+        roi_image_path=output_path,
+        image_width_px=crop_width,
+        image_height_px=crop_height,
+        view=view,
     )

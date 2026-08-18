@@ -73,7 +73,6 @@ def model_entries(tmp_path: Path) -> dict[str, ModelInventoryEntry]:
     "lane",
     [
         DetectorLane.OWLV2_SAM2,
-        DetectorLane.FLORENCE2_SAM2,
         DetectorLane.GROUNDED_SAM2,
     ],
 )
@@ -143,6 +142,24 @@ def test_local_model_runner_rejects_clipseg(tmp_path: Path) -> None:
         )
 
 
+def test_local_model_runner_rejects_florence2(tmp_path: Path) -> None:
+    # Given: the non-active Florence-2 detector lane.
+    image_path = tmp_path / "roi.png"
+    _ = image_path.write_bytes(PNG_HEADER + b"roi")
+
+    # When / Then: no local-model runner can be built for Florence-2.
+    with pytest.raises(ContractValidationError, match="lane"):
+        _ = build_local_model_runner(
+            lane=DetectorLane.FLORENCE2_SAM2,
+            image_path=image_path,
+            model_entries=model_entries(tmp_path / "models"),
+            device="cpu",
+            model_cache_policy=LocalModelCachePolicy(
+                tmp_path / "models", verify_hashes=False
+            ),
+        )
+
+
 def test_local_model_runner_rejects_missing_local_model_dir(tmp_path: Path) -> None:
     # Given: an inventory entry whose local directory is absent.
     entries = model_entries(tmp_path / "models")
@@ -192,21 +209,21 @@ def test_local_model_runner_accepts_cpu_runtime_device(tmp_path: Path) -> None:
 def test_local_model_runner_rejects_untrusted_model_metadata(tmp_path: Path) -> None:
     # Given: a local inventory entry whose repository id differs from the trusted set.
     entries = model_entries(tmp_path / "models")
-    bad_key = DETECTOR_MODEL_KEYS[DetectorLane.FLORENCE2_SAM2]
+    bad_key = DETECTOR_MODEL_KEYS[DetectorLane.GROUNDED_SAM2]
     good_entry = entries[bad_key]
     entries[bad_key] = ModelInventoryEntry(
         bad_key,
-        "attacker/Florence-2-base",
+        "attacker/grounding-dino-base",
         good_entry.revision,
         good_entry.local_dir,
     )
     image_path = tmp_path / "roi.png"
     _ = image_path.write_bytes(PNG_HEADER + b"roi")
 
-    # When / Then: Florence remote-code loading refuses unexpected metadata.
+    # When / Then: local model loading refuses unexpected metadata.
     with pytest.raises(ContractValidationError, match="repo_id"):
         _ = build_local_model_runner(
-            lane=DetectorLane.FLORENCE2_SAM2,
+            lane=DetectorLane.GROUNDED_SAM2,
             image_path=image_path,
             model_entries=entries,
             device="mps",
@@ -219,7 +236,7 @@ def test_local_model_runner_rejects_untrusted_model_metadata(tmp_path: Path) -> 
 def test_local_model_runner_rejects_untrusted_model_revision(tmp_path: Path) -> None:
     # Given: an inventory entry whose snapshot revision differs from the trusted set.
     entries = model_entries(tmp_path / "models")
-    bad_key = DETECTOR_MODEL_KEYS[DetectorLane.FLORENCE2_SAM2]
+    bad_key = DETECTOR_MODEL_KEYS[DetectorLane.GROUNDED_SAM2]
     good_entry = entries[bad_key]
     entries[bad_key] = ModelInventoryEntry(
         bad_key,
@@ -230,10 +247,10 @@ def test_local_model_runner_rejects_untrusted_model_revision(tmp_path: Path) -> 
     image_path = tmp_path / "roi.png"
     _ = image_path.write_bytes(PNG_HEADER + b"roi")
 
-    # When / Then: mutable or unexpected revisions cannot reach trust_remote_code.
+    # When / Then: mutable or unexpected revisions cannot reach local model loading.
     with pytest.raises(ContractValidationError, match="revision"):
         _ = build_local_model_runner(
-            lane=DetectorLane.FLORENCE2_SAM2,
+            lane=DetectorLane.GROUNDED_SAM2,
             image_path=image_path,
             model_entries=entries,
             device="mps",
@@ -251,8 +268,8 @@ def test_local_model_runner_rejects_model_cache_symlink_escape(
     entries = model_entries(model_root)
     outside_dir = tmp_path / "outside"
     outside_dir.mkdir()
-    bad_key = DETECTOR_MODEL_KEYS[DetectorLane.FLORENCE2_SAM2]
-    escaped_link = model_root / "escaped-florence"
+    bad_key = DETECTOR_MODEL_KEYS[DetectorLane.GROUNDED_SAM2]
+    escaped_link = model_root / "escaped-grounded"
     escaped_link.symlink_to(outside_dir, target_is_directory=True)
     good_entry = entries[bad_key]
     entries[bad_key] = ModelInventoryEntry(
@@ -267,7 +284,7 @@ def test_local_model_runner_rejects_model_cache_symlink_escape(
     # When / Then: resolved model directories must stay under model_cache_root.
     with pytest.raises(ContractValidationError, match="local_dir"):
         _ = build_local_model_runner(
-            lane=DetectorLane.FLORENCE2_SAM2,
+            lane=DetectorLane.GROUNDED_SAM2,
             image_path=image_path,
             model_entries=entries,
             device="mps",

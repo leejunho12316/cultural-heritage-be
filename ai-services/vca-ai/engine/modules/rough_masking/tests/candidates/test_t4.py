@@ -103,7 +103,6 @@ def not_invoked_runner(request: AdapterRequest) -> RunnerOutcome:
     "lane",
     [
         DetectorLane.OWLV2_SAM2,
-        DetectorLane.FLORENCE2_SAM2,
         DetectorLane.GROUNDED_SAM2,
     ],
 )
@@ -165,7 +164,6 @@ def test_adapter_rejects_non_anomaly_mask_semantics(
     [
         (DetectorLane.OWLV2_SAM2, SeedThresholds(0.08, None, 2, 0.30)),
         (DetectorLane.GROUNDED_SAM2, SeedThresholds(0.25, 0.25, 2, 0.35)),
-        (DetectorLane.FLORENCE2_SAM2, SeedThresholds(None, None, 1, 0.40)),
     ],
 )
 def test_seed_thresholds_are_locked_for_every_active_lane(
@@ -234,7 +232,7 @@ def test_request_rejects_threshold_family_mixup_and_missing_prompts(
     with pytest.raises(ContractValidationError, match="threshold_config"):
         _ = replace(
             request,
-            threshold_config=seed_thresholds(DetectorLane.FLORENCE2_SAM2),
+            threshold_config=seed_thresholds(DetectorLane.GROUNDED_SAM2),
         )
     with pytest.raises(ContractValidationError, match="seed_prompts"):
         _ = replace(request, prompts=())

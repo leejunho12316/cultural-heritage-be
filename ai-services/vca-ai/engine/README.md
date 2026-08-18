@@ -1,6 +1,6 @@
 # VCA v2 Pipeline
 
-Visual Condition Assessment(VCA) v2는 유물 이미지 입력을 받아 전처리, 거친 마스크 생성, 시각 단서/RAG, 프롬프트 생성, 마스크 정제, 이상 그룹핑, 정적 리포트 생성을 순서대로 실행하는 로컬 파이프라인입니다.
+Visual Condition Assessment(VCA) v2는 유물 이미지 입력을 받아 전처리, 거친 마스크 생성, 시각 단서/RAG, 이상 그룹핑, 프롬프트 생성, 마스크 정제, 보고서 근거 조립, 정적 리포트 생성을 순서대로 실행하는 로컬 파이프라인입니다.
 
 ## 표준 실행 방법
 
@@ -34,10 +34,11 @@ startup runner는 다음 순서로 스테이지를 실행합니다.
 2. `rough_masking`
 3. `visual_cue_generation`
 4. `rag`
-5. `prompt_generating`
-6. `mask_refining`
-7. `anomaly_grouping`
-8. `report_generating`
+5. `anomaly_grouping` - 물리적으로 같은 특이점인 rough_masking 후보들을 rag 직후·prompt_generating 이전에 병합한다(`pre_refinement_merge.py`). 예전에 있던 pre-RAG 지오메트리 그룹핑과 post-refinement 관계 병합을 이 한 단계로 대체했다.
+6. `prompt_generating`
+7. `mask_refining`
+8. `report_trace_assembly` - anomaly_grouping이 예전에 하던 최종 조립 역할만 mask_refining 직후로 옮겨온 것. 병합은 이미 끝났으므로 report_generating이 기대하는 `report_trace_source.json`만 조립한다.
+9. `report_generating`
 
 각 스테이지는 스테이지별 요청이 더 좁은 출력 경로를 지정하지 않는 한 `output/<stage>/<project_name>` 아래에 결과를 씁니다. startup receipt는 `output/result/<project_name>/receipts/startup.json`에 기록됩니다.
 
@@ -49,9 +50,10 @@ startup runner는 다음 순서로 스테이지를 실행합니다.
 | `rough_masking` | 전처리 매니페스트와 객체 에셋 | `output/rough_masking/<project_name>` 아래의 거친 마스크 후보 에셋과 레코드 |
 | `visual_cue_generation` | 전처리 및 rough-mask 아티팩트 | RAG가 쓰는 선택적 Qwen 브릿지 시각 단서 아티팩트 |
 | `rag` | rough 레코드, 로컬 코퍼스, 선택적 시각 단서 | `output/rag/<project_name>` 아래의 쿼리/근거 JSONL 파일, 시각 개념 카드, RAG 매니페스트 |
-| `prompt_generating` | RAG 개념 카드/근거 | `output/prompt_generating/<project_name>` 아래의 `rag_refinement_prompt_variants.jsonl`과 프롬프트 매니페스트 |
+| `anomaly_grouping` | rough_masking 레코드와 RAG 개념 카드 | 물리적으로 같은 특이점을 병합해 그 자리에서 다시 쓴 rough_masking 레코드/RAG 개념 카드 |
+| `prompt_generating` | RAG 개념 카드/근거(이미 병합됨) | `output/prompt_generating/<project_name>` 아래의 `rag_refinement_prompt_variants.jsonl`과 프롬프트 매니페스트 |
 | `mask_refining` | 프롬프트 변형, 거친 마스크, 전처리 에셋, 모델 캐시 | `output/mask_refining/<project_name>` 아래의 `refined_records.jsonl`, `skips.jsonl`, 매니페스트, 그룹별 정제 레코드 |
-| `anomaly_grouping` | 정제된 마스크 레코드와 RAG 근거 | `anomaly_grouping_result.json`과 `report_trace_source.json` |
+| `report_trace_assembly` | 정제된 마스크 레코드와 RAG 근거 | `anomaly_grouping_result.json`과 `report_trace_source.json` |
 | `report_generating` | anomaly trace source | `output/report_generating/<project_name>` 아래의 trace 리포트, 최종 리포트, 메타데이터, 검증 receipt |
 
 ## 독립 실행 모듈 도움말

@@ -25,12 +25,10 @@ class RagLane(StrEnum):
 
 ACTIVE_DETECTOR_LANES: Final[tuple[DetectorLane, ...]] = (
     DetectorLane.OWLV2_SAM2,
-    DetectorLane.FLORENCE2_SAM2,
     DetectorLane.GROUNDED_SAM2,
 )
 ACTIVE_RAG_LANES: Final[tuple[RagLane, ...]] = (
     RagLane.OWLV2,
-    RagLane.FLORENCE2,
     RagLane.GROUNDINGDINO,
 )
 
@@ -56,9 +54,10 @@ def validate_active_detector_lanes(
             case DetectorLane.CLIPSEG:
                 field = "detector_lanes"
                 raise ContractValidationError(field, "clipseg is non-active")
-            case DetectorLane.OWLV2_SAM2:
-                continue
             case DetectorLane.FLORENCE2_SAM2:
+                field = "detector_lanes"
+                raise ContractValidationError(field, "florence2_sam2 is non-active")
+            case DetectorLane.OWLV2_SAM2:
                 continue
             case DetectorLane.GROUNDED_SAM2:
                 continue
@@ -70,10 +69,12 @@ def detector_to_rag_lane(detector_lane: DetectorLane) -> RagLane:
     match detector_lane:
         case DetectorLane.OWLV2_SAM2:
             return RagLane.OWLV2
-        case DetectorLane.FLORENCE2_SAM2:
-            return RagLane.FLORENCE2
         case DetectorLane.GROUNDED_SAM2:
             return RagLane.GROUNDINGDINO
+        case DetectorLane.FLORENCE2_SAM2:
+            field = "detector_lane"
+            reason = "florence2_sam2 has no active RAG lane"
+            raise ContractValidationError(field, reason)
         case DetectorLane.CLIPSEG:
             field = "detector_lane"
             reason = "clipseg has no active RAG lane"

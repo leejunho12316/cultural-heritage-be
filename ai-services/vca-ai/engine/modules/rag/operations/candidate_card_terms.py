@@ -1,6 +1,6 @@
 """Map query prompts and explicit evidence terms into safe card fields."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from modules.prompt_generating import (
     BoundaryRelation,
@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from modules.shared import CandidateId, QwenBridgeResult
+
+_CORRECTION_TOP_N: Final = 5
 
 
 # 후보 고유 Qwen 서술어(selected_terms/extracted_descriptors)를 결정론적인
@@ -63,6 +65,52 @@ def concept_family(prompt_text: str) -> VisualConceptFamily:
         if any(keyword in text for keyword in keywords):
             return family
     return VisualConceptFamily.UNKNOWN_VISUAL_ANOMALY
+
+
+# concept_family와 같은 FAMILY_KEYWORDS 매칭을, 시드 프롬프트가 아니라 RAG가
+# 실제로 찾아온 검색 결과의 matched_terms에 적용한다. 키워드가 하나도 안
+# 맞으면 이 결과는 family에 대해 아무 근거도 없다는 뜻이라 None.
+# corrected_concept_family가 검색 결과 하나하나를 채점할 때 호출한다.
+def family_from_terms(matched_terms: tuple[str, ...]) -> VisualConceptFamily | None:
+    """Return the family implied by matched_terms, or None if none matched."""
+    joined = " ".join(matched_terms).casefold()
+    for keywords, family in FAMILY_KEYWORDS:
+        if any(keyword in joined for keyword in keywords):
+            return family
+    return None
+
+
+# 시드 프롬프트로 정한 concept_family를 RAG가 실제로 찾아온 근거로 교정한다.
+# 지금까지는 concept_family가 탐지를 촉발한 시드 프롬프트에서만 정해지고
+# RAG 검색 결과 내용은 전혀 반영되지 않았다 - 시드 프롬프트는 "탐지 추측"일
+# 뿐인데, 실제 문헌 근거가 다른 family를 가리켜도 추측 쪽이 항상 이겼다.
+# 점수순 상위 N건(순서를 신뢰하지 않고 매번 rank로 재정렬) 중, family가
+# 매칭되는(=투표한) 결과들 중에서도 아니라 **N건 전체 기준으로** 과반수가
+# 시드와 다른 하나의 family로 일치해야만 교정한다 - 단발 노이즈 근거 하나에
+# 흔들리지 않기 위함이다. candidate_sidecars._build_candidate가 카드를
+# 실제로 만들기 직전, RAG_EVIDENCE_READY 상태일 때만 호출한다.
+def corrected_concept_family(
+    seed_family: VisualConceptFamily,
+    results: tuple[PromptRagResultRecord, ...],
+) -> VisualConceptFamily:
+    """Override the seed-prompt family when top-ranked evidence disagrees."""
+    considered = sorted(results, key=lambda result: result.rank)[:_CORRECTION_TOP_N]
+    if not considered:
+        return seed_family
+    counts: dict[VisualConceptFamily, int] = {}
+    for result in considered:
+        family = family_from_terms(result.matched_terms)
+        if family is None:
+            continue
+        counts[family] = counts.get(family, 0) + 1
+    if not counts:
+        return seed_family
+    majority_family, majority_count = max(counts.items(), key=lambda item: item[1])
+    if majority_family == seed_family:
+        return seed_family
+    if majority_count * 2 > len(considered):
+        return majority_family
+    return seed_family
 
 
 # 검색 결과의 matched_terms와 시각 단서를 합쳐 카드용 서술어를 만든다.

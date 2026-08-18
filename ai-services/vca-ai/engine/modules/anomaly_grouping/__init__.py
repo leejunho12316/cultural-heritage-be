@@ -17,8 +17,6 @@ from modules.anomaly_grouping.models import (
     RelationMergeResult,
 )
 from modules.anomaly_grouping.pipeline import run_anomaly_grouping
-from modules.anomaly_grouping.relations import merge_post_rag_relations
-from modules.anomaly_grouping.tile_merge import merge_tile_split_candidates
 
 __all__ = (
     "ANOMALY_GROUPING_REQUEST_SCHEMA",
@@ -35,7 +33,5 @@ __all__ = (
     "RelationGroup",
     "RelationMergeRequest",
     "RelationMergeResult",
-    "merge_post_rag_relations",
-    "merge_tile_split_candidates",
     "run_anomaly_grouping",
 )

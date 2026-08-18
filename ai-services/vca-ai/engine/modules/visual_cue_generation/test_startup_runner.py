@@ -107,12 +107,17 @@ def _write_rough_record(request: ProjectStageRequest) -> None:
         format="PNG",
     )
     _ = (lane_root / "overlays" / "anomaly-0000.jpg").write_bytes(b"\xff\xd8overlay")
+    view_image_path = (
+        request.paths.preprocessing / "assets" / "raw-inputs" / "image-001.jpg"
+    )
     _ = (lane_root / "records.json").write_text(
         json.dumps(
             [
                 {
                     "accepted": True,
                     "bbox_xyxy": [10.0, 12.0, 30.0, 32.0],
+                    "view_origin_xyxy": [0.0, 0.0, 64.0, 64.0],
+                    "view_image_path": str(view_image_path),
                     "generation_lane": "owlv2",
                     "image": "image-001",
                     "mask_path": "masks/anomaly-0000.png",
@@ -260,9 +265,6 @@ def test_run_visual_cue_generation_stage_calls_generator_with_project_paths(
             rough_root=request.paths.rough_masking,
             rag_run_dir=request.paths.rag,
             asset_root=shared_asset_root,
-            input_manifest_path=request.paths.preprocessing
-            / "manifests"
-            / "input_manifest.json",
             device="mps",
         )
     ]

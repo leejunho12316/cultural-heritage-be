@@ -21,13 +21,13 @@ _LOCK_PATH_UNSAFE_REASON = "cache lock path escapes or uses symlinks"
 
 @contextmanager
 def exclusive_file_lock(root: Path, lock_path: Path) -> Generator[None]:
-    """블록 본문 동안 lock_path에 스코프된, 블로킹되는 OS 레벨 락을 유지한다.
+    """Hold a blocking, OS-level lock scoped to lock_path for the block body.
 
-    같은 모델 캐시 루트를 공유하는 동시 프로세스들(예: 실제 파이프라인 실행
-    두 개)이, 파생 캐시 아티팩트를 다시 만들고 저장하는 것 같은 하나의
-    크리티컬 섹션을 순서대로 실행하도록 직렬화한다. 재진입 불가능하다:
-    같은 프로세스에서 같은 락을 두 번 획득하려 하면 POSIX에서는 데드락이,
-    Windows에서는 예외가 발생한다.
+    Serializes concurrent processes that share the same model cache root
+    (for example two real pipeline runs) around one critical section, such
+    as rebuilding and persisting a derived cache artifact. Not reentrant:
+    acquiring the same lock twice from the same process will deadlock on
+    POSIX and raise on Windows.
     """
     _ = ensure_no_symlink_path_components(lock_path, _LOCK_PATH_UNSAFE_REASON)
     _ = ensure_contained_write_path(root, lock_path, _LOCK_PATH_UNSAFE_REASON)

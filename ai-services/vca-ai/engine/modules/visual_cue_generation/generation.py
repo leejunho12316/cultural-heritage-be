@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
 from typing import TYPE_CHECKING
 
 from PIL import Image, UnidentifiedImageError
 
 from modules.mask_refining import QwenRefinementRequest, refine_candidate
 from modules.rag.qwen import QwenBridgeCandidateArtifact, write_qwen_bridge_results
-from modules.shared import CandidateId, QwenBridgeResult, QwenBridgeStatus
+from modules.rough_masking import AssetReference
+from modules.shared import (
+    CandidateId,
+    ContractValidationError,
+    QwenBridgeResult,
+    QwenBridgeStatus,
+)
 from modules.visual_cue_generation.models import (
     QwenBridgeGenerationInputs,
     QwenBridgeGenerationResult,
 )
 from modules.visual_cue_generation.rough_records import rough_qwen_candidates
-from modules.visual_cue_generation.source_manifest import source_assets_by_image
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,24 +36,22 @@ def generate_qwen_bridge_results(
     backend: QwenBackend,
 ) -> QwenBridgeGenerationResult:
     """Write Qwen bridge rows after batch-fatal source manifest validation."""
-    source_assets = source_assets_by_image(
-        inputs.input_manifest_path,
-        inputs.asset_root,
-    )
     rows: list[QwenBridgeCandidateArtifact] = []
     for rough_candidate in rough_qwen_candidates(inputs.rough_root, inputs.asset_root):
         rough_record = rough_candidate.rough
-        source = source_assets.get(rough_candidate.candidate.image_id)
-        if source is None:
-            rows.append(
-                _bridge_artifact(
-                    rough_record,
-                    _failed_source_row(rough_record.candidate_id),
-                )
-            )
-            continue
+        # view_image_path는 이 후보를 만든 뷰(객체 크롭 또는 타일)에 실제로
+        # 입력된 이미지다 - candidate.bbox_xyxy와 항상 같은 좌표계라 원본 사진
+        # 전체를 쓸 때와 달리 좌표 변환이 필요 없다. rough_qwen_candidates()가
+        # 이미 존재를 검증했으므로(mask_path/overlay_path와 동일한 규약) 여기서는
+        # 이미지 디코딩 실패만 소프트 실패로 처리한다.
+        view_image_path = rough_candidate.candidate.view_image_path
+        if view_image_path is None:
+            field = "view_image_path"
+            reason = "rough candidate missing its own view source image"
+            raise ContractValidationError(field, reason)
+        source = _view_asset_reference(view_image_path, inputs.asset_root)
         try:
-            dimensions = _image_dimensions(inputs.asset_root / source.relative_path)
+            dimensions = _image_dimensions(view_image_path)
         except (OSError, UnidentifiedImageError):
             rows.append(
                 _bridge_artifact(
@@ -78,17 +82,15 @@ def generate_qwen_bridge_results(
     )
 
 
-def _failed_source_row(candidate_id: CandidateId) -> QwenBridgeResult:
-    return QwenBridgeResult(
-        candidate_id=candidate_id,
-        status=QwenBridgeStatus.FAILED,
-        selected_terms=(),
-        extracted_descriptors=(),
-        confidence=None,
-        reason="source_asset_missing",
-        qwen_observation_id=None,
-        input_view_hashes=(),
-        failure_code="source_asset_missing",
+def _view_asset_reference(view_image_path: Path, asset_root: Path) -> AssetReference:
+    resolved_root = asset_root.resolve()
+    media_type = (
+        "image/png" if view_image_path.suffix.lower() == ".png" else "image/jpeg"
+    )
+    return AssetReference(
+        view_image_path.relative_to(resolved_root).as_posix(),
+        sha256(view_image_path.read_bytes()).hexdigest(),
+        media_type,
     )
 
 

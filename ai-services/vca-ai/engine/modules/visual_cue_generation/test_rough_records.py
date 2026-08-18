@@ -30,12 +30,15 @@ def test_rough_qwen_candidates_preserve_rag_candidate_ids(tmp_path: Path) -> Non
         lane_root / "overlays" / "anomaly-0000.jpg",
         b"\xff\xd8overlay",
     )
+    _ = _asset(tmp_path / "source.jpg", b"\xff\xd8source")
     _ = (lane_root / "records.json").write_text(
         json.dumps(
             [
                 {
                     "accepted": True,
                     "bbox_xyxy": [1.0, 2.0, 11.0, 12.0],
+                    "view_origin_xyxy": [0.0, 0.0, 64.0, 64.0],
+                    "view_image_path": str(tmp_path / "source.jpg"),
                     "generation_lane": "owlv2",
                     "image": "image-001",
                     "mask_path": "masks/anomaly-0000.png",
@@ -73,12 +76,15 @@ def test_rough_qwen_candidates_exclude_rejected_records(tmp_path: Path) -> None:
     lane_root = tmp_path / "owlv2_sam2" / "image-001-object-01" / "owlv2_sam2"
     mask_hash = _asset(lane_root / "masks/anomaly-0000.png", b"mask")
     overlay_hash = _asset(lane_root / "overlays/anomaly-0000.jpg", b"overlay")
+    _ = _asset(tmp_path / "source.jpg", b"\xff\xd8source")
     _ = (lane_root / "records.json").write_text(
         json.dumps(
             [
                 {
                     "accepted": accepted,
                     "bbox_xyxy": [1.0, 2.0, 11.0, 12.0],
+                    "view_origin_xyxy": [0.0, 0.0, 64.0, 64.0],
+                    "view_image_path": str(tmp_path / "source.jpg"),
                     "generation_lane": "owlv2",
                     "image": "image-001",
                     "mask_path": "masks/anomaly-0000.png",

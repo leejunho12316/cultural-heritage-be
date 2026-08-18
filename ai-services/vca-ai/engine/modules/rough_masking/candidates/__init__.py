@@ -5,6 +5,7 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
+from pathlib import Path
 from typing import Final
 
 from modules.prompt_generating import PromptRecord
@@ -57,6 +58,8 @@ class RawDetectorCandidate:
     source_object_id: str | None
     source_tile_view_id: str | None
     diagnostics: tuple[str, ...]
+    view_origin_xyxy: tuple[float, float, float, float]
+    view_image_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +189,25 @@ def _candidate_parts(
     return CandidateParts(score, image, bbox, *assets, prompt), None
 
 
+# request.view가 원본 사진에서 차지하는 사각형을 [left, top, right, bottom]으로
+# 반환한다 - materialization.py의 동일한 헬퍼와 같은 목적(원본 좌표 복원에 필요한
+# 뷰 자신의 위치)이지만, 여기는 이미 만들어진 records.json이 아니라 방금 만든
+# AdapterRequest에서 직접 계산한다는 점이 다르다. coordinate_transform이 없는
+# 뷰(FULL_IMAGE)는 크롭이 아예 없었다는 뜻이라 bbox_xyxy가 이미 원본 좌표계다 -
+# 그래서 (0, 0, 뷰 자신의 폭, 높이)를 항등 원점으로 쓴다.
+def _view_origin_xyxy(request: AdapterRequest) -> tuple[float, float, float, float]:
+    transform = request.view.coordinate_transform
+    if transform is None:
+        return (0.0, 0.0, float(request.image_width_px), float(request.image_height_px))
+    source_bbox = transform.source_bbox
+    return (
+        source_bbox.left,
+        source_bbox.top,
+        source_bbox.left + source_bbox.width,
+        source_bbox.top + source_bbox.height,
+    )
+
+
 def normalize_candidate(
     request: AdapterRequest, record: dict[str, JsonValue]
 ) -> tuple[RawDetectorCandidate | None, str | None]:
@@ -227,4 +249,5 @@ def normalize_candidate(
         request.view.object_id,
         request.view.tile_view_id,
         (),
+        _view_origin_xyxy(request),
     ), None

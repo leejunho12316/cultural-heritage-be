@@ -95,3 +95,50 @@ def test_partial_boundary_mask_records_perimeter_coverage() -> None:
     # Then: perimeter coverage captures how much of the object outline is covered.
     assert decision.quality.boundary_pixel_ratio == 1.0
     assert decision.quality.perimeter_coverage_ratio == 0.5
+
+
+def test_broad_blob_rejected_by_default_area_quality_gates() -> None:
+    # Given: a mask that fills most of a tight ROI, as a real anomaly would
+    # once mask_refining narrows its re-detection ROI to hug the candidate.
+    object_foreground = np.ones((20, 20), dtype=np.bool_)
+    mask = np.zeros((20, 20), dtype=np.bool_)
+    mask[2:18, 2:18] = True
+
+    # When: quality is assessed with the default (whole-object-calibrated) gates.
+    decision = assess_mask_quality(mask, object_foreground)
+
+    # Then: it is rejected even though the mask is a legitimate anomaly shape.
+    assert decision.accepted is False
+    assert decision.reject_reason == "broad_texture_blob"
+
+
+def test_area_quality_gates_can_be_disabled_for_tight_rois() -> None:
+    # Given: the same broad-relative-to-ROI mask as above.
+    object_foreground = np.ones((20, 20), dtype=np.bool_)
+    mask = np.zeros((20, 20), dtype=np.bool_)
+    mask[2:18, 2:18] = True
+
+    # When: quality is assessed with area-based gates disabled (mask_refining's
+    # candidate-centered re-detection path).
+    decision = assess_mask_quality(mask, object_foreground, apply_area_quality_gates=False)
+
+    # Then: the mask is kept, but its quality metrics are still computed for
+    # reporting - only the accept/reject decision changes.
+    assert decision.accepted is True
+    assert decision.reject_reason is None
+    assert decision.quality.area_ratio > 0.0
+    assert decision.quality.bbox_fill_ratio > 0.0
+
+
+def test_empty_mask_still_rejected_with_area_quality_gates_disabled() -> None:
+    # Given: no anomaly pixels at all.
+    object_foreground = np.ones((20, 20), dtype=np.bool_)
+    mask = np.zeros((20, 20), dtype=np.bool_)
+
+    # When: quality is assessed with area-based gates disabled.
+    decision = assess_mask_quality(mask, object_foreground, apply_area_quality_gates=False)
+
+    # Then: empty_mask is a structural rejection, not an area-ratio miscalibration,
+    # so disabling the area gates must not resurrect a genuinely empty mask.
+    assert decision.accepted is False
+    assert decision.reject_reason == "empty_mask"

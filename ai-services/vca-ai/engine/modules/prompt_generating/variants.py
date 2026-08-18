@@ -3,7 +3,7 @@
 from hashlib import sha256
 from typing import Final, Never
 
-from modules.shared import PromptMetadata, PromptRole, RagLane
+from modules.shared import ACTIVE_RAG_LANES, PromptMetadata, PromptRole, RagLane
 
 from .models import (
     ConceptCard,
@@ -204,11 +204,7 @@ def _render_prompt(card: ConceptCard, cue: VisualCue, lane: RagLane) -> str:
                 _unsafe("location_terms", "location terms are required")
             return validate_executable_prompt(f"localized {phrase} on {location}")
         case RagLane.FLORENCE2:
-            if not location:
-                _unsafe("location_terms", "location terms are required")
-            return validate_executable_prompt(
-                f"broad region with {phrase} on {location}"
-            )
+            _unsafe("lane", "florence2 is non-active")
 
 
 def _prompt_id(card: ConceptCard, lane: RagLane, prompt: str) -> str:
@@ -236,7 +232,7 @@ def render_lane_specific_variants(
             *card.context_terms,
         )
     )
-    for lane in (RagLane.OWLV2, RagLane.GROUNDINGDINO, RagLane.FLORENCE2):
+    for lane in ACTIVE_RAG_LANES:
         prompt = _render_prompt(card, cue, lane)
         variants.append(
             PromptVariant(
@@ -259,13 +255,12 @@ def render_lane_specific_variants(
 
 
 def validate_unique_prompt_texts(variants: tuple[PromptVariant, ...]) -> None:
-    """같은 입력 타깃에 대해 실행 가능한 프롬프트 텍스트가 중복되는 걸 막는다.
+    """Block duplicate executable prompt text for the same input target.
 
-    고유성은 rag_parent_candidate_id 단위로 스코프된다(rough 후보 하나 =
-    특정 이미지/객체/타일 하나). 서로 다른 두 후보 - 예를 들어 두 개의
-    다른 이미지에서 관찰된 같은 종류의 손상 - 는 정당하게 동일한 프롬프트
-    텍스트를 만들어낼 수 있다; 그런 경우까지 프로젝트 전체를 실패시키면
-    안 된다.
+    Uniqueness is scoped per rag_parent_candidate_id (one rough candidate -
+    one specific image/object/tile). Two different candidates - e.g. the
+    same kind of damage seen on two different images - can legitimately
+    render identical prompt text; that must not fail the whole project.
     """
     seen_by_target: dict[str, set[str]] = {}
     for variant in variants:

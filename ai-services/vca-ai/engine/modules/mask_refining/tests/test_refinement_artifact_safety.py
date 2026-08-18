@@ -33,7 +33,9 @@ def test_refinement_rejects_fixed_artifact_symlink_leaf(
     _ = external.write_text("sentinel", encoding="utf-8")
     (output_root / leaf_name).symlink_to(external)
 
-    def rough_candidates(_rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+    def rough_candidates(
+        _rough_root: Path, _asset_root: Path
+    ) -> tuple[RoughQwenCandidate, ...]:
         return ()
 
     monkeypatch.setattr(execution, "_rough_qwen_candidates", rough_candidates)

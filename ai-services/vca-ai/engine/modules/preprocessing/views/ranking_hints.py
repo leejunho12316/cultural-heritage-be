@@ -1,23 +1,25 @@
-"""탐지된 객체 하나에 대한, 픽셀 기반 D010 랭킹 힌트.
+"""Pixel-grounded D010 ranking hints for one detected object.
 
-스펙(T4/D010)은 local_texture_variance, local_color_variance,
-candidate_uncertainty, candidate_scarcity 네 가지 신호를 지정하지만,
-정확한 공식은 규정하지 않고 각각 [0, 1]로 정규화한다는 것만 정한다. 이
-모듈이 생기기 전까지는 코드베이스 어디에도 이걸 만드는 producer가 없었다;
-모든 호출자는 하드코딩된 0을 넘기고 있었다. 아래 공식들은 기존 스펙
-공식을 옮겨온 게 아니라 이 프로젝트의 첫 실제 구현이다:
+The spec (T4/D010) names four signals - local_texture_variance,
+local_color_variance, candidate_uncertainty, candidate_scarcity - but never
+prescribes an exact formula, only that each is normalized to [0, 1]. No
+producer existed anywhere in the codebase before this module; every caller
+was passing hardcoded zeros. These formulas are this project's first real
+implementation, not a transcription of a pre-existing spec formula:
 
-- local_texture_variance: object crop 전체에서 그레이스케일 gradient
-  크기의 분산. clip 대신 v / (v + k)로 압축해서, 균일한 crop은 0에
-  가깝게, 텍스처가 많은 crop은 하드 컷오프 없이 1에 가깝게 나온다.
-- local_color_variance: crop 전체의 채널별 RGB 분산 평균, 같은 방식으로
-  압축. 단색에 가까운 crop은 0에 가깝게 나온다.
-- candidate_uncertainty: 1 - 업스트림 object-detector의 신뢰도(이미 실제로
-  사용 가능한 0-1 점수) - 객체 위치 추정 신뢰도가 낮을수록 이를 보완하기
-  위해 더 촘촘한 타일 커버리지가 필요하다.
-- candidate_scarcity: 객체 자신의 bounding box 중 마스크가 실제로 채우고
-  있는 비율(1 - foreground_ratio). bbox 대비 마스크가 성기거나 불규칙하면
-  진짜 타깃 영역을 짚어내기 어렵다는 뜻이므로 scarcity가 높아진다.
+- local_texture_variance: variance of the grayscale gradient magnitude
+  across the object crop. Squashed with v / (v + k) rather than clipped, so
+  a uniform crop reads near 0 and a highly textured one approaches 1
+  without a hard cutoff.
+- local_color_variance: mean per-channel RGB variance across the crop,
+  squashed the same way. A single flat color reads near 0.
+- candidate_uncertainty: 1 - the upstream object-detector confidence
+  (already a real, available 0-1 score) - a less-confident object
+  localization warrants more thorough tile coverage to compensate.
+- candidate_scarcity: how much of the object's own bounding box its mask
+  actually fills (1 - foreground_ratio). A sparse/irregular mask relative
+  to its bbox suggests the true target region is harder to pin down, so
+  scarcity is higher.
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ if TYPE_CHECKING:
 
 _TEXTURE_SQUASH_K = 400.0
 _COLOR_SQUASH_K = 3000.0
+_MIN_GRADIENT_SIDE_PX = 2
 
 
 def _squash(value: float, k: float) -> float:
@@ -42,6 +45,12 @@ def _squash(value: float, k: float) -> float:
 
 
 def _texture_variance(rgb: NDArray[np.uint8]) -> float:
+    # np.gradient는 각 축에 최소 2개 원소를 요구한다 - 아주 작은(1px 폭/높이)
+    # crop에 대해서도 예외 없이 값을 내야 하므로, 그런 경우는 "텍스처 신호
+    # 없음"으로 보고 0을 돌려준다(다른 퇴화 케이스인 _mask_fill_ratio의
+    # size==0 처리와 같은 방침).
+    if rgb.shape[0] < _MIN_GRADIENT_SIDE_PX or rgb.shape[1] < _MIN_GRADIENT_SIDE_PX:
+        return 0.0
     grayscale = rgb.mean(axis=2)
     gradient_y, gradient_x = np.gradient(grayscale)
     magnitude = np.hypot(gradient_x, gradient_y)

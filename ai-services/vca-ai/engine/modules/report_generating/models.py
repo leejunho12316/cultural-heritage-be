@@ -120,11 +120,12 @@ class TraceCandidate:
     coverage_metrics: tuple[JsonObject, ...] = ()
     skip_reason: str | None = None
     bbox: TraceCandidateBbox | None = None
-    # 원본 이미지 픽셀 공간의 벡터화된 마스크 윤곽선, (x, y) 점 쌍 - 끊어진
-    # 마스크 조각마다 폴리곤 하나씩(실제 마스크는 다중 컴포넌트인 경우가
-    # 흔하다, 예: 흩어진 부식 반점들), FE는 이걸 실제 세그멘테이션 형태를
-    # 나타내는 여러 개의 <polygon>으로 렌더링한다. 위의 bbox는 보조/레거시
-    # 표시용으로 남아 있고; 기준(standard)은 polygons다.
+    # Vectorized mask outlines in original-image pixel space, (x, y) point
+    # pairs - one polygon per disconnected mask fragment (real masks are
+    # often multi-component, e.g. scattered corrosion spots), which the FE
+    # renders as multiple <polygon> shapes for the real segmentation shape.
+    # bbox above stays for auxiliary/legacy display; polygons is the
+    # standard.
     polygons: tuple[tuple[tuple[float, float], ...], ...] | None = None
     qwen_final_success: bool | None = None
     qwen_report_display_text: str | None = None

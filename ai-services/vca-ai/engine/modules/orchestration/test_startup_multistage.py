@@ -19,9 +19,10 @@ EXPECTED_STAGE_NAMES: Final = (
     "rough_masking",
     "visual_cue_generation",
     "rag",
+    "anomaly_grouping",
     "prompt_generating",
     "mask_refining",
-    "anomaly_grouping",
+    "report_trace_assembly",
     "report_generating",
 )
 type FailureCase = tuple[str, int, tuple[str, ...], int]
@@ -84,9 +85,10 @@ def test_startup_invokes_post_mask_stages_after_mask_refining_with_module_roots(
             rough_masking=project_runner,
             visual_cue_generation=visual_cue_generation,
             rag=project_runner,
+            anomaly_grouping=project_runner,
             prompt_generating=project_runner,
             mask_refining=cli_runner("mask_refining"),
-            anomaly_grouping=project_runner,
+            report_trace_assembly=project_runner,
             report_generating=project_runner,
         ),
     )
@@ -102,19 +104,21 @@ def test_startup_invokes_post_mask_stages_after_mask_refining_with_module_roots(
         "startup: completed visual_cue_generation (exit_code=0)",
         "startup: starting rag",
         "startup: completed rag (exit_code=0)",
+        "startup: starting anomaly_grouping",
+        "startup: completed anomaly_grouping (exit_code=0)",
         "startup: starting prompt_generating",
         "startup: completed prompt_generating (exit_code=0)",
         "startup: starting mask_refining",
         "startup: completed mask_refining (exit_code=0)",
-        "startup: starting anomaly_grouping",
-        "startup: completed anomaly_grouping (exit_code=0)",
+        "startup: starting report_trace_assembly",
+        "startup: completed report_trace_assembly (exit_code=0)",
         "startup: starting report_generating",
         "startup: completed report_generating (exit_code=0)",
     ]
     assert tuple(name for name, _ in cli_calls) == ("preprocessing", "mask_refining")
     assert tuple(request.stage_name for request in project_calls) == (
-        "rough_masking", "rag", "prompt_generating",
-        "anomaly_grouping", "report_generating",
+        "rough_masking", "rag", "anomaly_grouping", "prompt_generating",
+        "report_trace_assembly", "report_generating",
     )
     assert tuple(request.stage_name for request in visual_cue_calls) == (
         "visual_cue_generation",
@@ -153,7 +157,7 @@ def test_startup_invokes_post_mask_stages_after_mask_refining_with_module_roots(
     )
     stages = _stage_records(receipt)
     assert [stage["name"] for stage in stages] == list(EXPECTED_STAGE_NAMES)
-    assert [stage["status"] for stage in stages] == ["completed"] * 8
+    assert [stage["status"] for stage in stages] == ["completed"] * 9
     assert stages[1]["output_dir"] == str(
         _module_root(tmp_path, "rough_masking", "connected-project")
     )
@@ -174,7 +178,7 @@ def test_startup_invokes_post_mask_stages_after_mask_refining_with_module_roots(
     assert progress["current_stage"] is None
     progress_stages = _stage_records(progress)
     assert [stage["name"] for stage in progress_stages] == list(EXPECTED_STAGE_NAMES)
-    assert [stage["status"] for stage in progress_stages] == ["completed"] * 8
+    assert [stage["status"] for stage in progress_stages] == ["completed"] * 9
 
 
 def test_startup_passes_resolved_preprocessing_device_to_downstream_stages(
@@ -212,16 +216,17 @@ def test_startup_passes_resolved_preprocessing_device_to_downstream_stages(
             rough_masking=project_runner,
             visual_cue_generation=project_runner,
             rag=project_runner,
+            anomaly_grouping=project_runner,
             prompt_generating=project_runner,
             mask_refining=mask_refining,
-            anomaly_grouping=project_runner,
+            report_trace_assembly=project_runner,
             report_generating=project_runner,
         ),
     )
 
     # Then: downstream stages receive preprocessing's concrete runtime device.
     assert exit_code == 0
-    assert project_devices == ["mps", "mps", "mps", "mps", "mps", "mps"]
+    assert project_devices == ["mps"] * 7
     assert len(mask_calls) == 1
     assert mask_calls[0][mask_calls[0].index("--device") + 1] == "mps"
 
@@ -249,11 +254,9 @@ def test_startup_passes_resolved_preprocessing_device_to_downstream_stages(
                 "rough_masking",
                 "visual_cue_generation",
                 "rag",
-                "prompt_generating",
-                "mask_refining",
                 "anomaly_grouping",
             ),
-            6,
+            4,
         ),
         (
             "report_generating",
@@ -263,12 +266,13 @@ def test_startup_passes_resolved_preprocessing_device_to_downstream_stages(
                 "rough_masking",
                 "visual_cue_generation",
                 "rag",
+                "anomaly_grouping",
                 "prompt_generating",
                 "mask_refining",
-                "anomaly_grouping",
+                "report_trace_assembly",
                 "report_generating",
             ),
-            7,
+            8,
         ),
     ],
 )
@@ -304,9 +308,10 @@ def test_startup_stops_after_failed_project_stage(
             rough_masking=successful_project,
             visual_cue_generation=successful_project,
             rag=successful_project,
+            anomaly_grouping=successful_project,
             prompt_generating=successful_project,
             mask_refining=successful_cli("mask_refining"),
-            anomaly_grouping=successful_project,
+            report_trace_assembly=successful_project,
             report_generating=successful_project,
         ),
     )
@@ -385,9 +390,10 @@ def test_startup_resumes_from_failed_stage_reusing_prior_completed_stages(
             rough_masking=successful_project,
             visual_cue_generation=successful_project,
             rag=successful_project,
+            anomaly_grouping=successful_project,
             prompt_generating=successful_project,
             mask_refining=failing_cli("mask_refining", 1),
-            anomaly_grouping=successful_project,
+            report_trace_assembly=successful_project,
             report_generating=successful_project,
         ),
     )
@@ -397,6 +403,7 @@ def test_startup_resumes_from_failed_stage_reusing_prior_completed_stages(
         "rough_masking",
         "visual_cue_generation",
         "rag",
+        "anomaly_grouping",
         "prompt_generating",
         "mask_refining",
     ]
@@ -427,21 +434,24 @@ def test_startup_resumes_from_failed_stage_reusing_prior_completed_stages(
             rough_masking=tracked_project,
             visual_cue_generation=tracked_project,
             rag=tracked_project,
+            anomaly_grouping=tracked_project,
             prompt_generating=tracked_project,
             mask_refining=tracked_cli("mask_refining"),
-            anomaly_grouping=tracked_project,
+            report_trace_assembly=tracked_project,
             report_generating=tracked_project,
         ),
     )
 
     # Then: only the stages from mask_refining onward actually ran, and the
-    # final receipt still carries the full eight-stage history.
+    # final receipt still carries the full nine-stage history.
     assert second_exit_code == 0
-    assert second_calls == ["mask_refining", "anomaly_grouping", "report_generating"]
+    assert second_calls == [
+        "mask_refining", "report_trace_assembly", "report_generating",
+    ]
     receipt = _run_status_receipt(tmp_path, "resume-project")
     stages = _stage_records(receipt)
     assert [stage["name"] for stage in stages] == list(EXPECTED_STAGE_NAMES)
-    assert [stage["status"] for stage in stages] == ["completed"] * 8
+    assert [stage["status"] for stage in stages] == ["completed"] * 9
 
 
 def test_startup_resume_fails_closed_without_a_prior_receipt(tmp_path: Path) -> None:
@@ -469,9 +479,10 @@ def test_startup_resume_fails_closed_without_a_prior_receipt(tmp_path: Path) -> 
             rough_masking=successful_project,
             visual_cue_generation=successful_project,
             rag=successful_project,
+            anomaly_grouping=successful_project,
             prompt_generating=successful_project,
             mask_refining=successful_cli,
-            anomaly_grouping=successful_project,
+            report_trace_assembly=successful_project,
             report_generating=successful_project,
         ),
     )
@@ -518,12 +529,15 @@ def _run_status_receipt(tmp_path: Path, project_name: str) -> JsonObject:
 def test_all_stages_complete_with_kept_candidates_reports_success(
     tmp_path: Path,
 ) -> None:
-    # Given: every stage completes and anomaly_grouping keeps one candidate.
+    # Given: every stage completes and report_trace_assembly keeps one
+    # candidate (the stage that now determines the final kept-candidate
+    # count, writing into report_generating's directory - see
+    # run_report_trace_assembly_stage).
     image_root = tmp_path / "inputs"
     _ = _write_image(image_root / "source.jpg")
 
-    def anomaly_grouping(request: ProjectStageRequest) -> int:
-        _write_anomaly_grouping_result(request.paths.anomaly_grouping, (True,))
+    def report_trace_assembly(request: ProjectStageRequest) -> int:
+        _write_anomaly_grouping_result(request.paths.report_generating, (True,))
         return 0
 
     def project_runner(request: ProjectStageRequest) -> int:
@@ -539,9 +553,10 @@ def test_all_stages_complete_with_kept_candidates_reports_success(
             rough_masking=project_runner,
             visual_cue_generation=project_runner,
             rag=project_runner,
+            anomaly_grouping=project_runner,
             prompt_generating=project_runner,
             mask_refining=_successful_cli_runner,
-            anomaly_grouping=anomaly_grouping,
+            report_trace_assembly=report_trace_assembly,
             report_generating=project_runner,
         ),
     )
@@ -556,12 +571,14 @@ def test_all_stages_complete_with_kept_candidates_reports_success(
 def test_all_stages_complete_with_zero_kept_candidates_reports_no_valid_targets(
     tmp_path: Path,
 ) -> None:
-    # Given: every stage completes but anomaly_grouping keeps nothing.
+    # Given: every stage completes but report_trace_assembly keeps nothing.
     image_root = tmp_path / "inputs"
     _ = _write_image(image_root / "source.jpg")
 
-    def anomaly_grouping(request: ProjectStageRequest) -> int:
-        _write_anomaly_grouping_result(request.paths.anomaly_grouping, (False, False))
+    def report_trace_assembly(request: ProjectStageRequest) -> int:
+        _write_anomaly_grouping_result(
+            request.paths.report_generating, (False, False)
+        )
         return 0
 
     def project_runner(request: ProjectStageRequest) -> int:
@@ -577,9 +594,10 @@ def test_all_stages_complete_with_zero_kept_candidates_reports_no_valid_targets(
             rough_masking=project_runner,
             visual_cue_generation=project_runner,
             rag=project_runner,
+            anomaly_grouping=project_runner,
             prompt_generating=project_runner,
             mask_refining=_successful_cli_runner,
-            anomaly_grouping=anomaly_grouping,
+            report_trace_assembly=report_trace_assembly,
             report_generating=project_runner,
         ),
     )
@@ -612,9 +630,10 @@ def test_rough_masking_budget_block_reports_blocked(tmp_path: Path) -> None:
             rough_masking=rough_masking,
             visual_cue_generation=_never_project_runner,
             rag=_never_project_runner,
+            anomaly_grouping=_never_project_runner,
             prompt_generating=_never_project_runner,
             mask_refining=_never_stage_runner,
-            anomaly_grouping=_never_project_runner,
+            report_trace_assembly=_never_project_runner,
             report_generating=_never_project_runner,
         ),
     )
@@ -628,6 +647,9 @@ def test_rough_masking_budget_block_reports_blocked(tmp_path: Path) -> None:
 
 def test_non_rough_masking_stage_failure_reports_failure(tmp_path: Path) -> None:
     # Given: mask_refining fails without leaving any budget-approval artifact.
+    # anomaly_grouping now sits *before* mask_refining, so by the time
+    # mask_refining fails it has already run successfully -
+    # report_trace_assembly (after mask_refining) is the one that must not run.
     image_root = tmp_path / "inputs"
     _ = _write_image(image_root / "source.jpg")
 
@@ -648,9 +670,10 @@ def test_non_rough_masking_stage_failure_reports_failure(tmp_path: Path) -> None
             rough_masking=project_runner,
             visual_cue_generation=project_runner,
             rag=project_runner,
+            anomaly_grouping=project_runner,
             prompt_generating=project_runner,
             mask_refining=mask_refining,
-            anomaly_grouping=_never_project_runner,
+            report_trace_assembly=_never_project_runner,
             report_generating=_never_project_runner,
         ),
     )
@@ -668,8 +691,8 @@ def test_report_generating_only_failure_reports_incomplete(tmp_path: Path) -> No
     image_root = tmp_path / "inputs"
     _ = _write_image(image_root / "source.jpg")
 
-    def anomaly_grouping(request: ProjectStageRequest) -> int:
-        _write_anomaly_grouping_result(request.paths.anomaly_grouping, (True,))
+    def report_trace_assembly(request: ProjectStageRequest) -> int:
+        _write_anomaly_grouping_result(request.paths.report_generating, (True,))
         return 0
 
     def report_generating(request: ProjectStageRequest) -> int:
@@ -689,9 +712,10 @@ def test_report_generating_only_failure_reports_incomplete(tmp_path: Path) -> No
             rough_masking=project_runner,
             visual_cue_generation=project_runner,
             rag=project_runner,
+            anomaly_grouping=project_runner,
             prompt_generating=project_runner,
             mask_refining=_successful_cli_runner,
-            anomaly_grouping=anomaly_grouping,
+            report_trace_assembly=report_trace_assembly,
             report_generating=report_generating,
         ),
     )
@@ -721,9 +745,10 @@ def test_dry_run_reports_incomplete_pre_qwen_preview(tmp_path: Path) -> None:
             rough_masking=project_runner,
             visual_cue_generation=project_runner,
             rag=project_runner,
+            anomaly_grouping=project_runner,
             prompt_generating=project_runner,
             mask_refining=_successful_cli_runner,
-            anomaly_grouping=project_runner,
+            report_trace_assembly=project_runner,
             report_generating=project_runner,
         ),
     )

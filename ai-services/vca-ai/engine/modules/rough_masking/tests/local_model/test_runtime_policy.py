@@ -8,7 +8,6 @@ import pytest
 
 from modules.preprocessing.model_runtime.inventory import ModelInventoryEntry
 from modules.rough_masking.local_model.inference import (
-    load_florence2_detector,
     load_grounded_detector,
     load_owlv2_detector,
 )
@@ -127,7 +126,6 @@ def test_local_loaders_use_inventory_paths_and_disable_remote_resolution(
 
     # When: each detector and the segmenter are loaded through their local seams.
     _ = load_owlv2_detector(detector_dir, "mps")
-    _ = load_florence2_detector(detector_dir, "mps")
     _ = load_grounded_detector(detector_dir, "mps")
     _ = load_sam2_predictor(settings)
 
@@ -135,20 +133,6 @@ def test_local_loaders_use_inventory_paths_and_disable_remote_resolution(
     assert FakeLocalLoader.calls == [
         ("processor", detector_dir, {"local_files_only": True, "use_fast": False}),
         ("model", detector_dir, {"local_files_only": True}),
-        (
-            "processor",
-            detector_dir,
-            {"local_files_only": True, "trust_remote_code": True},
-        ),
-        (
-            "model",
-            detector_dir,
-            {
-                "attn_implementation": "eager",
-                "local_files_only": True,
-                "trust_remote_code": True,
-            },
-        ),
         ("processor", detector_dir, {"local_files_only": True}),
         ("model", detector_dir, {"local_files_only": True}),
     ]

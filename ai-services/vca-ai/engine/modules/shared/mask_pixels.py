@@ -1,10 +1,9 @@
-"""파이프라인 스테이지 전체가 공유하는, 순수 path/array 기반 마스크 픽셀 연산.
+"""Pure path/array-based mask pixel operations shared across pipeline stages.
 
-업스트림 스테이지(예: `rough_masking`)가 다운스트림 스테이지 모듈을
-import하지 않고도 마스크 픽셀을 합치거나 쓸 수 있도록
-`modules.anomaly_grouping.geometry`에서 분리해냈다. 이 함수들은 순수
-`Path`와 배열만 받으며, 어떤 스테이지의 candidate/mask-reference
-데이터클래스에도 의존하지 않는다.
+Extracted from `modules.anomaly_grouping.geometry` so that upstream stages
+(e.g. `rough_masking`) can union/write mask pixels without importing a
+downstream stage module. These functions take plain `Path`s and arrays only -
+no dependency on any stage's candidate/mask-reference dataclasses.
 """
 
 from __future__ import annotations
@@ -45,14 +44,14 @@ def mask_union_array(paths: Sequence[Path]) -> NDArray[np.bool_]:
     return union
 
 
-# 서로 다른 크롭(타일)에서 나온, 각자 자기 크롭 기준 로컬 좌표인 마스크들을
-# 공통 캔버스(전달된 xyxy들의 합집합 bbox) 위에 정렬해서 합친다. 단순히
-# 배열끼리 union|array로 겹치면 안 되는 이유: 각 마스크는 서로 다른 원점과
-# (부동소수점 타일 크기 계산 때문에) 미세하게 다른 크기를 가질 수 있어서,
-# 그대로 겹치면 크기가 안 맞아 죽거나(모양 다름) 죽지 않아도 잘못된 위치에
-# 겹쳐진다. rough_masking의 타일 경계 병합(tile_merge.py)에서 쓴다 -
-# anomaly_grouping의 병합은 이미 원본 이미지 좌표로 복원된 마스크만 다뤄서
-# 이 함수가 필요 없다(mask_union_array로 충분).
+# 서로 다른 뷰(객체 크롭/타일)에서 나온, 각자 자기 뷰 기준 로컬 좌표인
+# 마스크들을 공통 캔버스(전달된 xyxy들의 합집합 bbox) 위에 정렬해서 합친다.
+# 단순히 배열끼리 union|array로 겹치면 안 되는 이유: 각 마스크는 서로 다른
+# 원점과 (부동소수점 타일 크기 계산 때문에) 미세하게 다른 크기를 가질 수
+# 있어서, 그대로 겹치면 크기가 안 맞아 죽거나(모양 다름) 죽지 않아도 잘못된
+# 위치에 겹쳐진다. anomaly_grouping의 사전(pre-refinement) 병합
+# (pre_refinement_merge.py)에서 쓴다 - 원본 이미지 좌표로 이미 복원된
+# 마스크들을 합치는 것이라 각자의 원점이 다르다.
 def mask_union_at_boxes(
     masks_and_boxes: Sequence[
         tuple[NDArray[np.bool_], tuple[float, float, float, float]]

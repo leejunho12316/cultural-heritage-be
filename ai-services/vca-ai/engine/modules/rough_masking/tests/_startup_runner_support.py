@@ -150,6 +150,25 @@ def make_candidate(adapter_request: AdapterRequest) -> RawDetectorCandidate:
         adapter_request.view.object_id,
         adapter_request.view.tile_view_id,
         (),
+        _view_origin_xyxy(adapter_request),
+        None,
+    )
+
+
+def _view_origin_xyxy(
+    adapter_request: AdapterRequest,
+) -> tuple[float, float, float, float]:
+    transform = adapter_request.view.coordinate_transform
+    if transform is None:
+        return (0.0, 0.0, float(adapter_request.image_width_px), float(
+            adapter_request.image_height_px
+        ))
+    source_bbox = transform.source_bbox
+    return (
+        source_bbox.left,
+        source_bbox.top,
+        source_bbox.left + source_bbox.width,
+        source_bbox.top + source_bbox.height,
     )
 
 

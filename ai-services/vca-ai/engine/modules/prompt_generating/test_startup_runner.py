@@ -11,7 +11,7 @@ from modules.rag.operations.candidate_sidecar_models import (
     RAG_VISUAL_CONCEPT_CARDS_SIDECAR,
 )
 from modules.rag.qwen.qwen_bridge_json import parse_json_object
-from modules.shared import ExitCode, RagLane
+from modules.shared import ACTIVE_RAG_LANES, ExitCode
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -84,16 +84,16 @@ def test_run_prompt_generating_stage_writes_mask_refining_contract(
     assert exit_code == int(ExitCode.OK)
     result = read_prompt_variants(request.paths.prompt_generating)
     assert result.manifest_schema == "rag_refinement_prompt_variants_v1"
-    assert len(result.groups) == 3
+    assert len(result.groups) == 2
     assert result.skips == ()
-    assert {group.model_lane for group in result.groups} == set(RagLane)
+    assert {group.model_lane for group in result.groups} == set(ACTIVE_RAG_LANES)
     assert all(
         group.rag_parent_candidate_id == "candidate-001" for group in result.groups
     )
     manifest = parse_json_object(
         (request.paths.prompt_generating / "manifest.json").read_text(encoding="utf-8")
     )
-    assert manifest["prompt_variants"] == 3
+    assert manifest["prompt_variants"] == 2
     assert manifest["rag_visual_concept_cards"] == 1
 
 
@@ -152,4 +152,4 @@ def test_run_prompt_generating_stage_dry_run_uses_available_cards(
     # Then: planned prompt artifacts are still valid downstream inputs.
     assert exit_code == int(ExitCode.OK)
     result = read_prompt_variants(request.paths.prompt_generating)
-    assert len(result.groups) == 3
+    assert len(result.groups) == 2

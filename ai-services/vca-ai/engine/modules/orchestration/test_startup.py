@@ -17,13 +17,13 @@ if TYPE_CHECKING:
 
 SKIPPED_STAGE_REASON: Final = "no standalone orchestration entrypoint wired yet"
 OUT_OF_SCOPE_STAGE_REASON: Final = "outside startup orchestration scope"
-ANOMALY_GROUPING_DRY_RUN_REASON: Final = (
-    "skipped during startup dry-run because anomaly_grouping requires "
+REPORT_TRACE_ASSEMBLY_DRY_RUN_REASON: Final = (
+    "skipped during startup dry-run because report_trace_assembly requires "
     "mask_refining outputs"
 )
 REPORT_GENERATING_DRY_RUN_REASON: Final = (
     "skipped during startup dry-run because report_generating requires "
-    "anomaly_grouping outputs"
+    "report_trace_assembly outputs"
 )
 STARTUP_RECEIPT_SCHEMA: Final = "vca-startup-receipt-v1"
 EXPECTED_STAGE_NAMES: Final = (
@@ -31,9 +31,10 @@ EXPECTED_STAGE_NAMES: Final = (
     "rough_masking",
     "visual_cue_generation",
     "rag",
+    "anomaly_grouping",
     "prompt_generating",
     "mask_refining",
-    "anomaly_grouping",
+    "report_trace_assembly",
     "report_generating",
 )
 
@@ -93,9 +94,10 @@ def test_startup_invokes_preprocessing_under_project_result_root(
             rough_masking=_successful_project_runner,
             visual_cue_generation=_successful_project_runner,
             rag=_successful_project_runner,
+            anomaly_grouping=_successful_project_runner,
             prompt_generating=_successful_project_runner,
             mask_refining=_successful_stage_runner,
-            anomaly_grouping=_successful_project_runner,
+            report_trace_assembly=_successful_project_runner,
             report_generating=_successful_project_runner,
         ),
     )
@@ -112,6 +114,8 @@ def test_startup_invokes_preprocessing_under_project_result_root(
         "startup: completed visual_cue_generation (exit_code=0)",
         "startup: starting rag",
         "startup: completed rag (exit_code=0)",
+        "startup: starting anomaly_grouping",
+        "startup: completed anomaly_grouping (exit_code=0)",
         "startup: starting prompt_generating",
         "startup: completed prompt_generating (exit_code=0)",
         "startup: starting mask_refining",
@@ -120,8 +124,8 @@ def test_startup_invokes_preprocessing_under_project_result_root(
             "(skipped during startup dry-run because mask_refining has no "
             "dry-run contract)"
         ),
-        "startup: starting anomaly_grouping",
-        f"startup: skipped anomaly_grouping ({ANOMALY_GROUPING_DRY_RUN_REASON})",
+        "startup: starting report_trace_assembly",
+        f"startup: skipped report_trace_assembly ({REPORT_TRACE_ASSEMBLY_DRY_RUN_REASON})",
         "startup: starting report_generating",
         f"startup: skipped report_generating ({REPORT_GENERATING_DRY_RUN_REASON})",
     ]
@@ -155,15 +159,15 @@ def test_startup_invokes_preprocessing_under_project_result_root(
     stages = _stage_records(receipt)
     assert [stage["name"] for stage in stages] == list(EXPECTED_STAGE_NAMES)
     assert stages[0]["exit_code"] == 0
-    assert [stage["status"] for stage in stages[:5]] == ["completed"] * 5
-    assert stages[5]["status"] == "skipped"
-    assert stages[5]["reason"] == (
+    assert [stage["status"] for stage in stages[:6]] == ["completed"] * 6
+    assert stages[6]["status"] == "skipped"
+    assert stages[6]["reason"] == (
         "skipped during startup dry-run because mask_refining has no dry-run contract"
     )
-    assert stages[6]["status"] == "skipped"
-    assert stages[6]["reason"] == ANOMALY_GROUPING_DRY_RUN_REASON
     assert stages[7]["status"] == "skipped"
-    assert stages[7]["reason"] == REPORT_GENERATING_DRY_RUN_REASON
+    assert stages[7]["reason"] == REPORT_TRACE_ASSEMBLY_DRY_RUN_REASON
+    assert stages[8]["status"] == "skipped"
+    assert stages[8]["reason"] == REPORT_GENERATING_DRY_RUN_REASON
 
 
 @pytest.mark.parametrize(
@@ -274,9 +278,10 @@ def test_startup_writes_failure_receipt_when_preprocessing_raises(
         "startup: skipped rough_masking (skipped because preprocessing failed)",
         "startup: skipped visual_cue_generation (skipped because preprocessing failed)",
         "startup: skipped rag (skipped because preprocessing failed)",
+        "startup: skipped anomaly_grouping (skipped because preprocessing failed)",
         "startup: skipped prompt_generating (skipped because preprocessing failed)",
         "startup: skipped mask_refining (skipped because preprocessing failed)",
-        "startup: skipped anomaly_grouping (skipped because preprocessing failed)",
+        "startup: skipped report_trace_assembly (skipped because preprocessing failed)",
         "startup: skipped report_generating (skipped because preprocessing failed)",
     ]
     receipt = parse_json_object(

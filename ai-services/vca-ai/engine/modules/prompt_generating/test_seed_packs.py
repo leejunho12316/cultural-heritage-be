@@ -25,11 +25,6 @@ def test_static_seed_pack_matches_locked_values_and_rough_anchor_contract() -> N
         (RagLane.GROUNDINGDINO, "dark discoloration or stain"),
         (RagLane.GROUNDINGDINO, "hard mineral deposit or accretion"),
         (RagLane.GROUNDINGDINO, "corrosion spot with pitting"),
-        (RagLane.FLORENCE2, "a thin crack or fissure on the surface"),
-        (RagLane.FLORENCE2, "an area of flaking, spalling or loss"),
-        (RagLane.FLORENCE2, "a dark stain or area of discoloration"),
-        (RagLane.FLORENCE2, "a crust of mineral deposit or accretion"),
-        (RagLane.FLORENCE2, "a spot of corrosion or metal pitting"),
     )
 
     # When: rough masking reads the exported prompt records.
@@ -64,11 +59,6 @@ def test_object_detection_pack_matches_locked_values_without_rough_anchor() -> N
         (RagLane.GROUNDINGDINO, "whole artifact"),
         (RagLane.GROUNDINGDINO, "separate object on white background"),
         (RagLane.GROUNDINGDINO, "metal artifact on white background"),
-        (RagLane.FLORENCE2, "artifact object"),
-        (RagLane.FLORENCE2, "individual artifact"),
-        (RagLane.FLORENCE2, "whole artifact"),
-        (RagLane.FLORENCE2, "separate object on white background"),
-        (RagLane.FLORENCE2, "metal artifact on white background"),
     )
 
     # When: preprocessing reads the exported object-detection prompt records.
@@ -110,11 +100,6 @@ def test_seed_prompt_ids_are_stable_and_unique() -> None:
         "static-seed-minimal-v1-groundingdino-03",
         "static-seed-minimal-v1-groundingdino-04",
         "static-seed-minimal-v1-groundingdino-05",
-        "static-seed-minimal-v1-florence2-01",
-        "static-seed-minimal-v1-florence2-02",
-        "static-seed-minimal-v1-florence2-03",
-        "static-seed-minimal-v1-florence2-04",
-        "static-seed-minimal-v1-florence2-05",
     )
     assert len(first_ids) == len(set(first_ids))
 
