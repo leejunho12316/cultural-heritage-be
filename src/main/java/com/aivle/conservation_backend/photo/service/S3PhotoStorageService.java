@@ -77,6 +77,27 @@ public class S3PhotoStorageService {
         return key;
     }
 
+    /** 문양조사 보정 이미지를 run 기준 영구 key로 저장한다. */
+    public String uploadPotteryAnnotated(
+            UUID artifactId,
+            UUID assessmentRunId,
+            MultipartFile file
+    ) {
+        validateImage(file);
+
+        String key =
+                "artifacts/"
+                        + artifactId
+                        + "/vca/"
+                        + assessmentRunId
+                        + "/annotated/"
+                        + UUID.randomUUID()
+                        + getExtension(file.getOriginalFilename());
+
+        uploadToS3(key, file);
+        return key;
+    }
+
     /* 생성된 보고서 .docx를 유물별 영구 key로 업로드한다. */
     public String uploadReportDocx(UUID artifactId, byte[] docx) {
         String key = "artifacts/" + artifactId + "/reports/" + UUID.randomUUID() + ".docx";

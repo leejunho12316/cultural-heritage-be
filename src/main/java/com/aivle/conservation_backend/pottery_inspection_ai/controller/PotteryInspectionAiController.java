@@ -74,6 +74,17 @@ public class PotteryInspectionAiController {
         return ResponseEntity.ok(jobService.getLatestJob(artifactId));
     }
 
+    /** 문양조사 보정 이미지를 S3에 영구 저장하고 해당 run 결과에 연결한다. */
+    @PostMapping(path = "/jobs/{assessmentRunId}/annotated-photo", consumes = "multipart/form-data")
+    public ResponseEntity<PotteryInspectionJobResponseDto> saveAnnotatedPhoto(
+            @PathVariable UUID assessmentRunId,
+            @RequestParam("artifact_id") UUID artifactId,
+            @RequestParam("file") MultipartFile file
+    ) {
+        artifactAccessService.requireArtifact(artifactId);
+        return ResponseEntity.ok(jobService.saveAnnotatedPhoto(artifactId, assessmentRunId, file));
+    }
+
     /** 특정 assessment run의 서버 영속 상태를 조회한다. */
     @GetMapping("/jobs/{assessmentRunId}")
     public ResponseEntity<PotteryInspectionJobResponseDto> getJob(
