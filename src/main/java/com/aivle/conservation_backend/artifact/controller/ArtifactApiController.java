@@ -3,8 +3,10 @@ package com.aivle.conservation_backend.artifact.controller;
 import com.aivle.conservation_backend.artifact.dto.AddArtifactRequest;
 import com.aivle.conservation_backend.artifact.dto.ArtifactResponse;
 import com.aivle.conservation_backend.artifact.dto.ArtifactPublicResponse;
+import com.aivle.conservation_backend.artifact.dto.ArtifactWorkflowStatusResponse;
 import com.aivle.conservation_backend.artifact.dto.UpdateArtifactRequest;
 import com.aivle.conservation_backend.artifact.service.ArtifactService;
+import com.aivle.conservation_backend.artifact.service.ArtifactWorkflowStatusService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +24,7 @@ import java.util.UUID;
 public class ArtifactApiController {
 
     private final ArtifactService artifactService;
+    private final ArtifactWorkflowStatusService artifactWorkflowStatusService;
 
     @PostMapping
     public ResponseEntity<ArtifactResponse> create(
@@ -63,6 +66,13 @@ public class ArtifactApiController {
                         artifactId
                 )
         );
+    }
+
+    @GetMapping("/{artifactId}/workflow-status")
+    public ResponseEntity<ArtifactWorkflowStatusResponse> workflowStatus(
+            @PathVariable UUID artifactId
+    ) {
+        return ResponseEntity.ok(artifactWorkflowStatusService.get(artifactId));
     }
 
     @PatchMapping("/{artifactId}")

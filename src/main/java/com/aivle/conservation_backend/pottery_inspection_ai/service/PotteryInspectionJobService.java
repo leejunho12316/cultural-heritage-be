@@ -34,6 +34,8 @@ import java.util.UUID;
 @Service
 public class PotteryInspectionJobService {
 
+    private static final String DETAIL_ANNOTATED_IMAGE_KEY = "_annotated_image_key";
+
     private static final List<String> ACTIVE_STATUSES = List.of("queued", "running");
     private static final String CONFIG_IMAGE_KEY = "potteryInspectionImageKey";
     private static final String STAGE_ERROR_STATUS = "errorStatus";
@@ -172,6 +174,36 @@ public class PotteryInspectionJobService {
         }
 
         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "저장된 육안조사 작업이 없습니다.");
+    }
+
+    @Transactional
+    public PotteryInspectionJobResponseDto saveAnnotatedPhoto(
+            UUID artifactId,
+            UUID assessmentRunId,
+            MultipartFile file
+    ) {
+        AssessmentRun run = assessmentRunRepository
+                .findByIdAndArtifactIdForUpdate(assessmentRunId, artifactId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "육안조사 작업을 찾을 수 없습니다: " + assessmentRunId
+                ));
+
+        InspectionResultPottery stored = inspectionResultPotteryRepository
+                .findByAssessmentRunId(run.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "완료된 문양조사 결과가 없어 보정 이미지를 저장할 수 없습니다."
+                ));
+
+        String key = photoStorageService.uploadPotteryAnnotated(artifactId, assessmentRunId, file);
+        Map<String, Object> detail = new LinkedHashMap<>();
+        if (stored.getDetail() != null) detail.putAll(stored.getDetail());
+        detail.put(DETAIL_ANNOTATED_IMAGE_KEY, key);
+        stored.setDetail(detail);
+        inspectionResultPotteryRepository.save(stored);
+
+        return toResponse(run);
     }
 
     private void refreshFromAiIfActive(AssessmentRun run) {
@@ -326,6 +358,7 @@ public class PotteryInspectionJobService {
                 run.getCurrentStage(),
                 run.getProgressPercent(),
                 photoUrl(run),
+                annotatedPhotoUrl(stored),
                 result,
                 errorStatus,
                 errorDetail
@@ -350,6 +383,12 @@ public class PotteryInspectionJobService {
             return null;
         }
         String key = valueAsString(run.getConfigJson().get(CONFIG_IMAGE_KEY));
+        return key == null ? null : photoStorageService.presignedUrl(key);
+    }
+
+    private String annotatedPhotoUrl(InspectionResultPottery stored) {
+        if (stored == null || stored.getDetail() == null) return null;
+        String key = valueAsString(stored.getDetail().get(DETAIL_ANNOTATED_IMAGE_KEY));
         return key == null ? null : photoStorageService.presignedUrl(key);
     }
 
