@@ -117,14 +117,15 @@ def test_detector_lanes_map_to_rag_lanes_and_reject_clipseg() -> None:
     validated_lanes = validate_active_detector_lanes(requested_lanes)
     mapped_lanes = tuple(detector_to_rag_lane(lane) for lane in validated_lanes)
 
-    # Then: all mappings are exact and CLIPSeg remains non-active.
+    # Then: all mappings are exact and CLIPSeg/Florence-2 remain non-active.
     assert mapped_lanes == (
         RagLane.OWLV2,
-        RagLane.FLORENCE2,
         RagLane.GROUNDINGDINO,
     )
     with pytest.raises(ContractValidationError):
         _ = validate_active_detector_lanes((DetectorLane.CLIPSEG,))
+    with pytest.raises(ContractValidationError):
+        _ = validate_active_detector_lanes((DetectorLane.FLORENCE2_SAM2,))
 
 
 def test_prompt_metadata_and_followup_selectors_are_strict() -> None:

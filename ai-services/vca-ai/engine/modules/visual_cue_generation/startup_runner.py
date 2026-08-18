@@ -90,9 +90,6 @@ def _generation_inputs(request: _VisualCueStageRequest) -> QwenBridgeGenerationI
         rough_root=request.paths.rough_masking,
         rag_run_dir=request.paths.rag,
         asset_root=shared_asset_root,
-        input_manifest_path=(
-            request.paths.preprocessing / "manifests" / "input_manifest.json"
-        ),
         device=request.device,
     )
 

@@ -43,13 +43,13 @@ class _WriteBoundary:
 # startup_runner._locked_corpus_vector_index가 락을 잡은 상태에서 호출하는
 # 코퍼스 메타데이터 진입점. 캐시 재사용 조건은 아래 docstring 참고.
 def startup_corpus_rows(model_cache_root: Path) -> tuple[CorpusMetadataRow, ...]:
-    """캐시된 코퍼스 빌드가 이미 있으면 그걸 재사용한다.
+    """Reuse a cached corpus build whenever one already exists.
 
-    캐시 신선도는 소스 PDF와 자동으로 비교해 판단하지 않는다(fingerprint/mtime
-    비교 없음) - document_corpus_metadata.jsonl이 존재하고 파싱만 되면
-    그대로 신뢰한다. 코퍼스를 갱신하는 건 운영자의 명시적 조작이다: 캐시
-    파일(또는 `rag/` 캐시 디렉터리 전체)을 지우고 다시 실행하면 전체
-    재빌드로 넘어간다.
+    Cache freshness is not auto-detected against the source PDFs (no
+    fingerprint/mtime comparison) - once document_corpus_metadata.jsonl
+    exists and parses, it is trusted as-is. Refreshing the corpus is an
+    explicit operator action: delete the cache file (or the whole `rag/`
+    cache directory) and rerun so this falls through to a full rebuild.
     """
     _guard_model_cache_root(model_cache_root)
     config = _document_corpus_config(model_cache_root)

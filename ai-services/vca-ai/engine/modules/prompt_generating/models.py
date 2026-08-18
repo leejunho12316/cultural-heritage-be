@@ -77,7 +77,10 @@ class VisualConceptFamily(StrEnum):
     UNKNOWN_VISUAL_ANOMALY = "unknown_visual_anomaly"
 
 
-@dataclass(frozen=True, slots=True)
+# frozen=True는 일부러 안 쓴다 - modules.shared.errors의 ContractValidationError와
+# 같은 이유(CPython의 예외 재던지기 __traceback__ 재대입이 frozen dataclass의
+# __setattr__ 차단과 충돌).
+@dataclass(slots=True)
 class PromptSafetyError(ValueError):
     """Raised when data cannot form a visual-only executable prompt."""
 

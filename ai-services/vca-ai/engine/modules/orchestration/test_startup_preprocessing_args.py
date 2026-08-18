@@ -48,9 +48,10 @@ def test_startup_real_run_limits_preprocessing_to_owlv2_sam2(
             rough_masking=_successful_project_runner,
             visual_cue_generation=_successful_project_runner,
             rag=_successful_project_runner,
+            anomaly_grouping=_successful_project_runner,
             prompt_generating=_successful_project_runner,
             mask_refining=_successful_cli,
-            anomaly_grouping=_successful_project_runner,
+            report_trace_assembly=_successful_project_runner,
             report_generating=_successful_project_runner,
         ),
     )

@@ -195,7 +195,7 @@ def test_rough_masking_proceeds_once_a_matching_approval_artifact_exists(
     assert exit_code == 0
 
 
-def test_startup_runner_invokes_only_preprocessing_manifest_lanes(
+def test_startup_runner_invokes_every_active_lane(
     tmp_path: Path,
 ) -> None:
     # Given: one real preprocessing object and a fake adapter seam.
@@ -246,35 +246,67 @@ def test_startup_runner_invokes_only_preprocessing_manifest_lanes(
         adapter_executor=adapter_executor,
     )
 
-    # Then: only the lane produced by preprocessing is routed through rough
-    # masking, once for the object crop and once for its one real tile - the
-    # tile file (not the object crop) is used as the tile's own image_path.
+    # Then: every active lane is routed through rough masking, not just the
+    # one lane preprocessing itself used to find the object - OWLv2 reuses
+    # preprocessing's own object crop and one real tile (unchanged), while
+    # GroundingDINO gets the shared object crop plus its own tiles, computed
+    # and cropped on the fly since preprocessing only ever materializes
+    # OWLv2-sized tiles (see _grounded_tile_views/_materialize_grounded_tiles).
     assert exit_code == 0
-    assert [lane for lane, _ in runner_calls] == [
-        DetectorLane.OWLV2_SAM2,
-        DetectorLane.OWLV2_SAM2,
+    owlv2_calls = [call for call in runner_calls if call[0] is DetectorLane.OWLV2_SAM2]
+    grounded_calls = [
+        call for call in runner_calls if call[0] is DetectorLane.GROUNDED_SAM2
     ]
-    assert [image_path for _, image_path in runner_calls] == [
+    assert len(runner_calls) == len(owlv2_calls) + len(grounded_calls)
+    assert [image_path for _, image_path in owlv2_calls] == [
         manifest_paths.crop_path.resolve(),
         manifest_paths.tile_path.resolve(),
     ]
+    # GroundingDINO's object-crop call reuses the exact same file as OWLv2's;
+    # every remaining call is one of its own materialized tile files.
+    assert grounded_calls[0][1] == manifest_paths.crop_path.resolve()
+    grounded_tile_paths = [image_path for _, image_path in grounded_calls[1:]]
+    grounded_tile_dir = (
+        stage_request.paths.rough_masking / "grounded_sam2_tiles" / "object-001"
+    )
+    assert len(grounded_tile_paths) == len(set(grounded_tile_paths)) > 0
+    assert all(
+        path.parent == grounded_tile_dir and path.is_file()
+        for path in grounded_tile_paths
+    )
     assert [adapter_request.lane for adapter_request in adapter_requests] == [
-        DetectorLane.OWLV2_SAM2,
-        DetectorLane.OWLV2_SAM2,
+        lane for lane, _ in runner_calls
     ]
     assert all(
         adapter_request.view.object_id == "object-001"
         for adapter_request in adapter_requests
     )
-    lane_root = (
+    owlv2_lane_root = (
         stage_request.paths.rough_masking / "owlv2_sam2" / "object-001" / "owlv2_sam2"
     )
-    assert [
-        adapter_request.lane_output_dir for adapter_request in adapter_requests
-    ] == [
-        lane_root / "object",
-        lane_root / "rough-mask-tile:object-001:000",
+    owlv2_requests = [
+        request for request in adapter_requests if request.lane is DetectorLane.OWLV2_SAM2
     ]
+    assert [request.lane_output_dir for request in owlv2_requests] == [
+        owlv2_lane_root / "object",
+        owlv2_lane_root / "rough-mask-tile:object-001:000",
+    ]
+    grounded_lane_root = (
+        stage_request.paths.rough_masking
+        / "grounded_sam2"
+        / "object-001"
+        / "grounded_sam2"
+    )
+    grounded_requests = [
+        request
+        for request in adapter_requests
+        if request.lane is DetectorLane.GROUNDED_SAM2
+    ]
+    assert grounded_requests[0].lane_output_dir == grounded_lane_root / "object"
+    assert all(
+        request.lane_output_dir.parent == grounded_lane_root
+        for request in grounded_requests[1:]
+    )
 
 
 def test_startup_runner_uses_request_model_hash_policy(
@@ -328,9 +360,11 @@ def test_startup_runner_uses_request_model_hash_policy(
     )
 
     # Then: the request policy controls hash verification for every runner
-    # call - one for the object crop, one for its tile.
+    # call, across every active lane (object crop + tiles for OWLv2 and for
+    # GroundingDINO - GroundingDINO's own tile count depends on the fixture's
+    # tiny fallback-strategy geometry, see _grounded_tile_views).
     assert exit_code == 0
-    assert len(cache_policies) == 2
+    assert len(cache_policies) == 27
     assert all(
         policy.root == stage_request.model_cache_root for policy in cache_policies
     )

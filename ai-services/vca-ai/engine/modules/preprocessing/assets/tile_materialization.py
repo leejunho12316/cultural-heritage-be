@@ -114,13 +114,14 @@ def tile_request(tile_input: TilePlanningInput) -> ViewPlanningRequest:
 def materialize_object_tiles(
     tile_input: TileGenerationInput,
 ) -> tuple[tuple[Path, BoundingBox], ...]:
-    """계획된 타일 JPEG를 전부 쓰고, 각 경로를 그 자신의 bbox와 함께 반환한다.
+    """Write all planned tile JPEGs and return each path with its own bbox.
 
-    이 bbox는 원본 이미지 좌표계다(다른 곳의 bbox_xyxy와 같은 좌표계) -
-    다운스트림 스테이지(rough_masking)가 각 타일을 거쳐 탐지를 라우팅하고
-    좌표를 다시 정확히 복원하는 데 이게 필요하다. 이전에는 여기서 계산한
-    geometry tile_boxes()가 크롭 직후에 바로 버려졌기 때문에, 이 함수 이후
-    어디에서도 특정 타일이 실제로 어디였는지 알 수 없었다.
+    The bbox is in original-image coordinates (same frame as bbox_xyxy
+    elsewhere) - downstream stages (rough_masking) need it to route
+    detection through each tile and restore coordinates back correctly.
+    Before this, the geometry tile_boxes() computed here was thrown away
+    right after cropping, so nothing past this function could ever know
+    where a given tile actually was.
     """
     tile_target = tile_input.request.objects[0]
     lane = tile_input.request.detector_lanes[0]

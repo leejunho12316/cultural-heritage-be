@@ -11,7 +11,7 @@ from modules.anomaly_grouping.models import (
     CandidateRelationResult,
     RelationMergeResult,
 )
-from modules.anomaly_grouping.startup_runner import run_anomaly_grouping_stage
+from modules.anomaly_grouping.startup_runner import run_report_trace_assembly_stage
 from modules.anomaly_grouping.startup_trace_source import (
     StartupCandidate,
     startup_trace_source_payload,
@@ -40,41 +40,41 @@ def _is_json_objects(value: JsonValue) -> TypeGuard[list[JsonObject]]:
     return isinstance(value, list) and all(isinstance(item, dict) for item in value)
 
 
-def test_run_anomaly_grouping_stage_dry_run_writes_no_real_outputs(
+def test_run_report_trace_assembly_stage_dry_run_writes_no_real_outputs(
     tmp_path: Path,
 ) -> None:
     # Given: a dry-run anomaly grouping request with no post-mask artifacts.
     request = _request(tmp_path, dry_run=True)
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: startup can continue without creating real downstream artifacts.
     assert exit_code == int(ExitCode.OK)
     assert not (
-        request.paths.anomaly_grouping / "anomaly_grouping_result.json"
+        request.paths.report_generating / "anomaly_grouping_result.json"
     ).exists()
-    assert not (request.paths.anomaly_grouping / "report_trace_source.json").exists()
+    assert not (request.paths.report_generating / "report_trace_source.json").exists()
 
 
-def test_run_anomaly_grouping_stage_returns_two_when_inputs_are_missing(
+def test_run_report_trace_assembly_stage_returns_two_when_inputs_are_missing(
     tmp_path: Path,
 ) -> None:
     # Given: startup reaches anomaly grouping before mask-refining outputs exist.
     request = _request(tmp_path)
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: missing required upstream inputs fail closed without real outputs.
     assert exit_code == int(ExitCode.INCOMPLETE_OR_FAILURE)
     assert not (
-        request.paths.anomaly_grouping / "anomaly_grouping_result.json"
+        request.paths.report_generating / "anomaly_grouping_result.json"
     ).exists()
-    assert not (request.paths.anomaly_grouping / "report_trace_source.json").exists()
+    assert not (request.paths.report_generating / "report_trace_source.json").exists()
 
 
-def test_run_anomaly_grouping_stage_writes_result_and_report_trace_source(
+def test_run_report_trace_assembly_stage_writes_result_and_report_trace_source(
     tmp_path: Path,
 ) -> None:
     # Given: public RAG and mask-refining artifacts describe one post-mask candidate.
@@ -82,13 +82,15 @@ def test_run_anomaly_grouping_stage_writes_result_and_report_trace_source(
     _write_upstream_inputs(tmp_path, request.paths)
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: anomaly grouping writes its result and report handoff under its root.
     assert exit_code == int(ExitCode.OK)
-    result = _read_json(request.paths.anomaly_grouping / "anomaly_grouping_result.json")
+    result = _read_json(
+        request.paths.report_generating / "anomaly_grouping_result.json"
+    )
     trace_source = _read_json(
-        request.paths.anomaly_grouping / "report_trace_source.json"
+        request.paths.report_generating / "report_trace_source.json"
     )
     assert result["schema"] == "anomaly_grouping_result_v1"
     assert trace_source["schema"] == "report_trace_source_v1"
@@ -109,7 +111,7 @@ def test_run_anomaly_grouping_stage_writes_result_and_report_trace_source(
     ]
 
 
-def test_run_anomaly_grouping_stage_includes_passthrough_candidates(
+def test_run_report_trace_assembly_stage_includes_passthrough_candidates(
     tmp_path: Path,
 ) -> None:
     # Given: the usual refined candidate, plus a second candidate mask_refining
@@ -150,13 +152,13 @@ def test_run_anomaly_grouping_stage_includes_passthrough_candidates(
     )
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: both candidates are reported - RAG evidence missing does not drop
     # the candidate from the run.
     assert exit_code == int(ExitCode.OK)
     trace_source = _read_json(
-        request.paths.anomaly_grouping / "report_trace_source.json"
+        request.paths.report_generating / "report_trace_source.json"
     )
     candidates = trace_source["candidates"]
     assert _is_json_objects(candidates)
@@ -170,7 +172,7 @@ def test_run_anomaly_grouping_stage_includes_passthrough_candidates(
     assert passthrough_candidate["final_success"] is True
 
 
-def test_run_anomaly_grouping_stage_merges_duplicate_candidate_id_across_lineages(
+def test_run_report_trace_assembly_stage_merges_duplicate_candidate_id_across_lineages(
     tmp_path: Path,
 ) -> None:
     # Given: the same real anomaly reaches mask_refining through two distinct
@@ -282,13 +284,13 @@ def test_run_anomaly_grouping_stage_merges_duplicate_candidate_id_across_lineage
     )
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: the two rows collapse into a single reported candidate with
     # evidence merged from both lineages, and the audit passes.
     assert exit_code == int(ExitCode.OK)
     trace_source = _read_json(
-        request.paths.anomaly_grouping / "report_trace_source.json"
+        request.paths.report_generating / "report_trace_source.json"
     )
     audit = trace_source["no_fake_claim_audit"]
     assert isinstance(audit, dict)
@@ -302,7 +304,7 @@ def test_run_anomaly_grouping_stage_merges_duplicate_candidate_id_across_lineage
     assert citation_ids == {"citation-001", "citation-002"}
 
 
-def test_run_anomaly_grouping_stage_discards_candidate_outside_object_mask(
+def test_run_report_trace_assembly_stage_discards_candidate_outside_object_mask(
     tmp_path: Path,
 ) -> None:
     # Given: one candidate whose mask lands on its object's silhouette, and
@@ -369,12 +371,12 @@ def test_run_anomaly_grouping_stage_discards_candidate_outside_object_mask(
     _write_jsonl(request.paths.rag / "rag_visual_concept_cards.jsonl", ())
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: only the candidate that actually lands on its object survives.
     assert exit_code == int(ExitCode.OK)
     trace_source = _read_json(
-        request.paths.anomaly_grouping / "report_trace_source.json"
+        request.paths.report_generating / "report_trace_source.json"
     )
     candidates = trace_source["candidates"]
     assert _is_json_objects(candidates)
@@ -382,7 +384,7 @@ def test_run_anomaly_grouping_stage_discards_candidate_outside_object_mask(
     assert candidate_ids == {"on-object-candidate"}
 
 
-def test_run_anomaly_grouping_stage_exports_citation_from_rag_retrieval_results(
+def test_run_report_trace_assembly_stage_exports_citation_from_rag_retrieval_results(
     tmp_path: Path,
 ) -> None:
     # Given: the same upstream artifacts, plus a RAG retrieval result that
@@ -403,13 +405,13 @@ def test_run_anomaly_grouping_stage_exports_citation_from_rag_retrieval_results(
     )
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: the trace source carries the resolved citation instead of the
     # permanently-non-exportable stub.
     assert exit_code == int(ExitCode.OK)
     trace_source = _read_json(
-        request.paths.anomaly_grouping / "report_trace_source.json"
+        request.paths.report_generating / "report_trace_source.json"
     )
     candidates = trace_source["candidates"]
     assert _is_json_objects(candidates)
@@ -425,7 +427,7 @@ def test_run_anomaly_grouping_stage_exports_citation_from_rag_retrieval_results(
     ]
 
 
-def test_run_anomaly_grouping_stage_rejects_legacy_image_field(
+def test_run_report_trace_assembly_stage_rejects_legacy_image_field(
     tmp_path: Path,
 ) -> None:
     # Given: accepted_candidates omits the canonical image_id handoff field.
@@ -433,17 +435,17 @@ def test_run_anomaly_grouping_stage_rejects_legacy_image_field(
     _write_upstream_inputs(tmp_path, request.paths, image_field="image")
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: legacy image fallback is rejected before writing real outputs.
     assert exit_code == int(ExitCode.INCOMPLETE_OR_FAILURE)
     assert not (
-        request.paths.anomaly_grouping / "anomaly_grouping_result.json"
+        request.paths.report_generating / "anomaly_grouping_result.json"
     ).exists()
-    assert not (request.paths.anomaly_grouping / "report_trace_source.json").exists()
+    assert not (request.paths.report_generating / "report_trace_source.json").exists()
 
 
-def test_run_anomaly_grouping_stage_rejects_result_symlink_leaf(
+def test_run_report_trace_assembly_stage_rejects_result_symlink_leaf(
     tmp_path: Path,
 ) -> None:
     # Given: the fixed anomaly grouping result leaf is a symlink.
@@ -451,20 +453,20 @@ def test_run_anomaly_grouping_stage_rejects_result_symlink_leaf(
     _write_upstream_inputs(tmp_path, request.paths)
     external = tmp_path / "external-result.json"
     _ = external.write_text("sentinel", encoding="utf-8")
-    request.paths.anomaly_grouping.mkdir(parents=True)
-    (request.paths.anomaly_grouping / "anomaly_grouping_result.json").symlink_to(
+    request.paths.report_generating.mkdir(parents=True)
+    (request.paths.report_generating / "anomaly_grouping_result.json").symlink_to(
         external
     )
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: it fails closed without clobbering the symlink target.
     assert exit_code == int(ExitCode.INCOMPLETE_OR_FAILURE)
     assert external.read_text(encoding="utf-8") == "sentinel"
 
 
-def test_run_anomaly_grouping_stage_rejects_trace_symlink_leaf(
+def test_run_report_trace_assembly_stage_rejects_trace_symlink_leaf(
     tmp_path: Path,
 ) -> None:
     # Given: the fixed report trace-source leaf is a symlink.
@@ -472,13 +474,13 @@ def test_run_anomaly_grouping_stage_rejects_trace_symlink_leaf(
     _write_upstream_inputs(tmp_path, request.paths)
     external = tmp_path / "external-trace.json"
     _ = external.write_text("sentinel", encoding="utf-8")
-    request.paths.anomaly_grouping.mkdir(parents=True)
-    (request.paths.anomaly_grouping / "report_trace_source.json").symlink_to(
+    request.paths.report_generating.mkdir(parents=True)
+    (request.paths.report_generating / "report_trace_source.json").symlink_to(
         external
     )
 
     # When: the public startup adapter executes.
-    exit_code = _run_anomaly_grouping_stage(request)
+    exit_code = _run_report_trace_assembly_stage(request)
 
     # Then: it fails closed without clobbering the symlink target.
     assert exit_code == int(ExitCode.INCOMPLETE_OR_FAILURE)
@@ -701,7 +703,7 @@ def test_trace_source_keeps_citation_non_exportable_without_retrieval_match(
 
 def test_trace_source_payload_carries_original_image_bbox(tmp_path: Path) -> None:
     # Given: a kept candidate whose bbox is already original-image-space
-    # (restored upstream by mask_refining before anomaly_grouping ever sees it).
+    # (restored upstream by mask_refining before report_trace_assembly ever sees it).
     candidates, result = _kept_candidate_with_one_citation(tmp_path)
 
     # When: startup trace-source payload is prepared for report generation.
@@ -722,8 +724,8 @@ def _request(tmp_path: Path, *, dry_run: bool = False) -> _StageRequest:
     return _StageRequest(stage_paths(tmp_path, "project-001"), dry_run)
 
 
-def _run_anomaly_grouping_stage(request: _StageRequest) -> int:
-    return run_anomaly_grouping_stage(request)
+def _run_report_trace_assembly_stage(request: _StageRequest) -> int:
+    return run_report_trace_assembly_stage(request)
 
 
 def _write_upstream_inputs(
@@ -836,7 +838,7 @@ def _write_json(path: Path, payload: JsonValue) -> None:
     _ = path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
 
 
-# run_anomaly_grouping_stage's off-object filter requires a preprocessing
+# run_report_trace_assembly_stage's off-object filter requires a preprocessing
 # object silhouette mask for every candidate's (image_id, source_object_id).
 # Covering the whole canvas keeps every rect_mask-based candidate fixture
 # fully "on object" unless a test deliberately wants to exercise the filter.

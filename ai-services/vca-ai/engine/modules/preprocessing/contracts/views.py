@@ -242,7 +242,6 @@ class ViewPlanningRequest:
     scale_metadata: ScaleMetadata
     detector_lanes: tuple[DetectorLane, ...] = (
         DetectorLane.OWLV2_SAM2,
-        DetectorLane.FLORENCE2_SAM2,
         DetectorLane.GROUNDED_SAM2,
     )
 

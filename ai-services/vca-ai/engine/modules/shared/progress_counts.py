@@ -1,9 +1,9 @@
-"""무거운 startup 스테이지들이 공유하는 스테이지 중간 진행 카운트 보고.
+"""Mid-stage progress-count reporting shared by heavy startup stages.
 
-modules.orchestration이 아니라 modules.shared에 있는 이유는, 업스트림
-스테이지인 rough_masking과 mask_refining이 자기 자신의 단위별 루프 안에서
-이걸 호출해야 하는데, 이걸 호출하는 orchestration coordinator를 스테이지가
-import하면 의존성 방향이 뒤집히기 때문이다.
+Lives in modules.shared (not modules.orchestration) because rough_masking
+and mask_refining - upstream stages - need to call it from inside their own
+per-unit loops, and a stage importing the orchestration coordinator that
+calls it would invert the dependency direction.
 """
 
 from __future__ import annotations

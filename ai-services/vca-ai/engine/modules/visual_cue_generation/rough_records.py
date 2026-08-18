@@ -37,7 +37,7 @@ _BBOX_COORDINATES = 4
 _OBJECT_ID_MINIMUM_PARTS = 2
 _TILE_VIEW_ID_MINIMUM_PARTS = 4
 _TILE_VIEW_SEGMENT_INDEX = 3
-_NON_TILE_VIEW_SEGMENTS = frozenset({"object", "tile_merged"})
+_NON_TILE_VIEW_SEGMENTS = frozenset({"object", "anomaly_merged"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +79,7 @@ def _qwen_candidate(
         CandidateStatus.ACCEPTED,
         rough.prompt_text,
         _float(record, "score"),
-        _bbox(record),
+        _bbox(record, "bbox_xyxy"),
         _asset(asset_root, lane_root, _string(record, "mask_path"), "image/png"),
         _asset(asset_root, lane_root, _string(record, "overlay_path"), "image/jpeg"),
         f"rough-mask:{detector_lane.value}",
@@ -90,6 +90,8 @@ def _qwen_candidate(
         _object_id(rough),
         _tile_view_id(rough),
         (),
+        _bbox(record, "view_origin_xyxy"),
+        _view_image_path(asset_root, record),
     )
     return RoughQwenCandidate(rough, candidate)
 
@@ -137,16 +139,33 @@ def _prompt(detector_lane: DetectorLane, prompt_text: str) -> PromptRecord:
     return _raise_contract("prompt", "must match locked rough seed prompt")
 
 
-# bbox_xyxy를 파싱하고 좌표가 양수이며 순서가 올바른지 검증한다.
-def _bbox(record: JsonRecord) -> tuple[float, float, float, float]:
-    raw_bbox = record.get("bbox_xyxy")
+# bbox 필드(bbox_xyxy 또는 view_origin_xyxy)를 파싱하고 좌표가 양수이며 순서가
+# 올바른지 검증한다.
+def _bbox(record: JsonRecord, field: str) -> tuple[float, float, float, float]:
+    raw_bbox = record.get(field)
     if not isinstance(raw_bbox, list) or len(raw_bbox) != _BBOX_COORDINATES:
-        _raise_contract("bbox_xyxy", "must contain four numbers")
-    values = tuple(_finite_number(value, "bbox_xyxy") for value in raw_bbox)
+        _raise_contract(field, "must contain four numbers")
+    values = tuple(_finite_number(value, field) for value in raw_bbox)
     left, top, right, bottom = values
     if min(values) < 0 or right <= left or bottom <= top:
-        _raise_contract("bbox_xyxy", "must be a positive box")
+        _raise_contract(field, "must be a positive box")
     return left, top, right, bottom
+
+
+# view_image_path(뷰를 만들 때 탐지기에 실제로 입력된 이미지의 절대경로)가
+# asset_root 밖으로 벗어나지 않고 실제 파일로 존재하는지 검증한다. mask/overlay와
+# 달리 이 경로는 preprocessing 소유(객체 크롭, OWLv2 타일)일 수도, rough_masking
+# 소유(GroundingDINO 타일, 병합된 타일 크롭)일 수도 있어 lane_root 상대경로로
+# 표현할 수 없다 - 그래서 절대경로로 저장하고 asset_root 포함 여부만 검증한다.
+def _view_image_path(asset_root: Path, record: JsonRecord) -> Path:
+    raw_path = _string(record, "view_image_path")
+    resolved_root = asset_root.resolve()
+    resolved_path = Path(raw_path).resolve()
+    if not resolved_path.is_relative_to(resolved_root):
+        _raise_contract("view_image_path", "must stay inside asset root")
+    if not resolved_path.is_file():
+        _raise_contract("view_image_path", "asset missing")
+    return resolved_path
 
 
 def _float(record: JsonRecord, field: str) -> float:
@@ -185,11 +204,9 @@ def _object_id(rough: RoughRagCandidate) -> str | None:
 
 # source_tile_view_id는 records.json 필드로 저장되지 않고 경로의
 # view_segment(네 번째 조각)에서만 파생된다 - _object_id와 같은 경로 규약에
-# 의존한다. "object"(오브젝트 크롭 전체)와 "tile_merged"(rough_masking/
-# tile_merge.py가 만든, 이미 여러 타일을 합친 결과)는 특정 타일 하나를
-# 가리키지 않으므로 둘 다 None으로 취급한다 - "tile_merged"를 실제
-# tile_view_id처럼 취급하면 서로 다른 병합 후보끼리 같은 문자열을 공유하게
-# 되어 anomaly_grouping/tile_merge.py의 "다른 타일" 판정이 어긋난다.
+# 의존한다. "object"(오브젝트 크롭 전체)와 "anomaly_merged"(anomaly_grouping/
+# pre_refinement_merge.py가 만든, 물리적으로 같은 특이점끼리 이미 합친 결과)는
+# 특정 타일 하나를 가리키지 않으므로 둘 다 None으로 취급한다.
 def _tile_view_id(rough: RoughRagCandidate) -> str | None:
     raw_path = Path(rough.rough_record_path)
     if len(raw_path.parts) < _TILE_VIEW_ID_MINIMUM_PARTS:

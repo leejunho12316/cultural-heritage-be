@@ -119,7 +119,7 @@ def test_roi_runner_materializes_anomaly_rough_mask_candidate(
     request = make_roi_request(tmp_path)
 
     def runner(request: AdapterRequest) -> RunnerOutcome:
-        materialize_anomaly_outputs(request, (anomaly_output(request),))
+        materialize_anomaly_outputs(request, (anomaly_output(request),), tmp_path / "roi.jpg")
         return RunnerOutcome(runner_invoked=True)
 
     # When: rough_masking executes and normalizes the lane output.
@@ -138,7 +138,7 @@ def test_materializer_records_quality_metadata(tmp_path: Path) -> None:
     request = make_roi_request(tmp_path)
 
     # When: the materializer writes the runner record.
-    materialize_anomaly_outputs(request, (anomaly_output(request),))
+    materialize_anomaly_outputs(request, (anomaly_output(request),), tmp_path / "roi.jpg")
 
     # Then: downstream QA can inspect flat quality metadata from records.json.
     records = decode_records(request.records_json.read_text())
@@ -159,7 +159,7 @@ def test_materializer_records_rejected_quality_decisions(tmp_path: Path) -> None
     request = make_roi_request(tmp_path)
 
     # When: the materializer writes the runner record.
-    materialize_anomaly_outputs(request, (rejected_output(request),))
+    materialize_anomaly_outputs(request, (rejected_output(request),), tmp_path / "roi.jpg")
 
     # Then: normalization can report the exact reject reason without assets.
     records = decode_records(request.records_json.read_text())
@@ -176,7 +176,7 @@ def test_adapter_reports_materialized_quality_rejections(tmp_path: Path) -> None
     request = make_roi_request(tmp_path)
 
     def runner(request: AdapterRequest) -> RunnerOutcome:
-        materialize_anomaly_outputs(request, (rejected_output(request),))
+        materialize_anomaly_outputs(request, (rejected_output(request),), tmp_path / "roi.jpg")
         return RunnerOutcome(runner_invoked=True)
 
     # When: rough_masking normalizes the lane output.
@@ -226,7 +226,7 @@ def test_materializer_rejects_bbox_outside_roi_view(tmp_path: Path) -> None:
 
     # When / Then: materialization fails before a record can become a candidate.
     with pytest.raises(ContractValidationError, match="bbox_outside_roi"):
-        materialize_anomaly_outputs(request, (escaped,))
+        materialize_anomaly_outputs(request, (escaped,), tmp_path / "roi.jpg")
 
 
 def test_materializer_rejects_invalid_mask_png_signature(tmp_path: Path) -> None:
@@ -236,7 +236,7 @@ def test_materializer_rejects_invalid_mask_png_signature(tmp_path: Path) -> None
 
     # When / Then: materialization refuses to emit a rough-mask record.
     with pytest.raises(ContractValidationError, match="rough_mask_png"):
-        materialize_anomaly_outputs(request, (invalid,))
+        materialize_anomaly_outputs(request, (invalid,), tmp_path / "roi.jpg")
 
 
 def test_materializer_rejects_records_json_outside_lane_dir(
@@ -257,5 +257,5 @@ def test_materializer_rejects_records_json_outside_lane_dir(
 
     # When / Then: materialization fails before writing escaped records.
     with pytest.raises(ContractValidationError, match="records_json"):
-        materialize_anomaly_outputs(request, (anomaly_output(request),))
+        materialize_anomaly_outputs(request, (anomaly_output(request),), tmp_path / "roi.jpg")
     assert not (tmp_path / "outside.json").exists()

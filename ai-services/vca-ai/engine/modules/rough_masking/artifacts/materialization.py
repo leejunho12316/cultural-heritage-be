@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Final
 from modules.shared import ContractValidationError
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from modules.prompt_generating import PromptRecord
     from modules.rough_masking.artifacts.records import JsonValue
     from modules.rough_masking.contracts import AdapterRequest
@@ -130,6 +132,23 @@ def _validate_paths(request: AdapterRequest) -> None:
         _raise_contract("records_json", "must stay inside lane output dir")
 
 
+# request.view가 원본 사진에서 차지하는 사각형을 [left, top, right, bottom]으로
+# 반환한다. coordinate_transform이 없는 뷰(FULL_IMAGE)는 크롭이 아예 없었다는
+# 뜻이라 bbox_xyxy가 이미 원본 좌표계다 - 그래서 (0, 0, 뷰 자신의 폭, 높이)를
+# 항등 원점으로 쓴다.
+def _view_origin_xyxy(request: AdapterRequest) -> list[float]:
+    transform = request.view.coordinate_transform
+    if transform is None:
+        return [0.0, 0.0, float(request.image_width_px), float(request.image_height_px)]
+    source_bbox = transform.source_bbox
+    return [
+        source_bbox.left,
+        source_bbox.top,
+        source_bbox.left + source_bbox.width,
+        source_bbox.top + source_bbox.height,
+    ]
+
+
 def _quality_fields(output: MaskOutput) -> dict[str, JsonValue]:
     return {
         "quality_filter_version": output.quality_filter_version,
@@ -151,6 +170,7 @@ def _accepted_record(
     output: AnomalyMaskOutput,
     mask_path: str,
     overlay_path: str,
+    image_path: Path,
 ) -> dict[str, JsonValue]:
     record: dict[str, JsonValue] = {
         "accepted": True,
@@ -163,6 +183,8 @@ def _accepted_record(
         "overlay_path": overlay_path,
         "prompt_pack_id": output.prompt.metadata.prompt_pack_id,
         "generation_lane": output.prompt.metadata.model_lane.value,
+        "view_origin_xyxy": _view_origin_xyxy(request),
+        "view_image_path": str(image_path),
     }
     record.update(_quality_fields(output))
     return record
@@ -170,7 +192,7 @@ def _accepted_record(
 
 # rejected 마스크 출력을 진단용 JSON 레코드로 직렬화한다 (reject_reason 포함).
 def _rejected_record(
-    request: AdapterRequest, output: RejectedMaskOutput
+    request: AdapterRequest, output: RejectedMaskOutput, image_path: Path
 ) -> dict[str, JsonValue]:
     record: dict[str, JsonValue] = {
         "accepted": False,
@@ -181,13 +203,15 @@ def _rejected_record(
         "bbox_xyxy": list(output.bbox_xyxy),
         "prompt_pack_id": output.prompt.metadata.prompt_pack_id,
         "generation_lane": output.prompt.metadata.model_lane.value,
+        "view_origin_xyxy": _view_origin_xyxy(request),
+        "view_image_path": str(image_path),
     }
     record.update(_quality_fields(output))
     return record
 
 
 def materialize_anomaly_outputs(
-    request: AdapterRequest, outputs: tuple[MaskOutput, ...]
+    request: AdapterRequest, outputs: tuple[MaskOutput, ...], image_path: Path
 ) -> None:
     """Write anomaly mask assets and records for one invoked rough-mask lane."""
     _validate_paths(request)
@@ -201,11 +225,13 @@ def materialize_anomaly_outputs(
     accepted_index = 0
     for output in outputs:
         if isinstance(output, RejectedMaskOutput):
-            records.append(_rejected_record(request, output))
+            records.append(_rejected_record(request, output, image_path))
             continue
         mask_path = f"masks/anomaly-{accepted_index:04d}.png"
         overlay_path = f"overlays/anomaly-{accepted_index:04d}.jpg"
-        record = _accepted_record(request, output, mask_path, overlay_path)
+        record = _accepted_record(
+            request, output, mask_path, overlay_path, image_path
+        )
         _ = (request.lane_output_dir / mask_path).write_bytes(output.mask_png)
         _ = (request.lane_output_dir / overlay_path).write_bytes(output.overlay_jpeg)
         records.append(record)

@@ -55,15 +55,11 @@ def test_render_lane_specific_variants_are_visual_only_and_stable() -> None:
 
     # Then: lane language differs, citations stay metadata-only, and IDs are stable.
     by_lane = {variant.metadata.model_lane: variant for variant in variants}
-    assert len(variants) == 3
+    assert len(variants) == 2
     assert by_lane[RagLane.OWLV2].generated_prompt == "white powdery crust deposit"
     assert (
         by_lane[RagLane.GROUNDINGDINO].generated_prompt
         == "localized white powdery crust deposit on stone surface"
-    )
-    assert (
-        by_lane[RagLane.FLORENCE2].generated_prompt
-        == "broad region with white powdery crust deposit on stone surface"
     )
     for variant in variants:
         assert variant.metadata.source_citation_ids == ("citation-001",)

@@ -22,14 +22,14 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class RoiViewRequest:
-    """뷰 하나 자신의 geometry, 픽셀 크기, 출력 경로.
+    """One view's own geometry, pixel dimensions, and output paths.
 
-    (전체 route가 공유하지 않고) 뷰마다 따로 묶는 이유는, 타일 crop 파일은
-    각자 독립적으로 썸네일화되고(TILE_MAX_SIDE_PX 참고) object crop이나
-    서로와도 픽셀 크기가 다른 경우가 매우 흔하며, 각 뷰의 detector 출력은
-    반드시 자기 자신의 records.json에 남아야 하기 때문이다 - object view와
-    모든 타일이 하나의 공유 records_json을 재사용하면 detector 호출이 있을
-    때마다 이전 뷰의 결과를 덮어쓰게 된다.
+    Bundled per-view (not shared across the whole route) because tile crop
+    files are independently thumbnailed (see TILE_MAX_SIDE_PX) and are very
+    often a different pixel size than the object crop or each other, and
+    each view's detector output must land in its own records.json - reusing
+    one shared records_json across the object view and every tile would
+    have each detector call overwrite the previous view's results.
     """
 
     view: ViewRecord

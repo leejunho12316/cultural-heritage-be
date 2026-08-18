@@ -7,9 +7,10 @@ STAGE_NAMES = (
     "rough_masking",
     "visual_cue_generation",
     "rag",
+    "anomaly_grouping",
     "prompt_generating",
     "mask_refining",
-    "anomaly_grouping",
+    "report_trace_assembly",
     "report_generating",
 )
 

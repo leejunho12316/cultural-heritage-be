@@ -141,16 +141,16 @@ def test_local_model_runner_rejects_tampered_model_content(
     # Given: trusted metadata but detector files whose bytes no longer match it.
     model_root = tmp_path / "models"
     entries = model_entries(model_root)
-    detector_key = DETECTOR_MODEL_KEYS[DetectorLane.FLORENCE2_SAM2]
-    detector_file = entries[detector_key].local_dir / "modeling_florence2.py"
+    detector_key = DETECTOR_MODEL_KEYS[DetectorLane.GROUNDED_SAM2]
+    detector_file = entries[detector_key].local_dir / "model.safetensors"
     _ = detector_file.write_bytes(b"tampered")
     image_path = tmp_path / "roi.png"
     _ = image_path.write_bytes(PNG_HEADER + b"roi")
 
-    # When / Then: local Python model code cannot run after content tampering.
+    # When / Then: local model weights cannot load after content tampering.
     with pytest.raises(ContractValidationError, match="content hash mismatch"):
         _ = build_local_model_runner(
-            lane=DetectorLane.FLORENCE2_SAM2,
+            lane=DetectorLane.GROUNDED_SAM2,
             image_path=image_path,
             model_entries=entries,
             device="mps",
@@ -164,10 +164,10 @@ def test_local_model_runner_rejects_model_file_symlink_escape(
     # Given: a cache-contained directory with a file symlink to an outside target.
     model_root = tmp_path / "models"
     entries = model_entries(model_root)
-    detector_key = DETECTOR_MODEL_KEYS[DetectorLane.FLORENCE2_SAM2]
+    detector_key = DETECTOR_MODEL_KEYS[DetectorLane.GROUNDED_SAM2]
     outside_file = tmp_path / "outside.py"
     _ = outside_file.write_bytes(b"print('owned')")
-    escaped_file = entries[detector_key].local_dir / "modeling_florence2.py"
+    escaped_file = entries[detector_key].local_dir / "model.safetensors"
     escaped_file.symlink_to(outside_file)
     image_path = tmp_path / "roi.png"
     _ = image_path.write_bytes(PNG_HEADER + b"roi")
@@ -175,7 +175,7 @@ def test_local_model_runner_rejects_model_file_symlink_escape(
     # When / Then: resolved files must also stay under model_cache_root.
     with pytest.raises(ContractValidationError, match="escapes model cache root"):
         _ = build_local_model_runner(
-            lane=DetectorLane.FLORENCE2_SAM2,
+            lane=DetectorLane.GROUNDED_SAM2,
             image_path=image_path,
             model_entries=entries,
             device="mps",

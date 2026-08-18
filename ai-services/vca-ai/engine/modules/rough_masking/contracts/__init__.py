@@ -52,12 +52,10 @@ class SeedRequestPaths:
 _SEED_THRESHOLDS: Final[dict[DetectorLane, SeedThresholds]] = {
     DetectorLane.OWLV2_SAM2: SeedThresholds(0.08, None, 2, 0.30),
     DetectorLane.GROUNDED_SAM2: SeedThresholds(0.25, 0.25, 2, 0.35),
-    DetectorLane.FLORENCE2_SAM2: SeedThresholds(None, None, 1, 0.40),
 }
 _MODEL_IDS: Final[dict[DetectorLane, str]] = {
     DetectorLane.OWLV2_SAM2: "google/owlv2-base-patch16-ensemble",
     DetectorLane.GROUNDED_SAM2: "IDEA-Research/grounding-dino-base",
-    DetectorLane.FLORENCE2_SAM2: "microsoft/Florence-2-base",
 }
 SAM2_MODEL_ID: Final = "facebook/sam2-hiera-large"
 
@@ -101,6 +99,13 @@ class AdapterRequest:
     detector_model_id: str
     sam2_model_id: str
     object_mask_path: Path | None = None
+    # rough_masking의 시드 패스는 항상 True(잠긴 SeedThresholds.max_mask_area_ratio
+    # 와 quality.py의 면적비 게이트 모두 적용). mask_refining의 candidate-centered
+    # 재탐지만 False로 설정한다 - ROI가 후보 bbox 크기로 좁아지면 정상 이상
+    # 부위도 ROI 대비 넓은 비율을 차지해 같은 임계값이 오탐(과다 거부)하기
+    # 때문이다. threshold_config 자체는 건드리지 않는다(잠긴 시드 값이라는
+    # 의미가 유지되어야 함) - 이 플래그만 실제 적용 여부를 가른다.
+    apply_area_quality_gates: bool = True
 
     def __post_init__(self) -> None:
         """Reject excluded lanes, invalid dimensions, and mismatched view identity."""

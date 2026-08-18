@@ -92,6 +92,61 @@ def test_sam2_masks_define_outputs_and_filter_excessive_area(
         assert overlay_image.format == "JPEG"
 
 
+def test_area_quality_gates_disabled_keeps_full_roi_mask(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Given: the same fake SAM2 predictor as the max_area test above, but
+    # settings that disable area-based quality gates - mask_refining's
+    # candidate-centered re-detection path, where a real anomaly can
+    # legitimately fill most of a tight ROI.
+    request = build_roi_seed_request(
+        lane=DetectorLane.OWLV2_SAM2,
+        view=make_roi_view(),
+        image_dimensions=ImageDimensions(10, 8),
+        paths=make_paths(tmp_path / "run", DetectorLane.OWLV2_SAM2),
+    )
+    object_mask_path = request.object_mask_path
+    assert object_mask_path is not None
+    settings = LocalInferenceSettings(
+        ModelInventoryEntry("detector", "unused/repo", "main", tmp_path / "detector"),
+        ModelInventoryEntry("sam2", "unused/repo", "main", tmp_path / "sam2"),
+        "mps",
+        request.threshold_config.max_mask_area_ratio,
+        object_mask_path,
+        (0.0, 0.0, 10.0, 8.0),
+        apply_area_quality_gates=False,
+    )
+
+    def fake_sam2_predictor(
+        settings: LocalInferenceSettings,
+    ) -> SmallAndLargeMaskPredictor:
+        _ = settings
+        return SmallAndLargeMaskPredictor()
+
+    monkeypatch.setattr(
+        "modules.rough_masking.local_model.segmentation.load_sam2_predictor",
+        fake_sam2_predictor,
+    )
+    detections = (
+        LocalDetection(request.prompts[0], 0.9, (1.0, 1.0, 4.0, 4.0)),
+        LocalDetection(request.prompts[0], 0.8, (5.0, 1.0, 8.0, 4.0)),
+    )
+
+    # When: SAM2 receives the local detector boxes.
+    outputs = segment_detections(detections, Image.new("RGB", (10, 8)), settings)
+
+    # Then: neither mask is rejected on area grounds anymore.
+    accepted = tuple(
+        output for output in outputs if isinstance(output, AnomalyMaskOutput)
+    )
+    assert len(accepted) == 2
+    assert all(
+        output.reject_reason not in ("max_area", "broad_texture_blob")
+        for output in outputs
+        if not isinstance(output, AnomalyMaskOutput)
+    )
+
+
 def test_sam2_masks_are_clipped_to_object_foreground(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

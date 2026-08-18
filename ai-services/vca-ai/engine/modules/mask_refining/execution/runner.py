@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Final, NamedTuple
 
-from modules.mask_refining.execution.assets import join_preprocessing_assets
+from modules.mask_refining.execution.assets import (
+    candidate_centered_assets,
+    join_preprocessing_assets,
+)
 from modules.mask_refining.execution.models import (
     AcceptedRefinedCandidate,
     PostRefinementQwenEvidence,
@@ -26,11 +29,15 @@ from modules.preprocessing.model_runtime.inventory import ModelInventoryEntry
 from modules.prompt_generating import PromptRecord
 from modules.rag.qwen.qwen_bridge_json import JsonValue, parse_json_object
 from modules.rough_masking import (
+    AdapterReceipt,
     AdapterRequest,
     AssetReference,
     DetectorRunner,
     LocalModelCachePolicy,
+    candidate_view_transform,
     execute_adapter,
+    restore_original_bbox,
+    restore_original_mask,
     seed_thresholds,
 )
 from modules.rough_masking.contracts import SAM2_MODEL_ID
@@ -55,20 +62,32 @@ if TYPE_CHECKING:
         JoinedRefinementAssets,
         PromptVariantGroup,
     )
-    from modules.preprocessing import CoordinateTransform
     from modules.rough_masking import RawDetectorCandidate
-    from modules.shared import ImageId
     from modules.visual_cue_generation.rough_records import RoughQwenCandidate
+
+
+# 재탐지 결과 bbox가 이 값(px) 이내로 ROI 크롭 경계에 붙어 있으면 "경계에
+# 닿았다"로 본다 - 실제 이상 부위가 지금 크롭보다 커서 잘렸을 가능성을
+# 뜻한다. _PADDING_GROWTH_FACTOR로 여백을 넓혀 재시도하되,
+# _MAX_PADDING_RETRIES를 넘기거나 넓혀도 계속 경계에 닿으면 폭주 성장을
+# 막기 위해 가장 작은(첫 번째) 시도로 되돌아간다 - 이전에 "항상 마지막
+# 시도를 채택"하도록 구현했다가 애매한 탐지가 오브젝트 크기까지 무한히
+# 부풀어 오르는 회귀를 겪었기 때문에 이 안전장치가 핵심이다.
+_CROP_EDGE_TOUCH_EPSILON_PX: Final = 1.5
+_PADDING_GROWTH_FACTOR: Final = 2.0
+_MAX_PADDING_RETRIES: Final = 2
 
 
 def _detector_lane(lane: RagLane) -> DetectorLane:
     match lane:
         case RagLane.OWLV2:
             return DetectorLane.OWLV2_SAM2
-        case RagLane.FLORENCE2:
-            return DetectorLane.FLORENCE2_SAM2
         case RagLane.GROUNDINGDINO:
             return DetectorLane.GROUNDED_SAM2
+        case RagLane.FLORENCE2:
+            field = "lane"
+            reason = "florence2 is non-active"
+            raise ContractValidationError(field, reason)
 
 
 # PromptVariant를 어댑터가 기대하는 PromptRecord로 변환한다. seeds.py의
@@ -122,6 +141,7 @@ def _adapter_request(
         detector_model_id=EXPECTED_MODEL_REPO_IDS[detector_key],
         sam2_model_id=SAM2_MODEL_ID,
         object_mask_path=assets.object_mask_path,
+        apply_area_quality_gates=False,
     )
 
 
@@ -171,6 +191,7 @@ def _self_refinement_adapter_request(
         detector_model_id=EXPECTED_MODEL_REPO_IDS[detector_key],
         sam2_model_id=SAM2_MODEL_ID,
         object_mask_path=assets.object_mask_path,
+        apply_area_quality_gates=False,
     )
 
 
@@ -231,12 +252,14 @@ def default_runner_factory(details: RunnerFactoryInput) -> DetectorRunner:
 
 # rough_masking 단계가 승인한 후보 목록을 읽어온다. 순환 import를
 # 피하기 위해 visual_cue_generation 모듈을 함수 내부에서 지역 import한다.
-def _rough_qwen_candidates(rough_root: Path) -> tuple[RoughQwenCandidate, ...]:
+def _rough_qwen_candidates(
+    rough_root: Path, asset_root: Path
+) -> tuple[RoughQwenCandidate, ...]:
     from modules.visual_cue_generation.rough_records import (  # noqa: PLC0415
         rough_qwen_candidates,
     )
 
-    return rough_qwen_candidates(rough_root, rough_root)
+    return rough_qwen_candidates(rough_root, asset_root)
 
 
 def _prepare_output_dir(output_dir: Path) -> None:
@@ -248,7 +271,7 @@ def _prepare_output_dir(output_dir: Path) -> None:
 
 
 # _write_jsonl에서 accepted_candidates 행마다 호출된다. candidate.mask.relative_path는
-# _restore_original_mask가 이미 절대경로 문자열로 채워둔 값이라 그대로
+# restore_original_mask가 이미 절대경로 문자열로 채워둔 값이라 그대로
 # 내보내면 된다(records_json 필드와 같은 절대경로 문자열 관례를 맞춘 것).
 def _absolute_mask_path(candidate: AcceptedRefinedCandidate) -> str | None:
     if candidate.mask is None:
@@ -371,131 +394,36 @@ def _write_manifest(request: RefinementRunRequest, result: RefinementRunResult) 
     )
 
 
-# refine 단계에서 쓰인 뷰 좌표계의 bbox를 CoordinateTransform의
-# offset/scale로 원본 이미지 좌표계로 되돌린다. coordinate_transform이
-# 없으면 복원할 수 없으므로 예외를 던진다(치명적 오류로 취급).
-def _restore_original_bbox(
-    bbox_xyxy: tuple[float, float, float, float],
-    coordinate_transform: CoordinateTransform | None,
-    original_image_width_px: int | None,
-    original_image_height_px: int | None,
-) -> tuple[float, float, float, float]:
-    if coordinate_transform is None:
-        field = "coordinate_transform"
-        reason = "required to restore original-image bbox coordinates"
-        raise ContractValidationError(field, reason)
-    offset_x = coordinate_transform.restore_offset_x
-    offset_y = coordinate_transform.restore_offset_y
-    scale_x = coordinate_transform.original_to_view_scale_x
-    scale_y = coordinate_transform.original_to_view_scale_y
-    left, top, right, bottom = bbox_xyxy
-    restored = (
-        left * scale_x + offset_x,
-        top * scale_y + offset_y,
-        right * scale_x + offset_x,
-        bottom * scale_y + offset_y,
-    )
-    if original_image_width_px is not None and original_image_height_px is not None:
-        _validate_bbox_in_bounds(
-            restored, original_image_width_px, original_image_height_px
-        )
-    return restored
-
-
-# 복원된 bbox가 원본 이미지 범위를 벗어나지 않는지 확인한다. 좌표
-# 변환 정보가 잘못됐을 때 조용히 넘어가지 않고 바로 실패시킨다.
-def _validate_bbox_in_bounds(
-    bbox_xyxy: tuple[float, float, float, float], width_px: int, height_px: int
-) -> None:
-    left, top, right, bottom = bbox_xyxy
-    if left < 0 or top < 0 or right > width_px or bottom > height_px:
-        field = "original_bbox_xyxy"
-        reason = "restored bbox must fall within the original image bounds"
-        raise ContractValidationError(field, reason)
-
-
-# _accepted_refined_candidates(정제된 후보)와 _passthrough_record(RAG 근거가
-# 없어 정제를 아예 안 거친 후보) 양쪽에서 호출된다. candidate.rough_mask가
-# 크롭 로컬(ROI) 좌표계에서 만들어진 마스크를 원본 이미지 좌표계로 되돌린다 -
-# _restore_original_bbox와 정확히 같은 scale/offset 변환을 픽셀 배열에
-# 적용한다(리사이즈 후 offset 위치에 붙여넣기). mask_root는
-# candidate.rough_mask.relative_path가 상대적인 기준 디렉터리로, 정제된
-# 후보는 이번 정제 실행의 lane_output_dir, 통과(passthrough) 후보는
-# rough_masking의 rough_root다 - 서로 다른 루트에 상대적인 경로라 호출자가
-# 명시적으로 넘겨야 한다. 반환하는 AssetReference.relative_path는 절대경로
-# 문자열이다(records_json.parent / 절대경로는 pathlib에서 그 절대경로 그대로
-# 남으므로 기존 호출부를 안 건드려도 된다). 원본 이미지 크기를 모르면(더
-# 이전 산출물이나 지원 안 하는 이미지 포맷 등) 안전하게 복원할 수 없으므로
-# None을 반환하고, anomaly_grouping이 명시적으로 실패하게 둔다.
-def _restore_original_mask(
-    candidate: RawDetectorCandidate,
-    assets: JoinedRefinementAssets,
-    mask_root: Path,
-    output_dir: Path,
-) -> AssetReference | None:
-    if (
-        assets.original_image_width_px is None
-        or assets.original_image_height_px is None
-    ):
-        return None
-    transform = assets.view.coordinate_transform
-    if transform is None:
-        return None
-    # PIL/numpy를 이 모듈의 top-level import에 두지 않는 이유는, 실제
-    # refinement를 실행하지 않고 CLI만 import할 때 이미지 런타임을 절대
-    # 끌어오지 않게 하기 위해서다(test_cli_import_does_not_load_model_or_image_runtimes
-    # 참고).
-    import numpy as np  # noqa: PLC0415
-    from PIL import Image  # noqa: PLC0415
-
-    crop_mask_path = mask_root / candidate.rough_mask.relative_path
-    with Image.open(crop_mask_path) as crop_image:
-        crop_array = np.asarray(crop_image.convert("L")) > 0
-    crop_height, crop_width = crop_array.shape
-    target_width = max(1, round(crop_width * transform.original_to_view_scale_x))
-    target_height = max(1, round(crop_height * transform.original_to_view_scale_y))
-    crop_bytes = np.multiply(crop_array, 255).astype(np.uint8)
-    resized = Image.fromarray(crop_bytes).resize(
-        (target_width, target_height), Image.Resampling.NEAREST
-    )
-    canvas = Image.new(
-        "L",
-        (assets.original_image_width_px, assets.original_image_height_px),
-        0,
-    )
-    canvas.paste(
-        resized, (round(transform.restore_offset_x), round(transform.restore_offset_y))
-    )
-    output_path = output_dir / "restored_masks" / f"{candidate.candidate_id}.png"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    canvas.save(output_path)
-    digest = sha256(output_path.read_bytes()).hexdigest()
-    return AssetReference(str(output_path), digest, "image/png")
-
-
 def _shared_asset_root(asset_root: Path) -> Path:
-    # asset_root는 preprocessing 실행 루트(output/preprocessing/<run>)다;
-    # Qwen evidence는 이 스테이지 자신의 출력 트리(output/mask_refining/<run>/...)도
-    # 함께 포함하는 루트 하나가 필요하다. 그래야 모든 asset 경로를 ".."
-    # 순회 없이 표현할 수 있다. output/이 바로 그 공통 조상이다.
+    # asset_root is the preprocessing run root (output/preprocessing/<run>);
+    # Qwen evidence needs one root that also contains this stage's own
+    # output tree (output/mask_refining/<run>/...), so every asset path can
+    # be expressed without ".." traversal. output/ is that common ancestor.
     return asset_root.parent.parent
 
 
-# input_manifest.json에서 image_id별 원본 자산 참조를 읽는다. 파일이
-# 없거나 손상돼도 예외를 올리지 않고 빈 dict를 반환해(fail-open),
-# 후속 Qwen 증거 단계가 소스가 없는 경우를 스스로 처리하게 둔다.
-def _load_source_assets(
-    asset_root: Path, shared_asset_root: Path
-) -> dict[ImageId, AssetReference]:
-    from modules.visual_cue_generation.source_manifest import (  # noqa: PLC0415
-        source_assets_by_image,
+# assets.roi_image_path(재탐지에 실제로 쓰인 객체 크롭)를 Qwen 소스 자산으로
+# 만든다. 예전에는 원본 사진 전체를 input_manifest.json에서 조회해 썼는데,
+# 재탐지 후보의 bbox_xyxy는 항상 이 객체 크롭 기준 로컬 좌표라 원본 사진과
+# 좌표계가 맞지 않았다(엉뚱한 영역을 Qwen에 보여주는 버그) - 재탐지 ROI 자체를
+# 소스로 쓰면 candidate.bbox_xyxy와 좌표계가 항상 일치해 변환이 필요 없다.
+def _roi_asset_reference(
+    roi_image_path: Path, shared_asset_root: Path
+) -> AssetReference:
+    resolved_root = shared_asset_root.resolve()
+    resolved_path = roi_image_path.resolve()
+    if not resolved_path.is_relative_to(resolved_root):
+        field = "roi_image_path"
+        reason = "must stay inside the shared asset root"
+        raise ContractValidationError(field, reason)
+    media_type = (
+        "image/png" if resolved_path.suffix.lower() == ".png" else "image/jpeg"
     )
-
-    manifest_path = asset_root / "manifests" / "input_manifest.json"
-    try:
-        return source_assets_by_image(manifest_path, shared_asset_root)
-    except (ContractValidationError, OSError):
-        return {}
+    return AssetReference(
+        resolved_path.relative_to(resolved_root).as_posix(),
+        sha256(resolved_path.read_bytes()).hexdigest(),
+        media_type,
+    )
 
 
 # 현재 산출물 루트 기준 상대경로를 공유 asset root 기준 상대경로로
@@ -536,22 +464,17 @@ def _rebased_candidate(
 def default_post_refinement_qwen_evidence_factory(
     asset_root: Path, model_cache_root: Path, device: str
 ) -> PostRefinementQwenEvidenceFactory:
-    """Qwen renderer/backend를 한 번만 로드해 재사용하는 factory를 만든다.
+    """Build a factory that loads the Qwen renderer/backend once and reuses them.
 
-    import는 지역(local)으로 한다: 이 모듈(과 이걸 쓰는 CLI)은 실제
-    refinement 실행이 post-refinement Qwen evidence를 진짜로 필요로 하기
-    전까지는 PIL/torch/transformers를 끌어오지 않고도 import 가능한 상태를
-    유지해야 한다.
+    Imports are local: this module (and the CLI that uses it) must stay
+    importable without pulling in PIL/torch/transformers until a real
+    refinement run actually needs post-refinement Qwen evidence.
     """
     from modules.mask_refining import (  # noqa: PLC0415
         PillowQwenViewRenderer,
         QwenRefinementRequest,
         load_transformers_qwen_backend,
         refine_candidate,
-    )
-    from modules.mask_refining.contracts.models import (  # noqa: PLC0415
-        DEFAULT_SOURCE_HEIGHT_PX,
-        DEFAULT_SOURCE_WIDTH_PX,
     )
     from modules.visual_cue_generation.startup_runner import (  # noqa: PLC0415
         qwen_model_directory,
@@ -563,24 +486,22 @@ def default_post_refinement_qwen_evidence_factory(
         qwen_model_directory(model_cache_root), device
     )
 
-    # 후보 하나에 대한 후속 Qwen 증거를 만든다. source 자산이 없거나
-    # 경로 재계산이 실패하면 실패로 처리하지 않고 "없음" 표시의
-    # 실패 증거를 반환한다(never raises 계약).
+    # 후보 하나에 대한 후속 Qwen 증거를 만든다. ROI 자산 조회나 경로
+    # 재계산이 실패하면 실패로 처리하지 않고 "없음" 표시의 실패 증거를
+    # 반환한다(never raises 계약).
     def factory(
         candidate: RawDetectorCandidate,
-        source_asset: AssetReference | None,
         assets: JoinedRefinementAssets,
         lane_output_dir: Path,
     ) -> PostRefinementQwenEvidence:
-        if source_asset is None:
-            return PostRefinementQwenEvidence(
-                final_success=False, report_display_text="없음", confidence=None
-            )
         try:
             rebased_candidate = _rebased_candidate(
                 candidate, lane_output_dir, shared_asset_root
             )
-        except ContractValidationError:
+            source_asset = _roi_asset_reference(
+                assets.roi_image_path, shared_asset_root
+            )
+        except (ContractValidationError, OSError):
             return PostRefinementQwenEvidence(
                 final_success=False, report_display_text="없음", confidence=None
             )
@@ -589,8 +510,8 @@ def default_post_refinement_qwen_evidence_factory(
             source_asset,
             shared_asset_root,
             device,
-            assets.original_image_width_px or DEFAULT_SOURCE_WIDTH_PX,
-            assets.original_image_height_px or DEFAULT_SOURCE_HEIGHT_PX,
+            assets.image_width_px,
+            assets.image_height_px,
         )
         result = refine_candidate(request, renderer, backend)
         return PostRefinementQwenEvidence(
@@ -601,7 +522,7 @@ def default_post_refinement_qwen_evidence_factory(
 
 
 class _LazyRefinementDependencies:
-    """Builds the Qwen evidence factory and source-asset map at most once."""
+    """Builds the Qwen evidence factory at most once."""
 
     def __init__(
         self,
@@ -615,7 +536,6 @@ class _LazyRefinementDependencies:
         self._resolved_qwen_evidence_factory: (
             PostRefinementQwenEvidenceFactory | None
         ) = None
-        self._resolved_source_assets: dict[ImageId, AssetReference] | None = None
 
     def qwen_evidence_factory(self) -> PostRefinementQwenEvidenceFactory:
         if self._qwen_evidence_factory is not None:
@@ -629,14 +549,6 @@ class _LazyRefinementDependencies:
                 )
             )
         return self._resolved_qwen_evidence_factory
-
-    def source_assets(self) -> dict[ImageId, AssetReference]:
-        if self._resolved_source_assets is None:
-            self._resolved_source_assets = _load_source_assets(
-                self._request.asset_root,
-                _shared_asset_root(self._request.asset_root),
-            )
-        return self._resolved_source_assets
 
 
 # run_refinement이 메인 루프를 다 돈 뒤, RAG 정제 프롬프트가 한 번도 생성되지
@@ -668,14 +580,20 @@ def _passthrough_record(
             model_lane=None,
         )
     try:
-        original_bbox = _restore_original_bbox(
+        transform = candidate_view_transform(candidate)
+        original_bbox = restore_original_bbox(
             candidate.bbox_xyxy,
-            assets.view.coordinate_transform,
+            transform,
             assets.original_image_width_px,
             assets.original_image_height_px,
         )
-        mask = _restore_original_mask(
-            candidate, assets, request.rough_root, request.output_dir / "passthrough"
+        mask = restore_original_mask(
+            candidate,
+            transform,
+            assets.original_image_width_px,
+            assets.original_image_height_px,
+            request.rough_root,
+            request.output_dir / "passthrough",
         )
     except (ContractValidationError, OSError) as error:
         return None, RefinementSkip(
@@ -739,7 +657,6 @@ def _accepted_refined_candidates(
     # rough_source_tile_view_id는 이 정제를 촉발한 원본 rough_masking 후보의
     # tile_view_id다 - 정제된 candidate 자신의 source_view_id는 정제 실행
     # 자체의 내부 ROI 뷰를 가리키므로 타일 출처와는 다른 값이다.
-    source_assets = lazy_dependencies.source_assets()
     qwen_evidence_factory = lazy_dependencies.qwen_evidence_factory()
     records: list[AcceptedRefinedCandidate] = []
     for candidate in candidates:
@@ -747,9 +664,7 @@ def _accepted_refined_candidates(
             field = "source_object_id"
             reason = "accepted candidate handoff required"
             raise ContractValidationError(field, reason)
-        evidence = qwen_evidence_factory(
-            candidate, source_assets.get(candidate.image_id), assets, lane_output_dir
-        )
+        evidence = qwen_evidence_factory(candidate, assets, lane_output_dir)
         records.append(
             AcceptedRefinedCandidate(
                 str(candidate.candidate_id),
@@ -757,7 +672,7 @@ def _accepted_refined_candidates(
                 candidate.source_object_id,
                 candidate.source_view_id,
                 candidate.bbox_xyxy,
-                _restore_original_bbox(
+                restore_original_bbox(
                     candidate.bbox_xyxy,
                     assets.view.coordinate_transform,
                     assets.original_image_width_px,
@@ -767,13 +682,166 @@ def _accepted_refined_candidates(
                 evidence.final_success,
                 evidence.report_display_text,
                 evidence.confidence,
-                _restore_original_mask(
-                    candidate, assets, lane_output_dir, lane_output_dir
+                restore_original_mask(
+                    candidate,
+                    assets.view.coordinate_transform,
+                    assets.original_image_width_px,
+                    assets.original_image_height_px,
+                    lane_output_dir,
+                    lane_output_dir,
                 ),
                 rough_source_tile_view_id,
             )
         )
     return tuple(records)
+
+
+class _PaddedAttempt(NamedTuple):
+    """One padding-multiplier attempt's assets and adapter execution result."""
+
+    padding_multiplier: float
+    assets: JoinedRefinementAssets
+    adapter_request: AdapterRequest
+    receipt: AdapterReceipt
+    accepted_candidates: tuple[AcceptedRefinedCandidate, ...]
+    touches_edge: bool
+
+
+class _PhaseOneFailure(NamedTuple):
+    """An attempt whose adapter execution raised, kept for diagnostics only."""
+
+    reason: str
+
+
+# 재탐지 결과(어댑터가 원래 돌려주는, ROI-local 좌표의 RawDetectorCandidate)
+# 중 하나라도 ROI 크롭 자체의 가장자리에 닿아 있으면 True. bbox_xyxy는
+# restore 이전 좌표라 assets.image_width_px/height_px(=지금 크롭 자체의
+# 픽셀 크기)와 바로 비교할 수 있다.
+def _any_touches_crop_edge(
+    candidates: tuple[RawDetectorCandidate, ...],
+    assets: JoinedRefinementAssets,
+) -> bool:
+    width = assets.image_width_px
+    height = assets.image_height_px
+    for candidate in candidates:
+        left, top, right, bottom = candidate.bbox_xyxy
+        if (
+            left <= _CROP_EDGE_TOUCH_EPSILON_PX
+            or top <= _CROP_EDGE_TOUCH_EPSILON_PX
+            or right >= width - _CROP_EDGE_TOUCH_EPSILON_PX
+            or bottom >= height - _CROP_EDGE_TOUCH_EPSILON_PX
+        ):
+            return True
+    return False
+
+
+# 하나의 padding_multiplier로 후보 중심 크롭을 만들고 "원래" 프롬프트로
+# 한 번 재탐지한다(1단계: 경계 발견 전용 - RAG 정제 프롬프트가 아니라
+# rough_masking이 이 후보를 처음 찾을 때 썼던 프롬프트를 그대로 재사용).
+# 어댑터 실행 자체가 실패하면 실패 사유를 담아 _PhaseOneFailure를 돌려줘
+# 호출자(_discover_boundary)가 이번 시도를 "실패"로 취급하고 다음 배율로
+# 넘어가되, 전부 실패했을 때 보여줄 진단 메시지는 잃지 않게 한다.
+def _run_phase_one_attempt(  # noqa: PLR0913
+    candidate: RawDetectorCandidate,
+    request: RefinementRunRequest,
+    base_assets: JoinedRefinementAssets,
+    runner_factory: RefinementRunnerFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
+    padding_multiplier: float,
+) -> _PaddedAttempt | _PhaseOneFailure:
+    assets = candidate_centered_assets(
+        candidate,
+        base_assets,
+        request.output_dir,
+        request.asset_root,
+        padding_multiplier,
+    )
+    adapter_request = _self_refinement_adapter_request(request, candidate, assets)
+    try:
+        runner = runner_factory(
+            RunnerFactoryInput(
+                adapter_request.lane,
+                assets.roi_image_path,
+                request.model_cache_root,
+                request.device,
+                request.verify_model_hashes,
+            )
+        )
+        receipt = execute_adapter(adapter_request, runner)
+        accepted_candidates = _accepted_refined_candidates(
+            receipt.candidates,
+            assets,
+            lazy_dependencies,
+            adapter_request.lane_output_dir,
+            rough_source_tile_view_id=candidate.source_tile_view_id,
+        )
+    except (
+        ContractValidationError,
+        ImportError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as error:
+        return _PhaseOneFailure(str(error))
+    touches_edge = _any_touches_crop_edge(receipt.candidates, assets)
+    return _PaddedAttempt(
+        padding_multiplier,
+        assets,
+        adapter_request,
+        receipt,
+        accepted_candidates,
+        touches_edge,
+    )
+
+
+# 1단계 경계 발견: 원래 프롬프트로 padding_multiplier를 1x -> 2x -> 4x
+# (최대 _MAX_PADDING_RETRIES회 재시도) 키워가며, 결과가 크롭 경계에 더 이상
+# 닿지 않는(=진짜 경계를 찾은) 첫 시도를 채택한다. 어느 배율에서도
+# 수렴하지 못하면(전부 경계에 닿거나 계속 실패) 가장 작은(1x) 성공 시도로
+# 폴백한다 - "항상 마지막 시도를 채택"했다가 애매한 탐지가 오브젝트
+# 크기까지 무한 성장한 회귀를 겪었기 때문에, 수렴 실패 시엔 성장을
+# 신뢰하지 않고 가장 보수적인 결과로 되돌아가는 것이 핵심이다. 오브젝트
+# 자체가 작아 패딩이 이미 오브젝트 경계에 다 닿아버리면(=배율을 더
+# 키워도 크롭 크기가 그대로) 더 시도해봐야 똑같은 결과만 반복되므로
+# 조기 종료한다 - 실제 GPU 재탐지를 헛되이 반복하지 않기 위함이다.
+# 두 번째 반환값은 (성공 시도가 하나도 없을 때만) 마지막 실패 사유 -
+# _execute_prompt_group이 FAILED 레코드 진단 메시지로 그대로 노출한다.
+def _discover_boundary(
+    candidate: RawDetectorCandidate,
+    request: RefinementRunRequest,
+    base_assets: JoinedRefinementAssets,
+    runner_factory: RefinementRunnerFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
+) -> tuple[_PaddedAttempt | None, str | None]:
+    attempts: list[_PaddedAttempt] = []
+    last_failure: str | None = None
+    previous_dims: tuple[int, int] | None = None
+    multiplier = 1.0
+    for _ in range(_MAX_PADDING_RETRIES + 1):
+        outcome = _run_phase_one_attempt(
+            candidate,
+            request,
+            base_assets,
+            runner_factory,
+            lazy_dependencies,
+            multiplier,
+        )
+        if isinstance(outcome, _PhaseOneFailure):
+            last_failure = outcome.reason
+            multiplier *= _PADDING_GROWTH_FACTOR
+            continue
+        attempts.append(outcome)
+        if outcome.accepted_candidates and not outcome.touches_edge:
+            return outcome, None
+        dims = (outcome.assets.image_width_px, outcome.assets.image_height_px)
+        if dims == previous_dims:
+            break
+        previous_dims = dims
+        multiplier *= _PADDING_GROWTH_FACTOR
+    winner = next(
+        (attempt for attempt in attempts if attempt.accepted_candidates), None
+    )
+    return winner, (None if winner is not None else last_failure)
 
 
 # RAG 근거가 없는 후보에 한 번 더 SAM2 정제를 시도한다. 성공하면(적어도
@@ -782,7 +850,9 @@ def _accepted_refined_candidates(
 # accept되지 않으면 None을 반환해 호출자가 _passthrough_record(원본 러프
 # 마스크를 좌표만 복원)로 폴백하게 한다 - 이 폴백이 있어야 자기-정제
 # 실패가 후보를 리포트에서 통째로 사라지게 만들지 않는다(같은 세션에서
-# passthrough 자체를 도입한 이유와 동일).
+# passthrough 자체를 도입한 이유와 동일). RAG 정제 프롬프트가 없는
+# 경로라서 1단계(경계 발견)만 하고 2단계(RAG 프롬프트 재정제)는 하지
+# 않는다 - _execute_prompt_group과 다른 점.
 def _try_self_refine(
     candidate: RawDetectorCandidate,
     request: RefinementRunRequest,
@@ -796,7 +866,61 @@ def _try_self_refine(
     )
     if assets is None:
         return None
-    adapter_request = _self_refinement_adapter_request(request, candidate, assets)
+    attempt, _ = _discover_boundary(
+        candidate, request, assets, runner_factory, lazy_dependencies
+    )
+    if attempt is None or not attempt.accepted_candidates:
+        return None
+    return RefinedExecutionRecord(
+        str(candidate.candidate_id),
+        detector_to_rag_lane(candidate.lane),
+        attempt.adapter_request.lane,
+        attempt.adapter_request.prompts,
+        attempt.adapter_request.records_json,
+        RefinementStatus.EXECUTED,
+        attempt.receipt.diagnostics,
+        tuple(str(item.candidate_id) for item in attempt.receipt.candidates),
+        attempt.accepted_candidates,
+    )
+
+
+# run_refinement의 두 번째 루프(RAG 근거 없는 후보) 본문을 분리한 헬퍼 -
+# run_refinement 자체의 순환 복잡도를 낮추기 위한 것뿐, 판단 로직은 그대로
+# 옮겨온 것이다. within_budget이 False면 자기-정제를 시도조차 하지 않고
+# 바로 passthrough로 간다(예산 소진 후에는 추가 SAM2 호출을 하지 않는다).
+def _self_refine_or_passthrough(
+    candidate: RawDetectorCandidate,
+    request: RefinementRunRequest,
+    runner_factory: RefinementRunnerFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
+    *,
+    within_budget: bool,
+) -> tuple[RefinedExecutionRecord | None, JsonValue | None, RefinementSkip | None]:
+    if within_budget:
+        refined_record = _try_self_refine(
+            candidate, request, runner_factory, lazy_dependencies
+        )
+        if refined_record is not None:
+            return refined_record, None, None
+    row, skip = _passthrough_record(candidate, request)
+    return None, row, skip
+
+
+# 2단계 정제: 1단계가 찾은 크롭(더 이상 여백을 키우지 않는다) 안에서 이번엔
+# RAG가 만든 정제 프롬프트로 다시 정밀하게 잡는다. 어댑터 예외, 빈 결과,
+# 또는 여전히 크롭 경계에 닿는 결과(=1단계가 준 경계 자체가 부족했다는
+# 뜻이지만 여기서 또 여백을 키우진 않는다 - 그건 1단계의 역할) 중
+# 하나라도 해당하면 None을 돌려줘 호출자가 1단계 결과로 폴백하게 한다.
+def _run_phase_two(  # noqa: PLR0913
+    request: RefinementRunRequest,
+    group: PromptVariantGroup,
+    candidate: RawDetectorCandidate,
+    phase_one: _PaddedAttempt,
+    runner_factory: RefinementRunnerFactory,
+    lazy_dependencies: _LazyRefinementDependencies,
+) -> _PaddedAttempt | None:
+    assets = phase_one.assets
+    adapter_request = _adapter_request(request, group, assets)
     try:
         runner = runner_factory(
             RunnerFactoryInput(
@@ -823,46 +947,26 @@ def _try_self_refine(
         ValueError,
     ):
         return None
-    if not accepted_candidates:
+    if not accepted_candidates or _any_touches_crop_edge(receipt.candidates, assets):
         return None
-    return RefinedExecutionRecord(
-        str(candidate.candidate_id),
-        detector_to_rag_lane(candidate.lane),
-        adapter_request.lane,
-        adapter_request.prompts,
-        adapter_request.records_json,
-        RefinementStatus.EXECUTED,
-        receipt.diagnostics,
-        tuple(str(item.candidate_id) for item in receipt.candidates),
+    return _PaddedAttempt(
+        phase_one.padding_multiplier,
+        assets,
+        adapter_request,
+        receipt,
         accepted_candidates,
+        touches_edge=False,
     )
-
-
-# run_refinement의 두 번째 루프(RAG 근거 없는 후보) 본문을 분리한 헬퍼 -
-# run_refinement 자체의 순환 복잡도를 낮추기 위한 것뿐, 판단 로직은 그대로
-# 옮겨온 것이다. within_budget이 False면 자기-정제를 시도조차 하지 않고
-# 바로 passthrough로 간다(예산 소진 후에는 추가 SAM2 호출을 하지 않는다).
-def _self_refine_or_passthrough(
-    candidate: RawDetectorCandidate,
-    request: RefinementRunRequest,
-    runner_factory: RefinementRunnerFactory,
-    lazy_dependencies: _LazyRefinementDependencies,
-    *,
-    within_budget: bool,
-) -> tuple[RefinedExecutionRecord | None, JsonValue | None, RefinementSkip | None]:
-    if within_budget:
-        refined_record = _try_self_refine(
-            candidate, request, runner_factory, lazy_dependencies
-        )
-        if refined_record is not None:
-            return refined_record, None, None
-    row, skip = _passthrough_record(candidate, request)
-    return None, row, skip
 
 
 # run_refinement의 첫 번째 루프(RAG 근거 있는 그룹) 본문을 분리한 헬퍼 -
 # run_refinement 자체의 순환 복잡도를 낮추기 위한 것뿐, 판단 로직은
 # 그대로 옮겨온 것이다. 정확히 record/skip 중 하나만 채워서 반환한다.
+# 2단계로 나뉜다: 1단계(_discover_boundary)는 원래 프롬프트 + 여백 확대
+# 재시도로 진짜 경계를 찾고, 2단계(_run_phase_two)는 그 경계 안에서 RAG
+# 정제 프롬프트로 다시 정밀하게 잡는다 - 2단계가 실패/폴백하면 1단계
+# 결과를 그대로 채택한다(RAG 프롬프트가 실패해도 원래 프롬프트로 찾은
+# 경계 자체는 여전히 rough 마스크보다 낫다).
 def _execute_prompt_group(
     request: RefinementRunRequest,
     group: PromptVariantGroup,
@@ -888,32 +992,15 @@ def _execute_prompt_group(
             rag_parent_candidate_id=group.rag_parent_candidate_id,
             model_lane=group.model_lane,
         )
-    adapter_request = _adapter_request(request, group, assets)
-    try:
-        runner = runner_factory(
-            RunnerFactoryInput(
-                adapter_request.lane,
-                assets.roi_image_path,
-                request.model_cache_root,
-                request.device,
-                request.verify_model_hashes,
-            )
+    phase_one, failure_reason = _discover_boundary(
+        candidate, request, assets, runner_factory, lazy_dependencies
+    )
+    if phase_one is None:
+        fallback_assets = candidate_centered_assets(
+            candidate, assets, request.output_dir, request.asset_root
         )
-        receipt = execute_adapter(adapter_request, runner)
-        accepted_candidates = _accepted_refined_candidates(
-            receipt.candidates,
-            assets,
-            lazy_dependencies,
-            adapter_request.lane_output_dir,
-            rough_source_tile_view_id=candidate.source_tile_view_id,
-        )
-    except (
-        ContractValidationError,
-        ImportError,
-        OSError,
-        RuntimeError,
-        ValueError,
-    ) as error:
+        adapter_request = _adapter_request(request, group, fallback_assets)
+        reason = failure_reason or "phase_one_boundary_discovery_produced_no_candidates"
         return RefinedExecutionRecord(
             group.rag_parent_candidate_id,
             group.model_lane,
@@ -921,20 +1008,24 @@ def _execute_prompt_group(
             adapter_request.prompts,
             adapter_request.records_json,
             RefinementStatus.FAILED,
-            (str(error),),
+            (reason,),
             (),
             (),
         ), None
+    phase_two = _run_phase_two(
+        request, group, candidate, phase_one, runner_factory, lazy_dependencies
+    )
+    winner = phase_two if phase_two is not None else phase_one
     return RefinedExecutionRecord(
         group.rag_parent_candidate_id,
         group.model_lane,
-        adapter_request.lane,
-        adapter_request.prompts,
-        adapter_request.records_json,
+        winner.adapter_request.lane,
+        winner.adapter_request.prompts,
+        winner.adapter_request.records_json,
         RefinementStatus.EXECUTED,
-        receipt.diagnostics,
-        tuple(str(item.candidate_id) for item in receipt.candidates),
-        accepted_candidates,
+        winner.receipt.diagnostics,
+        tuple(str(item.candidate_id) for item in winner.receipt.candidates),
+        winner.accepted_candidates,
     ), None
 
 
@@ -997,7 +1088,9 @@ def run_refinement(
     prompt_result = read_prompt_variants(request.prompt_output_dir)
     candidates = {
         str(item.candidate.candidate_id): item.candidate
-        for item in _rough_qwen_candidates(request.rough_root)
+        for item in _rough_qwen_candidates(
+            request.rough_root, _shared_asset_root(request.asset_root)
+        )
     }
     lazy_dependencies = _LazyRefinementDependencies(request, qwen_evidence_factory)
     records: list[RefinedExecutionRecord] = []

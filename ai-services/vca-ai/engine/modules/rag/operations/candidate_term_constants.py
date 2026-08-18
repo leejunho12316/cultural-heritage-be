@@ -54,3 +54,9 @@ TABLE_GARBAGE_PHRASES: Final = frozenset(
 MIN_TABLE_GARBAGE_NUMERIC_COUNT: Final = 2
 MIN_NUMERIC_FRAGMENT_COUNT: Final = 3
 MIN_REPEATED_FRAGMENT_COUNT: Final = 2
+
+# concept card의 provenance_strength 판정 기준. 두 신호(검색 관련도 점수 +
+# 실제로 겹친 용어 개수)가 둘 다 만족돼야 "strong" - 점수 하나만으로는
+# 우연히 높게 나온 매칭을 걸러내지 못하기 때문이다.
+STRONG_PROVENANCE_MIN_SCORE: Final = 0.75
+STRONG_PROVENANCE_MIN_MATCHED_TERMS: Final = 2

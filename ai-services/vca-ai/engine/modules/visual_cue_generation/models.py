@@ -16,7 +16,6 @@ class QwenBridgeGenerationInputs:
     rough_root: Path
     rag_run_dir: Path
     asset_root: Path
-    input_manifest_path: Path
     device: str
 
 

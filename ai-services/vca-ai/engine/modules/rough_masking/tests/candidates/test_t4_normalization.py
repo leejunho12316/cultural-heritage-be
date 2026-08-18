@@ -164,7 +164,7 @@ def test_adapter_diagnoses_valid_json_with_unsupported_record_shapes(
 
 def test_adapter_accepts_zero_candidates_from_a_real_execution(tmp_path: Path) -> None:
     # Given: a real execution whose only record was rejected by the runner.
-    request = make_request(tmp_path, DetectorLane.FLORENCE2_SAM2)
+    request = make_request(tmp_path, DetectorLane.GROUNDED_SAM2)
     request.lane_output_dir.mkdir()
     write_records(request, [{"accepted": False, "reject_reason": "low_score"}])
 

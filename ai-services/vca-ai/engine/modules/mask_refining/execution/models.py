@@ -123,7 +123,6 @@ class PostRefinementQwenEvidenceFactory(Protocol):
     def __call__(
         self,
         candidate: RawDetectorCandidate,
-        source_asset: AssetReference | None,
         assets: JoinedRefinementAssets,
         lane_output_dir: Path,
     ) -> PostRefinementQwenEvidence:
@@ -133,14 +132,14 @@ class PostRefinementQwenEvidenceFactory(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class AcceptedRefinedCandidate:
-    """startup 소비자에게 내보내는, accepted된 refined mask 후보 필드.
+    """Accepted refined mask candidate fields exported to startup consumers.
 
-    `mask`는 원본 이미지 픽셀 공간으로 복원된 refined SAM2 마스크다
-    (runner._restore_original_mask 참고) - anomaly_grouping이 ground
-    truth로 써야 할 마스크가 바로 이거다. 원본 이미지 크기를 알 수 없어서
-    복원을 수행할 수 없었을 때만 None이 되며, 그 경우는 startup 레이어가
-    처리할 rough_masking 마스크 폴백 상황이지 mask_refining이 신경 쓸
-    문제가 아니다.
+    `mask` is the refined SAM2 mask restored to original-image pixel space
+    (see runner._restore_original_mask) - it is the mask anomaly_grouping
+    should use as ground truth. It is None only when the original image
+    dimensions were unavailable and restoration could not be performed; that
+    case is a rough_masking mask fallback for the startup layer to handle,
+    not a mask_refining concern.
     """
 
     candidate_id: str
@@ -155,8 +154,7 @@ class AcceptedRefinedCandidate:
     qwen_confidence: float | None
     mask: AssetReference | None = None
     # rough_masking이 오브젝트 크롭이 아니라 타일 뷰에서 이 후보를 찾았다면
-    # 채워진다(None이면 오브젝트 크롭 전체에서 나온 후보). tile_merge가 같은
-    # 오브젝트의 다른 타일에서 나온 후보와 겹치는지 판정할 때 쓴다.
+    # 채워진다(None이면 오브젝트 크롭 전체에서 나온 후보).
     source_tile_view_id: str | None = None
 
 

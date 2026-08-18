@@ -17,12 +17,13 @@ class _ProjectStageRequest(Protocol):
 
 
 # 오케스트레이션이 report_generating 스테이지를 실행할 때 호출하는 프로젝트
-# 어댑터 진입점. anomaly_grouping이 남긴 report_trace_source.json을 입력으로
+# 어댑터 진입점. 직전의 report_trace_assembly 스테이지가 자기 디렉터리 없이
+# report_generating 디렉터리에 남긴 report_trace_source.json을 입력으로
 # run_report_generation을 실행한다.
 def run_report_generating_stage(request: _ProjectStageRequest) -> int:
-    """Run report generation from the anomaly grouping trace source sidecar."""
+    """Run report generation from the report trace source sidecar."""
     workspace_root = request.paths.report_generating.parents[2]
-    trace_source_path = request.paths.anomaly_grouping / "report_trace_source.json"
+    trace_source_path = request.paths.report_generating / "report_trace_source.json"
     result = run_report_generation(
         ReportGeneratingRequest(
             workspace_root,

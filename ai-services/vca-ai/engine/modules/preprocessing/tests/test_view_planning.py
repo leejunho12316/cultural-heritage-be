@@ -187,8 +187,6 @@ def test_object_size_adjusts_lane_targets_and_rankings_are_complete() -> None:
     assert targets[(smaller_id, preprocessing.DetectorLane.OWLV2_SAM2)] == 8
     assert targets[(largest_id, preprocessing.DetectorLane.GROUNDED_SAM2)] == 18
     assert targets[(smaller_id, preprocessing.DetectorLane.GROUNDED_SAM2)] == 5
-    assert targets[(largest_id, preprocessing.DetectorLane.FLORENCE2_SAM2)] == 8
-    assert targets[(smaller_id, preprocessing.DetectorLane.FLORENCE2_SAM2)] == 4
     ranking = manifest.tile_views[0].tile_ranking
     assert ranking is not None
     assert ranking.object_mask_coverage >= preprocessing.MIN_OBJECT_TILE_OVERLAP
@@ -204,7 +202,7 @@ def test_object_size_adjusts_lane_targets_and_rankings_are_complete() -> None:
 
 def test_large_dry_run_requires_budget_approval_without_tile_truncation() -> None:
     # Given: several large object targets whose planned tiles exceed the shared limit.
-    objects = tuple(_object(float(index), 0, 500, 500) for index in range(9))
+    objects = tuple(_object(float(index), 0, 500, 500) for index in range(11))
 
     # When: the full dry-run view plan is calculated.
     manifest = preprocessing.plan_views(

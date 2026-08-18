@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Protocol
 
@@ -12,8 +14,16 @@ from PIL import Image
 from modules.preprocessing import (
     BoundingBox,
     CoordinateTransform,
+    ObjectRankingHints,
+    ObjectTarget,
     ViewKind,
+    ViewPlanningRequest,
     ViewRecord,
+)
+from modules.preprocessing.views.tiling import (
+    target_count,
+    tile_boxes,
+    tile_size_and_history,
 )
 from modules.rag.qwen.qwen_bridge_json import parse_json_object
 from modules.rough_masking.candidates.normalization import (
@@ -40,8 +50,8 @@ from modules.rough_masking.startup_manifest import (
     load_model_entries,
     load_startup_manifest,
 )
-from modules.rough_masking.tile_merge import merge_tile_split_rough_candidates
 from modules.shared import (
+    ACTIVE_DETECTOR_LANES,
     BUDGET_THRESHOLDS,
     ContractValidationError,
     DetectorLane,
@@ -57,6 +67,14 @@ if TYPE_CHECKING:
 
 MANIFEST_SCHEMA_VERSION: Final = "vca-real-preprocessing-v2"
 DRY_RUN_LANE_STATUS: Final = "dry_run_not_executed"
+
+
+# 실제 CLI 경로에서만 재현되고 격리 하네스에서는 재현 안 되는 간헐적 정지를
+# 잡기 위한 임시 진단 로깅. VCA_DEBUG_TIMING이 설정된 경우에만 오브젝트별/
+# ROI별 소요 시간을 stderr로 찍는다 - 기본 동작(프로덕션, 테스트)에는 전혀
+# 영향 없음.
+def _debug_timing_enabled() -> bool:
+    return bool(os.environ.get("VCA_DEBUG_TIMING"))
 REAL_LANE_STATUS: Final = "real_executed"
 
 
@@ -134,15 +152,30 @@ def run_rough_masking_stage(
         model_entries = load_model_entries(request.model_cache_root)
         accepted_count = 0
         object_total = len(manifest.objects)
+        largest_area = max(
+            (_bbox_area(record.bbox_xyxy) for record in manifest.objects),
+            default=0.0,
+        )
         for object_index, record in enumerate(manifest.objects):
+            object_start = time.monotonic() if _debug_timing_enabled() else 0.0
             accepted_count += _run_object(
-                record, request, model_entries, runner_factory, adapter_executor
+                record,
+                request,
+                model_entries,
+                runner_factory,
+                adapter_executor,
+                largest_area,
             )
+            if _debug_timing_enabled():
+                elapsed = time.monotonic() - object_start
+                print(  # noqa: T201
+                    f"rough_masking: timing object={record.object_id} "
+                    f"elapsed={elapsed:.1f}s index={object_index + 1}/{object_total}",
+                    file=sys.stderr,
+                )
             update_stage_progress_count(
                 request.output_root, object_index + 1, object_total
             )
-        if accepted_count > 0:
-            merge_tile_split_rough_candidates(request.paths.rough_masking)
         return int(
             ExitCode.OK if accepted_count > 0 else ExitCode.INCOMPLETE_OR_FAILURE
         )
@@ -154,14 +187,14 @@ def run_rough_masking_stage(
         return int(ExitCode.INCOMPLETE_OR_FAILURE)
 
 
-# 전처리에서 accept된 객체 하나에 대해 해당 lane의 ROI 요청들을 만들고
-# 러너를 실행해 정규화된 candidate 개수를 집계한다. 현재는 객체당 lane이
-# 하나뿐이라 for-루프는 단일 원소 튜플을 순회한다. 오브젝트 크롭 뷰 하나뿐
-# 아니라, 전처리가 이미 만들어둔 record.tiles(+tile_bboxes)도 각각 자기
-# 자신의 뷰/치수/출력 경로로 순회한다 - 타일 크롭 파일은 이미 실제로
-# 디스크에 존재했지만(preprocessing/assets/tile_materialization.py), 이
-# 함수가 그걸 한 번도 안 읽어서 지금까지는 오브젝트 전체 크롭 1장으로만
-# 탐지가 돌아갔다.
+# 전처리에서 accept된 객체 하나에 대해 활성 레인 전부(ACTIVE_DETECTOR_LANES)의
+# ROI 요청을 만들고 러너를 실행해 정규화된 candidate 개수를 집계한다. 객체
+# 크롭 뷰는 두 레인이 공유하고(같은 사진을 각자 다른 프롬프트로 훑음), 타일
+# 뷰는 레인마다 다르다 - OWLv2는 전처리가 이미 잘라둔 record.tiles를,
+# GroundingDINO는 이 함수가 그 자리에서 만드는 자기 전용 타일을 쓴다(레인마다
+# 목적에 맞는 타일 크기가 다르므로 - _grounded_tile_views 참고). 오브젝트 크롭
+# 뷰 하나뿐 아니라 두 레인의 타일 뷰도 각각 자기 자신의 뷰/치수/출력 경로로
+# 순회한다.
 # run_rough_masking_stage에서 manifest.objects마다 호출된다.
 def _run_object(
     record: ObjectAssetRecord,
@@ -169,20 +202,28 @@ def _run_object(
     model_entries: dict[str, ModelInventoryEntry],
     runner_factory: RunnerFactory,
     adapter_executor: AdapterExecutor,
+    largest_area: float,
 ) -> int:
     preprocessing_root = request.paths.preprocessing.resolve()
     image_path = _contained_file(Path(record.bbox_crop.path), preprocessing_root)
     object_mask_path = _contained_file(Path(record.mask.path), preprocessing_root)
     view = _object_view(record)
-    tile_views = _tile_views(record, view)
+    owlv2_tile_views = _tile_views(record, view)
     tile_image_paths = {
         tile_view.tile_view_id: _contained_file(
             Path(tile_asset.path), preprocessing_root
         )
-        for tile_view, tile_asset in zip(tile_views, record.tiles, strict=True)
+        for tile_view, tile_asset in zip(owlv2_tile_views, record.tiles, strict=True)
     }
+    grounded_tile_views = _grounded_tile_views(record, view, largest_area)
+    tile_image_paths.update(
+        _materialize_grounded_tiles(
+            record, grounded_tile_views, image_path, request.paths.rough_masking
+        )
+    )
+    tile_views = owlv2_tile_views + grounded_tile_views
     accepted_count = 0
-    for lane in (record.lane,):
+    for lane in ACTIVE_DETECTOR_LANES:
         route = RoiRoutingInput(
             lane=lane,
             object_request=RoiViewRequest(
@@ -216,6 +257,7 @@ def _run_object(
                 if adapter_request.view.tile_view_id is not None
                 else image_path
             )
+            roi_start = time.monotonic() if _debug_timing_enabled() else 0.0
             runner = runner_factory(
                 lane=adapter_request.lane,
                 image_path=request_image_path,
@@ -228,6 +270,15 @@ def _run_object(
             )
             receipt = adapter_executor(adapter_request, runner)
             accepted_count += len(receipt.candidates)
+            if _debug_timing_enabled():
+                roi_elapsed = time.monotonic() - roi_start
+                view_label = adapter_request.view.tile_view_id or "object"
+                print(  # noqa: T201
+                    f"rough_masking: timing roi object={record.object_id} "
+                    f"lane={adapter_request.lane.value} view={view_label} "
+                    f"elapsed={roi_elapsed:.1f}s candidates={len(receipt.candidates)}",
+                    file=sys.stderr,
+                )
     return accepted_count
 
 
@@ -413,6 +464,104 @@ def _tile_views(
             )
         )
     return tuple(views)
+
+
+def _bbox_area(bbox_xyxy: tuple[float, float, float, float]) -> float:
+    left, top, right, bottom = bbox_xyxy
+    return max(0.0, right - left) * max(0.0, bottom - top)
+
+
+# GroundingDINO 전용 타일 뷰를 그 자리에서 계산한다. 전처리는 OWLv2 전용이라
+# (modules.preprocessing.model_runtime.lane.supported_real_lane) GroundingDINO
+# 크기 타일을 미리 잘라두지 않는다 - tiling.py의 레인별 공식
+# (_span_values/_largest_target, GroundingDINO는 OWLv2보다 더 크고 적은 타일)을
+# 그대로 재사용해 이 함수가 대신 계산한다. 실제 이미지 크롭/저장은
+# _materialize_grounded_tiles가 따로 한다.
+def _grounded_tile_views(
+    record: ObjectAssetRecord, object_view: ViewRecord, largest_area: float
+) -> tuple[ViewRecord, ...]:
+    left, top, right, bottom = record.bbox_xyxy
+    bbox = BoundingBox(left, top, right - left, bottom - top)
+    object_target = ObjectTarget(
+        bbox=bbox,
+        # 랭킹 점수는 안 쓴다(타일 크기 계산에만 필요) - 값 자체는 [0,1] 범위만
+        # 만족하면 되는 자리채움이다.
+        ranking_hints=ObjectRankingHints(0.0, 0.0, 0.0, 0.0),
+    )
+    plan_request = ViewPlanningRequest(
+        image_id=ImageId(record.image_id),
+        image_width_px=max(1, round(bbox.width)),
+        image_height_px=max(1, round(bbox.height)),
+        objects=(object_target,),
+        scale_metadata=record.scale_metadata,
+        detector_lanes=(DetectorLane.GROUNDED_SAM2,),
+    )
+    target = target_count(bbox.area, largest_area, DetectorLane.GROUNDED_SAM2)
+    tile_size, _history, _strategy = tile_size_and_history(
+        plan_request, object_target, DetectorLane.GROUNDED_SAM2, target
+    )
+    views: list[ViewRecord] = []
+    for index, tile_box in enumerate(tile_boxes(bbox, tile_size)):
+        tile_view_id = f"rough-mask-tile:{record.object_id}:grounded_sam2:{index:03d}"
+        views.append(
+            ViewRecord(
+                view_id=tile_view_id,
+                kind=ViewKind.RANKED_OBJECT_TILE,
+                image_id=ImageId(record.image_id),
+                object_id=record.object_id,
+                tile_view_id=tile_view_id,
+                source_view_id=object_view.view_id,
+                rag_followup_view_id=None,
+                view_reuse_mode=None,
+                coordinate_transform=CoordinateTransform(
+                    tile_box,
+                    tile_box.left,
+                    tile_box.top,
+                ),
+                scale_metadata=record.scale_metadata,
+                lane=DetectorLane.GROUNDED_SAM2,
+            )
+        )
+    return tuple(views)
+
+
+_GROUNDED_TILE_DIRNAME: Final = "grounded_sam2_tiles"
+
+
+# _grounded_tile_views가 계산한 타일 bbox(원본 이미지 좌표계)를 이미 로드된
+# 객체 크롭 이미지(object_image_path)에서 직접 잘라낸다 - 객체 크롭 자체가
+# record.bbox_xyxy 위치에서 뜬 크롭이라, 그 왼쪽/위 오프셋만 빼면 크롭
+# 로컬 픽셀 좌표가 되어 원본 사진 파일을 다시 열 필요가 없다. 결과는
+# rough_masking 자신의 출력 트리에 저장한다(전처리 산출물 트리는 OWLv2
+# 전용으로 그대로 둔다).
+def _materialize_grounded_tiles(
+    record: ObjectAssetRecord,
+    tile_views: tuple[ViewRecord, ...],
+    object_image_path: Path,
+    rough_masking_root: Path,
+) -> dict[str, Path]:
+    if not tile_views:
+        return {}
+    object_left, object_top, _, _ = record.bbox_xyxy
+    output_dir = rough_masking_root / _GROUNDED_TILE_DIRNAME / record.object_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, Path] = {}
+    with Image.open(object_image_path) as object_image:
+        rgb_image = object_image.convert("RGB")
+        for index, tile_view in enumerate(tile_views):
+            transform = tile_view.coordinate_transform
+            assert transform is not None  # noqa: S101 - built by _grounded_tile_views, always set
+            source = transform.source_bbox
+            crop_box = (
+                round(source.left - object_left),
+                round(source.top - object_top),
+                round(source.left - object_left + source.width),
+                round(source.top - object_top + source.height),
+            )
+            tile_path = output_dir / f"tile-{index:03d}.jpg"
+            rgb_image.crop(crop_box).save(tile_path, format="JPEG", quality=92)
+            paths[tile_view.tile_view_id or tile_path.stem] = tile_path
+    return paths
 
 
 def _contained_file(path: Path, root: Path) -> Path:

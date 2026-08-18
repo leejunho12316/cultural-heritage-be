@@ -2,17 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from modules.anomaly_grouping import (
-    AnomalyCandidate,
-    AnomalyGroupingResult,
-    BoundingBox,
-    CandidateEvidence,
-    RelationClass,
-    RelationMergeRequest,
-    merge_post_rag_relations,
-)
+from modules.anomaly_grouping import BoundingBox
 from modules.anomaly_grouping.io import parse_request
-from modules.anomaly_grouping.serialization import result_payload
 from modules.anomaly_grouping.shared_contracts import (
     JsonObject,
     hybrid_descriptor_payload,
@@ -25,7 +16,6 @@ from modules.shared import (
     HybridDescriptor,
     RagAccountingStatus,
     RelationAuthorityInput,
-    RelationAuthorityOutcomeState,
 )
 
 if TYPE_CHECKING:
@@ -60,85 +50,6 @@ def _relation_input(descriptor: HybridDescriptor) -> RelationAuthorityInput:
         citation_provenance_strength="strong",
         rag_status=RagAccountingStatus.COMPLETED,
         evidence_flags=("structured",),
-    )
-
-
-def _candidate(
-    tmp_path: Path, candidate_id: str, bbox: BoundingBox
-) -> AnomalyCandidate:
-    descriptor = _descriptor(CandidateId(candidate_id))
-    return AnomalyCandidate(
-        candidate_id=CandidateId(candidate_id),
-        image_id="image-1",
-        source_object_id="object-1",
-        source_view_id="view-1",
-        seed_lane="owlv2_sam2",
-        seed_prompt="crack",
-        bbox=bbox,
-        mask=rect_mask(tmp_path, candidate_id, bbox),
-        evidence=CandidateEvidence(
-            concept_family="crack",
-            descriptor_tokens=("thin",),
-            rag_status=RagAccountingStatus.COMPLETED,
-            hybrid_descriptor=descriptor,
-            relation_authority_input=_relation_input(descriptor),
-        ),
-    )
-
-
-def test_shared_relation_authority_contracts_are_preserved(tmp_path: Path) -> None:
-    # Given: candidates carry shared C-004 bridge inputs.
-    request = RelationMergeRequest(
-        (
-            _candidate(tmp_path, "candidate-a", BoundingBox(0, 0, 100, 100)),
-            _candidate(tmp_path, "candidate-b", BoundingBox(2, 2, 98, 98)),
-        ),
-        tmp_path / "masks",
-    )
-
-    # When: relation authority emits a duplicate relation.
-    result = merge_post_rag_relations(request)
-    relation = result.relation_groups[0]
-
-    # Then: shared bridge outcomes are preserved with the relation decision.
-    assert relation.relation_class is RelationClass.SAME_ANOMALY_DUPLICATE
-    assert len(relation.relation_authority_outcomes) == 2
-    assert all(
-        outcome.relation_authority_outcome
-        is RelationAuthorityOutcomeState.SAME_ANOMALY_DUPLICATE
-        for outcome in relation.relation_authority_outcomes
-    )
-    first_outcome = relation.relation_authority_outcomes[0]
-    assert first_outcome.hybrid_descriptor.concept_family == "crack"
-
-
-def test_serialization_includes_shared_relation_authority_outcomes(
-    tmp_path: Path,
-) -> None:
-    # Given: a relation result carries shared C-004 outcomes.
-    request = RelationMergeRequest(
-        (
-            _candidate(tmp_path, "candidate-a", BoundingBox(0, 0, 100, 100)),
-            _candidate(tmp_path, "candidate-b", BoundingBox(2, 2, 98, 98)),
-        ),
-        tmp_path / "masks",
-    )
-    result = merge_post_rag_relations(request)
-
-    # When: the result is serialized for the runner artifact.
-    payload = result_payload(AnomalyGroupingResult(result, ()))
-
-    # Then: relation authority outcome fields are present in JSON output.
-    relation_groups = payload["relation_groups"]
-    assert isinstance(relation_groups, list)
-    relation_payload = relation_groups[0]
-    assert isinstance(relation_payload, dict)
-    outcomes = relation_payload["relation_authority_outcomes"]
-    assert isinstance(outcomes, list)
-    first_outcome_payload = outcomes[0]
-    assert isinstance(first_outcome_payload, dict)
-    assert (
-        first_outcome_payload["relation_authority_outcome"] == "same_anomaly_duplicate"
     )
 
 

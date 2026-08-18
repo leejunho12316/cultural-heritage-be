@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 
     from PIL import Image
     from transformers import (
-        AutoModelForCausalLM,
         AutoModelForZeroShotObjectDetection,
         AutoProcessor,
         Owlv2ForObjectDetection,
@@ -46,7 +45,6 @@ class _BoxPolicy:
 # 실행해 디스크 IO와 로딩 시간이 그대로 누적되므로, (모델 디렉터리, 디바이스)
 # 단위로 프로세스 수명 동안 재사용한다.
 _OWLV2_CACHE: dict[tuple[str, str], tuple[Owlv2Processor, Owlv2ForObjectDetection]] = {}
-_FLORENCE2_CACHE: dict[tuple[str, str], tuple[AutoProcessor, AutoModelForCausalLM]] = {}
 _GROUNDED_CACHE: dict[
     tuple[str, str], tuple[AutoProcessor, AutoModelForZeroShotObjectDetection]
 ] = {}
@@ -71,31 +69,6 @@ def load_owlv2_detector(
     ).to(device)
     _ = model.eval()
     _OWLV2_CACHE[cache_key] = (processor, model)
-    return processor, model
-
-
-def load_florence2_detector(
-    model_dir: Path, device: str
-) -> tuple[AutoProcessor, AutoModelForCausalLM]:
-    """Load Florence-2 from a local cache without a remote model identifier, reused across calls."""
-    cache_key = (str(model_dir), device)
-    cached = _FLORENCE2_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
-
-    from transformers import AutoModelForCausalLM, AutoProcessor
-
-    processor = AutoProcessor.from_pretrained(
-        model_dir, local_files_only=True, trust_remote_code=True
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        model_dir,
-        attn_implementation="eager",
-        local_files_only=True,
-        trust_remote_code=True,
-    ).to(device)
-    _ = model.eval()
-    _FLORENCE2_CACHE[cache_key] = (processor, model)
     return processor, model
 
 
@@ -146,14 +119,14 @@ def bounded_detections(
     return tuple(detections)
 
 
-# open-vocabulary 디텍터(OWLv2/GroundingDINO/Florence-2)는 확신이 높은 특징
-# 하나에 대해 거의 같은 위치의 박스를 여러 개 내놓는 경우가 드물지 않은데,
-# threshold 필터링만으로는 이걸 못 거른다 - post_process_grounded_object_detection이
+# open-vocabulary 디텍터(OWLv2/GroundingDINO)는 확신이 높은 특징 하나에 대해
+# 거의 같은 위치의 박스를 여러 개 내놓는 경우가 드물지 않은데, threshold
+# 필터링만으로는 이걸 못 거른다 - post_process_grounded_object_detection이
 # NMS를 포함하지 않기 때문이다(실측: mask_refining 재탐지에서 IoU 0.9999인
 # 박스 두 개가 각각 별도 "특이점"으로 리포트까지 새어나감). 예전엔 이 뒤에
 # 있던 post-refinement relation-authority가 안전망 역할을 했지만, 그 단계가
 # 병합 로직 단순화로 없어졌으므로 발생 지점(디텍터 후처리)에서 직접 막는다.
-# 프롬프트 하나짜리 호출(_owlv2_detections/_grounded_detections 등)뿐 아니라,
+# 프롬프트 하나짜리 호출(_owlv2_detections/_grounded_detections)뿐 아니라,
 # 같은 이미지에 여러 프롬프트를 순차 실행해 합친 결과에도 적용해야 한다 -
 # 서로 다른 프롬프트가 같은 자리를 각자 잡아내는 경우도 실제로 있었다.
 _NMS_IOU_THRESHOLD: Final = 0.5
@@ -235,51 +208,6 @@ def _owlv2_detections(
     return suppress_near_duplicate_detections(tuple(detections))
 
 
-# Florence-2를 <CAPTION_TO_PHRASE_GROUNDING> 태스크로 실행해 프롬프트별
-# 박스를 얻는다. (아래 uniform score 관련 주석 참고)
-def _florence2_detections(
-    request: AdapterRequest,
-    image: Image.Image,
-    settings: LocalInferenceSettings,
-) -> tuple[LocalDetection, ...]:
-    import torch
-
-    processor, model = load_florence2_detector(
-        settings.detector_entry.local_dir, settings.device
-    )
-    task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
-    detections: list[LocalDetection] = []
-    for prompt in request.prompts:
-        inputs = processor(
-            text=f"{task_prompt} {prompt.prompt_text}",
-            images=image,
-            return_tensors="pt",
-        ).to(settings.device)
-        with torch.inference_mode():
-            generated_ids = model.generate(
-                **inputs,
-                max_new_tokens=1024,
-                do_sample=False,
-                use_cache=False,
-            )
-        generated_text = processor.batch_decode(
-            generated_ids, skip_special_tokens=False
-        )[0]
-        answer = processor.post_process_generation(
-            generated_text,
-            task=task_prompt,
-            image_size=(request.image_width_px, request.image_height_px),
-        )[task_prompt]
-        boxes = answer["bboxes"]
-        # Florence-2 phrase grounding은 박스별 confidence를 내지 않으므로
-        # 점수를 모두 1.0으로 채운다. 그 결과 bounded_detections의 상한 컷은
-        # 다른 두 레인과 달리 점수 정렬이 아닌 모델이 반환한 순서를 그대로 따른다.
-        detections.extend(
-            bounded_detections([1.0] * len(boxes), boxes, box_policy(request, prompt))
-        )
-    return suppress_near_duplicate_detections(tuple(detections))
-
-
 # GroundingDINO를 box_threshold/text_threshold 두 임계값으로 실행하고
 # 결과를 bounded_detections로 정리한다.
 def _grounded_detections(
@@ -324,20 +252,32 @@ def _segment(
     return segment_detections(detections, image, settings)
 
 
+# preprocessing 단계는 아주 가늘고 긴 detection(예: 균열선)도 실제 소견으로
+# 남기려고 폭/높이 하한을 두지 않는다. 그런데 그 crop을 이 refinement 패스가
+# 다시 detector 모델(OWLv2/GroundingDINO)에 통과시킬 때, 한 변이 1px인
+# 이미지는 각 모델의 이미지 프로세서가 채널/공간 축을 헷갈려서 ValueError로
+# 죽는다(예: "mean must have 1 elements... got 3"). crop 자체는 유효한
+# 소견이므로 버리지 않되, 이 refinement 재탐지만 건너뛴다 - 그래도
+# _segment(())가 빈 결과를 정상 반환하므로 원본 preprocessing 산출물은 그대로
+# 살아있다.
+_MIN_DETECTOR_INPUT_SIDE_PX: Final = 2
+
+
+def _too_small_for_detector(image: Image.Image) -> bool:
+    return (
+        image.width < _MIN_DETECTOR_INPUT_SIDE_PX
+        or image.height < _MIN_DETECTOR_INPUT_SIDE_PX
+    )
+
+
 def detect_owlv2(
     request: AdapterRequest, image_path: Path, settings: LocalInferenceSettings
 ) -> tuple[MaskOutput, ...]:
     """Run local OWLv2 detection followed by SAM2 box segmentation."""
     image = load_rgb_image(image_path)
+    if _too_small_for_detector(image):
+        return ()
     return _segment(_owlv2_detections(request, image, settings), image, settings)
-
-
-def detect_florence2(
-    request: AdapterRequest, image_path: Path, settings: LocalInferenceSettings
-) -> tuple[MaskOutput, ...]:
-    """Run prompt-scoped local Florence-2 detection followed by SAM2."""
-    image = load_rgb_image(image_path)
-    return _segment(_florence2_detections(request, image, settings), image, settings)
 
 
 def detect_grounded(
@@ -345,4 +285,6 @@ def detect_grounded(
 ) -> tuple[MaskOutput, ...]:
     """Run local Transformers GroundingDINO detection followed by SAM2."""
     image = load_rgb_image(image_path)
+    if _too_small_for_detector(image):
+        return ()
     return _segment(_grounded_detections(request, image, settings), image, settings)

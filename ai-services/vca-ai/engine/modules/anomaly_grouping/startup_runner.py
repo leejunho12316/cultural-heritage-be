@@ -65,16 +65,54 @@ class _ProjectStageRequest(Protocol):
     def dry_run(self) -> bool: ...
 
 
-# 오케스트레이션이 anomaly_grouping 스테이지를 실행할 때 호출하는 프로젝트
-# 어댑터 진입점. mask_refining/rag 산출물을 읽어 파이프라인을 돌리고, 결과와
-# report_generating용 trace_source 사이드카를 함께 기록한다.
-def run_anomaly_grouping_stage(request: _ProjectStageRequest) -> int:
-    """Run anomaly grouping from public mask-refining and RAG startup artifacts."""
+# 오케스트레이션이 (새 위치의) anomaly_grouping 스테이지를 실행할 때 호출하는
+# 프로젝트 어댑터 진입점 - rag 직후, prompt_generating 이전. 물리적으로 같은
+# 특이점인 rough_masking 후보들을 병합해 rough_masking/rag 산출물을 그
+# 자리에서 다시 쓴다(pre_refinement_merge.py). PIL/numpy을 이 함수 안에서만
+# 지역 import하는 이유는 stage_runner_contracts.py를 그냥 import만 해도
+# 무거운 비전 런타임이 따라 로드되면 안 되기 때문이다
+# (test_stage_runner_contract_imports.py가 강제).
+def run_pre_refinement_grouping_stage(request: _ProjectStageRequest) -> int:
+    """Merge same-physical-anomaly rough candidates before mask_refining runs."""
+    if request.dry_run:
+        return int(ExitCode.OK)
+    from modules.anomaly_grouping.pre_refinement_merge import (  # noqa: PLC0415
+        merge_before_refinement,
+    )
+
+    try:
+        paths = request.paths
+        merge_before_refinement(
+            paths.rough_masking,
+            paths.preprocessing.parent.parent,
+            paths.preprocessing / "manifests" / "input_manifest.json",
+            paths.rag / "rag_visual_concept_cards.jsonl",
+            paths.rag / "qwen_bridge_results",
+        )
+    except (ContractValidationError, OSError) as error:
+        print(  # noqa: T201
+            f"anomaly_grouping: failed: {type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
+        return int(ExitCode.INCOMPLETE_OR_FAILURE)
+    return int(ExitCode.OK)
+
+
+# 오케스트레이션이 report_trace_assembly 스테이지를 실행할 때 호출하는 프로젝트
+# 어댑터 진입점 - mask_refining 직후, report_generating 이전. 예전에는 이
+# 함수 이름 그대로("anomaly_grouping") 병합까지 담당했지만, 병합은 이제
+# 위의 run_pre_refinement_grouping_stage로 옮겨갔다 - mask_refining 출력
+# 시점엔 이미 병합이 끝나 있으므로, 여기서는 report_generating이 기대하는
+# report_trace_source.json 조립만 한다(mask_refining/rag 산출물을 읽어서).
+# 자기 전용 출력 디렉터리 없이 report_generating의 디렉터리에 함께 쓴다 -
+# report_generating이 유일한 소비자라서다.
+def run_report_trace_assembly_stage(request: _ProjectStageRequest) -> int:
+    """Assemble report_trace_source.json from finalized mask-refining output."""
     if request.dry_run:
         return int(ExitCode.OK)
     try:
         stage_candidates, citation_details = _read_startup_inputs(request)
-        output_root = request.paths.anomaly_grouping
+        output_root = request.paths.report_generating
         result = run_anomaly_grouping(
             AnomalyGroupingRequest(
                 tuple(item.candidate for item in stage_candidates),
@@ -103,7 +141,7 @@ def run_anomaly_grouping_stage(request: _ProjectStageRequest) -> int:
         PathSafetyError,
     ) as error:
         print(  # noqa: T201
-            f"anomaly_grouping: failed: {type(error).__name__}: {error}",
+            f"report_trace_assembly: failed: {type(error).__name__}: {error}",
             file=sys.stderr,
         )
         return int(ExitCode.INCOMPLETE_OR_FAILURE)
@@ -156,11 +194,10 @@ def _optional_jsonl_objects(path: Path) -> tuple[JsonObject, ...]:
 def _citation_details_by_id(
     retrieval_rows: tuple[JsonObject, ...],
 ) -> dict[str, JsonObject]:
-    """citation_id별로 가장 점수가 높은 retrieval detail을 반환한다.
+    """Return the highest-scoring retrieval detail per citation_id.
 
-    일치하는 retrieval 행이 실제 페이지 번호를 주지 않는 한 인용은
-    non-exportable로 시작한다; 없거나 해석되지 않은 id는 여기서 그냥
-    비어 있는 채로 남는다.
+    Citations start non-exportable unless a matching retrieval row supplies
+    a real page number; missing/unresolved ids simply stay absent here.
     """
     details: dict[str, JsonObject] = {}
     for row in retrieval_rows:
@@ -348,10 +385,10 @@ def _cards_by_candidate(
 
 
 def _bbox(record: JsonObject) -> BoundingBox:
-    # provenance용으로 mask_refining이 함께 써두는 crop 기준 로컬 "bbox_xyxy"가
-    # 아니라, 좌표 변환으로 복원된 원본 이미지 공간의 bbox를 읽는다 -
-    # AnomalyCandidate.bbox를 소비하는 모든 다운스트림은 소스 이미지 상의
-    # 실제 픽셀 좌표를 기대한다.
+    # Read the coordinate-transform-restored original-image-space bbox, not
+    # the crop-local "bbox_xyxy" mask_refining also writes for provenance -
+    # every downstream consumer of AnomalyCandidate.bbox expects real pixel
+    # coordinates on the source image.
     values = numbers(record, "original_bbox_xyxy")
     if len(values) != _BBOX_COORDINATE_COUNT:
         raise_contract("original_bbox_xyxy", "must contain four numbers")

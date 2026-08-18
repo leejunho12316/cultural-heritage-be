@@ -53,10 +53,11 @@ def test_startup_runner_succeeds_when_report_generation_passes(
     assert exit_code == 0
 
 
-def test_startup_runner_passes_anomaly_grouping_trace_source_to_report_generation(
+def test_startup_runner_passes_report_trace_assembly_trace_source_to_report_generation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Given: a project-stage request points at the anomaly grouping handoff sidecar.
+    # Given: a project-stage request points at the report_trace_assembly
+    # handoff sidecar.
     request = ProjectStageRequest(
         "project-a",
         "report_generating",
@@ -83,7 +84,7 @@ def test_startup_runner_passes_anomaly_grouping_trace_source_to_report_generatio
     # When: startup delegates report generation.
     exit_code = startup_runner.run_report_generating_stage(request)
 
-    # Then: the report stage consumes anomaly_grouping's report_trace_source.json.
+    # Then: the report stage consumes report_trace_assembly's report_trace_source.json.
     assert exit_code == 0
     assert received == [
         ReportGeneratingRequest(
@@ -91,7 +92,7 @@ def test_startup_runner_passes_anomaly_grouping_trace_source_to_report_generatio
             tmp_path / "output" / "report_generating" / "project-a",
             tmp_path
             / "output"
-            / "anomaly_grouping"
+            / "report_generating"
             / "project-a"
             / "report_trace_source.json",
         )

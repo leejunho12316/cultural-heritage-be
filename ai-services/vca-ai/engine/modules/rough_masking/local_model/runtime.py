@@ -6,9 +6,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from modules.rough_masking.local_model.inference import (
-    detect_florence2 as _detect_florence2,
-)
-from modules.rough_masking.local_model.inference import (
     detect_grounded as _detect_grounded,
 )
 from modules.rough_masking.local_model.inference import detect_owlv2 as _detect_owlv2
@@ -69,6 +66,7 @@ class _BaseLaneRuntime:
             max_mask_area_ratio=request.threshold_config.max_mask_area_ratio,
             object_mask_path=request.object_mask_path,
             roi_source_bbox=(bbox.left, bbox.top, bbox.width, bbox.height),
+            apply_area_quality_gates=request.apply_area_quality_gates,
         )
 
 
@@ -81,17 +79,6 @@ class Owlv2Sam2Runtime(_BaseLaneRuntime):
     ) -> tuple[MaskOutput, ...]:
         """Run the local OWLv2 and SAM2 inference path."""
         return _detect_owlv2(request, image_path, self._settings(request))
-
-
-@dataclass(frozen=True, slots=True)
-class Florence2Sam2Runtime(_BaseLaneRuntime):
-    """Florence-2/SAM2 runtime behind the lightweight local runner seam."""
-
-    def detect(
-        self, request: AdapterRequest, image_path: Path
-    ) -> tuple[MaskOutput, ...]:
-        """Run the local Florence-2 and SAM2 inference path."""
-        return _detect_florence2(request, image_path, self._settings(request))
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,10 +104,12 @@ def build_lane_runtime(
     match lane:
         case DetectorLane.OWLV2_SAM2:
             return Owlv2Sam2Runtime(detector_entry, sam2_entry, device)
-        case DetectorLane.FLORENCE2_SAM2:
-            return Florence2Sam2Runtime(detector_entry, sam2_entry, device)
         case DetectorLane.GROUNDED_SAM2:
             return GroundedSam2Runtime(detector_entry, sam2_entry, device)
+        case DetectorLane.FLORENCE2_SAM2:
+            field = "lane"
+            reason = "florence2_sam2 is not an active rough-mask lane"
+            raise ContractValidationError(field, reason)
         case DetectorLane.CLIPSEG:
             field = "lane"
             reason = "CLIPSeg is not an active rough-mask lane"

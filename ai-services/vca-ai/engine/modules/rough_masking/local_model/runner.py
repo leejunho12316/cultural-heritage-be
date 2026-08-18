@@ -17,7 +17,6 @@ from modules.shared import (
 
 DETECTOR_MODEL_KEYS: Final[dict[DetectorLane, str]] = {
     DetectorLane.OWLV2_SAM2: "owlv2_sam2.detector",
-    DetectorLane.FLORENCE2_SAM2: "florence2_sam2.detector",
     DetectorLane.GROUNDED_SAM2: "grounded_sam2.detector",
 }
 SAM2_MODEL_KEY: Final = "sam2.segmenter"
@@ -25,16 +24,12 @@ DEFAULT_MODEL_CACHE_ROOT: Final = Path("models")
 _SNAPSHOT_HASH_EXCLUDED_DIRS: Final = frozenset({".cache"})
 EXPECTED_MODEL_REPO_IDS: Final[dict[str, str]] = {
     "owlv2_sam2.detector": "google/owlv2-base-patch16-ensemble",
-    "florence2_sam2.detector": "microsoft/Florence-2-base",
     "grounded_sam2.detector": "IDEA-Research/grounding-dino-base",
     SAM2_MODEL_KEY: "facebook/sam2-hiera-large",
 }
 EXPECTED_MODEL_REVISIONS: Final[dict[str, str]] = {
     "owlv2_sam2.detector": (
         "sha256:b0e1c87eeecad23b816cd1f26a6ba14bb54d41a399c895ce4ae73ae5125bd44a"
-    ),
-    "florence2_sam2.detector": (
-        "sha256:335d57ff34b7b80a200e7ef22ae999643a31ca7767bf7e3f52022721ad7724a7"
     ),
     "grounded_sam2.detector": (
         "sha256:e3f2355ee634388c17c5fb1c522b64a2870a0f0b88016f224a0c1305bf67069c"
@@ -65,10 +60,10 @@ def _contained(path: Path, root: Path) -> bool:
 
 
 def _snapshot_revision(local_dir: Path, cache_root: Path) -> str:
-    # huggingface_hub는 ".cache" 하위 디렉터리 아래에 자체 다운로드 기록(락,
-    # ETag 메타데이터)을 쓴다; 이건 모델 콘텐츠가 아니고 나중에 다시
-    # 다운로드하면 다른 바이트로 재생성될 수 있으므로, 고정된 콘텐츠 해시에
-    # 영향을 주면 안 된다.
+    # huggingface_hub writes its own download bookkeeping (locks, ETag
+    # metadata) under a ".cache" subdirectory; it is not model content and
+    # can be regenerated with different bytes on a later download, so it
+    # must not affect the pinned content hash.
     snapshot_hash = hashlib.sha256()
     files = sorted(
         candidate
@@ -155,7 +150,7 @@ class LocalModelRunner:
             reason = "request lane must match local runner lane"
             raise ContractValidationError(field, reason)
         outputs = self.runtime.detect(request, self.image_path)
-        materialize_anomaly_outputs(request, outputs)
+        materialize_anomaly_outputs(request, outputs, self.image_path)
         return RunnerOutcome(runner_invoked=True)
 
 

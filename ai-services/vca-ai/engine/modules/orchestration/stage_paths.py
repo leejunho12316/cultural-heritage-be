@@ -31,9 +31,15 @@ class StagePathMap:
             "rough_masking": self.rough_masking,
             "visual_cue_generation": self.visual_cue_generation,
             "rag": self.rag,
+            # anomaly_grouping now runs right after rag (pre-refinement
+            # merge); it still owns its own directory below.
+            "anomaly_grouping": self.anomaly_grouping,
             "prompt_generating": self.prompt_generating,
             "mask_refining": self.mask_refining,
-            "anomaly_grouping": self.anomaly_grouping,
+            # report_trace_assembly has no directory of its own - it writes
+            # straight into report_generating's, since that stage is its
+            # only consumer.
+            "report_trace_assembly": self.report_generating,
             "report_generating": self.report_generating,
         }
         path = paths.get(stage_name)
