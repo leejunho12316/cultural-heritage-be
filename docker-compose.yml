@@ -177,12 +177,11 @@ services:
       # (k8s의 app-secrets가 쓰는 키 이름과 동일하게 맞춰둠).
       VCA_AI_BASE_URL: ${VCA_AI_BASE_URL:-http://vca-ai:8000}
       VCA_AI_TIMEOUT_SECONDS: "3900"
-      # summary.overallCondition을 채우는 LLM 요약기(VcaOverallConditionGenerator)가
-      # 쓰는 Ollama 엔드포인트. 비어있으면(기본값) 그 필드는 그냥 null로 남고
-      # 리포트 생성 자체는 정상 진행된다 - 로컬 개발에서 Ollama를 안 띄웠을 때도
-      # 안전하게 no-op이 되도록 기본값을 빈 문자열로 둔다.
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      # summary.overallCondition을 채우는 LLM 요약기(VcaOverallConditionGenerator)의
+      # on/off 스위치. Ollama는 vca-ai와 같은 팟에서 위 VCA_AI_BASE_URL의 /ollama
+      # 경로로만 열려 있어 주소를 따로 안 받는다 - 꺼져 있으면(기본값) 그 필드는
+      # 그냥 null로 남고 리포트 생성 자체는 정상 진행된다.
+      VCA_AI_OLLAMA_ENABLED: ${VCA_AI_OLLAMA_ENABLED:-false}
       VCA_ACCESS_TOKEN: ${VCA_ACCESS_TOKEN:?VCA_ACCESS_TOKEN is required for /api/vca}
       # application.yaml의 jwt.secret-key(${JWT_SECRET})는 기본값이 없어
       # 이 값이 없으면 컨테이너가 기동조차 못 한다. 로컬 개발용 기본값만

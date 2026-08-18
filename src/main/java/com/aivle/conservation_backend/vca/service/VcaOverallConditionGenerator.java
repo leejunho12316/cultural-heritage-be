@@ -39,9 +39,21 @@ final class VcaOverallConditionGenerator {
 
     private static final Logger log = LoggerFactory.getLogger(VcaOverallConditionGenerator.class);
 
-    private static final String DEFAULT_BASE_URL = "http://localhost:11434";
-    private static final String DEFAULT_MODEL = "qwen2.5:14b-instruct";
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    // enabled=false일 때만 쓰는 자리표시자 - 이때는 generate()가 네트워크
+    // 호출 전에 바로 null을 반환하므로 실제로 이 주소로 나가는 요청은 없다.
+    private static final String PLACEHOLDER_BASE_URL = "http://localhost:11434";
+    // vca-ai/Ollama 둘 다 이 배포에서 고정된 하나뿐이라(RunPod 팟 하나에 같이 뜸)
+    // 모델을 환경변수로 바꿔 쓸 일이 없다 - 바꿀 일이 생기면 그때 다시 설정 가능하게 하면 된다.
+    private static final String MODEL = "qwen2.5:14b-instruct";
+    // Ollama가 OLLAMA_KEEP_ALIVE(5분) 동안 안 쓰이면 모델을 언로드한다 -
+    // VCA report 완료는 보통 그보다 뜸해서 거의 매번 콜드 로드를 새로 타는데,
+    // 실측(2026-08-17, RunPod RTX 4090, qwen2.5:14b-instruct)으로 로드
+    // ~15초 + 생성 시간까지 합쳐 45~46초가 걸렸다. 예전 30초 타임아웃은
+    // 이보다 짧아 거의 항상 중간에 끊겼다(ngrok을 통해 이상한
+    // application/octet-stream 응답으로 관측됨) - 여유를 두고 120초로 둔다.
+    // 이 호출은 run 완료 시점 폴링 흐름 안에서 백그라운드로 실행되므로
+    // (VcaService.syncRunWithAi), 길게 기다려도 사용자 요청을 막지 않는다.
+    private static final Duration TIMEOUT = Duration.ofSeconds(120);
 
     private static final Map<String, String> CONCEPT_FAMILY_LABELS = Map.ofEntries(
             Map.entry("crack", "균열"), Map.entry("deposit", "침전물"), Map.entry("corrosion", "부식"),
@@ -79,25 +91,27 @@ final class VcaOverallConditionGenerator {
             다른 설명이나 사고 과정 없이 요약 문단만 출력하세요.""";
 
     private final RestClient restClient;
-    private final String model;
     private final boolean enabled;
 
     VcaOverallConditionGenerator() {
-        this(System.getenv("OLLAMA_BASE_URL"), System.getenv("OLLAMA_MODEL"));
+        this(System.getenv("VCA_AI_BASE_URL"), Boolean.parseBoolean(System.getenv("VCA_AI_OLLAMA_ENABLED")));
     }
 
-    VcaOverallConditionGenerator(String baseUrl, String model) {
-        // OLLAMA_BASE_URL이 명시적으로 설정된 환경(런팟)에서만 시도한다 - 설정
-        // 안 된 로컬 개발/테스트에서까지 매번 연결 타임아웃을 기다리지 않도록.
-        this.enabled = baseUrl != null && !baseUrl.isBlank();
+    // Ollama는 vca-ai와 같은 RunPod 팟에서 vca-ai의 /ollama 프록시 경로로만
+    // 열려 있다(무료 ngrok이 고정 도메인을 하나만 줘서 별도 터널이 안 됨) -
+    // 그래서 vca-ai용으로 이미 있는 base-url을 그대로 재사용하고 별도
+    // OLLAMA_BASE_URL을 안 둔다. VCA_AI_OLLAMA_ENABLED만 명시적으로 켠
+    // 환경(런팟)에서만 시도한다 - 안 켠 로컬 개발/테스트에서까지 매번 연결
+    // 타임아웃을 기다리지 않도록.
+    VcaOverallConditionGenerator(String vcaAiBaseUrl, boolean ollamaEnabled) {
+        this.enabled = ollamaEnabled && vcaAiBaseUrl != null && !vcaAiBaseUrl.isBlank();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(10));
         requestFactory.setReadTimeout(TIMEOUT);
         this.restClient = RestClient.builder()
-                .baseUrl(enabled ? baseUrl : DEFAULT_BASE_URL)
+                .baseUrl(enabled ? vcaAiBaseUrl.replaceAll("/+$", "") + "/ollama" : PLACEHOLDER_BASE_URL)
                 .requestFactory(requestFactory)
                 .build();
-        this.model = model == null || model.isBlank() ? DEFAULT_MODEL : model;
     }
 
     // findings + 도자기 검사 결과로부터 overallCondition 한 문단을 생성한다.
@@ -212,7 +226,7 @@ final class VcaOverallConditionGenerator {
 
     private String callOllama(ObjectMapper mapper, String userPrompt) {
         ObjectNode payload = mapper.createObjectNode();
-        payload.put("model", model);
+        payload.put("model", MODEL);
         payload.put("stream", false);
         var messages = payload.putArray("messages");
         messages.addObject().put("role", "system").put("content", SYSTEM_PROMPT);
