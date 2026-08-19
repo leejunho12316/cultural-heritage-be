@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+import numpy as np
 from PIL import Image
 
 from modules import preprocessing
@@ -23,7 +24,12 @@ from modules.preprocessing.assets.materialization import (
     copy_raw_assets,
     write_detection_assets,
 )
+from modules.preprocessing.assets.mask_components import (
+    connected_mask_components,
+    foreground_mask_from_rgb,
+)
 from modules.preprocessing.contracts.records import (
+    DetectionBox,
     DetectionRun,
     ObjectAssetRecord,
     RealImageRecord,
@@ -103,6 +109,50 @@ def _is_help_request(arguments: Sequence[str]) -> bool:
     return any(argument in HELP_OPTIONS for argument in arguments)
 
 
+def _fallback_detection_from_foreground(
+    image_path: Path,
+    white_threshold: int,
+) -> tuple[DetectionBox, ...]:
+    """Build one last-resort artifact bbox from the dominant non-white region.
+
+    OWLv2 can return zero boxes for bright ceramics on a bright background. The
+    downstream rough-mask contract requires at least one object, so after both
+    detector passes fail we derive a conservative bbox from the largest
+    connected foreground component. If even that is empty, use the full frame;
+    component materialization has its own full-crop fallback for this final case.
+    """
+    with Image.open(image_path) as opened:
+        image = opened.convert("RGB")
+        rgb = np.asarray(image)
+        mask = foreground_mask_from_rgb(rgb, white_threshold)
+        min_area = max(256, int(image.width * image.height * 0.001))
+        components = connected_mask_components(mask, min_area)
+
+        if components:
+            component = max(components, key=lambda item: item.area_px)
+            x0, y0, x1, y1 = component.bbox_xyxy
+            pad_x = max(2, round((x1 - x0) * 0.03))
+            pad_y = max(2, round((y1 - y0) * 0.03))
+            x0 = max(0, x0 - pad_x)
+            y0 = max(0, y0 - pad_y)
+            x1 = min(image.width, x1 + pad_x)
+            y1 = min(image.height, y1 + pad_y)
+        else:
+            x0, y0, x1, y1 = 0, 0, image.width, image.height
+
+    return (
+        DetectionBox(
+            float(x0),
+            float(y0),
+            float(x1),
+            float(y1),
+            0.0,
+            "artifact foreground fallback",
+            "preprocessing-foreground-fallback-v1",
+        ),
+    )
+
+
 def run(arguments: Sequence[str], *, clock: Clock = datetime.now) -> int:
     """Run real preprocessing materialization for local smoke usage."""
     if _is_help_request(arguments):
@@ -137,6 +187,7 @@ def run(arguments: Sequence[str], *, clock: Clock = datetime.now) -> int:
     processor, model, predictor = load_runtime_models(model_entries, device)
     prompts = owlv2_prompts()
     object_records: list[ObjectAssetRecord] = []
+    detector_invocation_count = 0
     sam2_call_count = 0
     image_records: list[RealImageRecord] = []
     selected_images = (
@@ -180,12 +231,46 @@ def run(arguments: Sequence[str], *, clock: Clock = datetime.now) -> int:
             scale_result.detector_input_path,
             detection_run,
         )
+        detector_invocation_count += 1
         detections = merge_detection_candidates(
             raw_detections,
             detector_input_size,
             scale_result.scale_removal_bbox,
             options.detection_merge,
         )
+
+        # Bright ceramic/porcelain objects can miss the default 0.15 OWLv2
+        # threshold. Retry once at a lower threshold before falling back to
+        # deterministic foreground geometry. This keeps normal detections
+        # untouched and only activates when the merged candidate set is empty.
+        if not detections:
+            retry_threshold = max(0.05, options.score_threshold * 0.5)
+            if retry_threshold < options.score_threshold:
+                retry_run = DetectionRun(
+                    processor=processor,
+                    model=model,
+                    prompts=prompts,
+                    threshold=retry_threshold,
+                    max_detections=options.max_detections,
+                    detector_input_size=detector_size,
+                )
+                retry_raw = run_runtime_detection(
+                    scale_result.detector_input_path,
+                    retry_run,
+                )
+                detector_invocation_count += 1
+                detections = merge_detection_candidates(
+                    retry_raw,
+                    detector_input_size,
+                    scale_result.scale_removal_bbox,
+                    options.detection_merge,
+                )
+
+        if not detections:
+            detections = _fallback_detection_from_foreground(
+                scale_result.detector_input_path,
+                options.foreground_white_threshold,
+            )
         context = MaterializationContext(
             run_root=run_root,
             lane=lane,
@@ -213,7 +298,7 @@ def run(arguments: Sequence[str], *, clock: Clock = datetime.now) -> int:
         model_inventory=str(inventory_path(options)),
         device=device,
         detector_lane_status="real_executed",
-        model_invocations=len(selected_images),
+        model_invocations=detector_invocation_count,
         sam2_calls=sam2_call_count,
         manifest_id=manifest.manifest_id,
         processed_image_count=len(selected_images),

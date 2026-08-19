@@ -80,12 +80,21 @@ public class ArtifactWorkflowStatusService {
                 .filter(this::isVcaRun)
                 .toList();
         if (runs.isEmpty()) return "NOT_STARTED";
-        if (runs.stream().anyMatch(run -> "completed".equalsIgnoreCase(run.getStatus()))) return "DONE";
-        if (runs.stream().anyMatch(run -> {
-            String status = run.getStatus();
-            return status != null && !"failed".equalsIgnoreCase(status);
-        })) return "IN_PROGRESS";
-        return "FAILED";
+
+        // AI run은 FAILED 그대로 두되 사용자가 "결과 없이 완료"를 승인한 경우
+        // 최신 VCA run의 config_json 표식을 상위 워크플로우 완료로 인정한다.
+        // 과거 FAILED run의 표식 때문에 이후 새 분석이 자동 DONE 처리되지 않도록
+        // 반드시 최신 run만 확인한다.
+        AssessmentRun latestRun = runs.get(0);
+        if (latestRun.isWorkflowCompletedWithoutResult()) return "DONE";
+
+        String latestStatus = latestRun.getStatus();
+        if ("completed".equalsIgnoreCase(latestStatus)) return "DONE";
+        if ("queued".equalsIgnoreCase(latestStatus) || "running".equalsIgnoreCase(latestStatus)) {
+            return "IN_PROGRESS";
+        }
+        if ("failed".equalsIgnoreCase(latestStatus)) return "FAILED";
+        return "IN_PROGRESS";
     }
 
     private boolean isVcaRun(AssessmentRun run) {

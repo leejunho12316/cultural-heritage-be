@@ -282,3 +282,93 @@ def test_real_pipeline_keeps_scale_marker_overlapping_candidate_before_materiali
     assert materialized_detections == [
         (DetectionBox(0.0, 0.0, 100.0, 100.0, 0.8, "artifact", "prompt-a"),)
     ]
+
+
+def test_real_pipeline_retries_lower_threshold_then_uses_foreground_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: OWLv2 returns no object at either the default or relaxed threshold.
+    workspace = tmp_path / "workspace"
+    image = _write_image(workspace / "inputs" / "artifact.png")
+    run_root = workspace / "runs" / "fallback"
+    thresholds: list[float] = []
+    materialized_detections: list[tuple[DetectionBox, ...]] = []
+    monkeypatch.chdir(workspace)
+
+    def load_inventory(
+        options: RealPreprocessingOptions,
+    ) -> dict[str, ModelInventoryEntry]:
+        _ = options
+        return {}
+
+    def validate_cache(entries: dict[str, ModelInventoryEntry]) -> None:
+        _ = entries
+
+    def resolve_mps(device: preprocessing.Device) -> str:
+        _ = device
+        return "mps"
+
+    def load_models(
+        entries: dict[str, ModelInventoryEntry], device: str
+    ) -> tuple[FakeProcessor, FakeModel, FakePredictor]:
+        _ = entries, device
+        return FakeProcessor(), FakeModel(), FakePredictor()
+
+    def no_detections(
+        image_path: Path,
+        detection_run: DetectionRun[FakeProcessor, FakeModel],
+    ) -> tuple[DetectionBox, ...]:
+        _ = image_path
+        thresholds.append(detection_run.threshold)
+        return ()
+
+    def capture_materialization(
+        image_path: Path,
+        image_id: str,
+        detections: tuple[DetectionBox, ...],
+        predictor: FakePredictor,
+        context: MaterializationContext,
+    ) -> tuple[ObjectAssetRecord, ...]:
+        _ = image_path, image_id, predictor, context
+        materialized_detections.append(detections)
+        return ()
+
+    monkeypatch.setattr(
+        "modules.preprocessing.pipeline.resolve_runtime_device", resolve_mps
+    )
+    monkeypatch.setattr(
+        "modules.preprocessing.pipeline.load_model_inventory", load_inventory
+    )
+    monkeypatch.setattr(
+        "modules.preprocessing.pipeline.validate_model_cache", validate_cache
+    )
+    monkeypatch.setattr(
+        "modules.preprocessing.pipeline.load_runtime_models", load_models
+    )
+    monkeypatch.setattr(
+        "modules.preprocessing.pipeline.run_runtime_detection", no_detections
+    )
+    monkeypatch.setattr(
+        "modules.preprocessing.pipeline.write_detection_assets", capture_materialization
+    )
+
+    # When: real preprocessing runs with no detector candidate.
+    exit_code = run(
+        (
+            str(image.relative_to(workspace)),
+            "--run-root",
+            str(run_root.relative_to(workspace)),
+            "--device",
+            "mps",
+            "--detector-lane",
+            "owlv2_sam2",
+        )
+    )
+
+    # Then: it retries at 0.075 and still supplies a deterministic fallback bbox.
+    assert exit_code == preprocessing.ExitCode.OK
+    assert thresholds == [0.15, 0.075]
+    assert len(materialized_detections) == 1
+    assert len(materialized_detections[0]) == 1
+    assert materialized_detections[0][0].prompt_text == "artifact foreground fallback"

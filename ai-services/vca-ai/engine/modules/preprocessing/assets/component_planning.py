@@ -70,6 +70,24 @@ def component_plans(
         components = connected_mask_components(
             foreground_mask, MIN_FOREGROUND_COMPONENT_AREA_PX
         )
+
+        # Last-resort detector fallback can deliberately cover the full frame.
+        # Very bright/transparent objects may still yield an empty non-white mask;
+        # in that case preserve the detector crop itself as one object instead of
+        # emitting zero ObjectAssetRecords and failing rough_masking's contract.
+        if not components and detection_crop.width > 0 and detection_crop.height > 0:
+            full_mask = np.ones(
+                (detection_crop.height, detection_crop.width),
+                dtype=np.bool_,
+            )
+            components = (
+                MaskComponent(
+                    mask=full_mask,
+                    bbox_xyxy=(0, 0, detection_crop.width, detection_crop.height),
+                    area_px=detection_crop.width * detection_crop.height,
+                ),
+            )
+
         plans.extend(
             ComponentPlan(
                 component=component,

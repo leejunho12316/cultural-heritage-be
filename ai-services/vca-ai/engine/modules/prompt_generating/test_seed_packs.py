@@ -54,11 +54,17 @@ def test_object_detection_pack_matches_locked_values_without_rough_anchor() -> N
         (RagLane.OWLV2, "whole artifact"),
         (RagLane.OWLV2, "separate object on white background"),
         (RagLane.OWLV2, "metal artifact on white background"),
+        (RagLane.OWLV2, "ceramic artifact"),
+        (RagLane.OWLV2, "pottery vessel"),
+        (RagLane.OWLV2, "porcelain object"),
         (RagLane.GROUNDINGDINO, "artifact object"),
         (RagLane.GROUNDINGDINO, "individual artifact"),
         (RagLane.GROUNDINGDINO, "whole artifact"),
         (RagLane.GROUNDINGDINO, "separate object on white background"),
         (RagLane.GROUNDINGDINO, "metal artifact on white background"),
+        (RagLane.GROUNDINGDINO, "ceramic artifact"),
+        (RagLane.GROUNDINGDINO, "pottery vessel"),
+        (RagLane.GROUNDINGDINO, "porcelain object"),
     )
 
     # When: preprocessing reads the exported object-detection prompt records.

@@ -590,6 +590,66 @@ public class VcaService {
         }
     }
 
+    /**
+     * FAILED run의 입력 이미지를 과거 run 근거로는 남겨두되 다음 VCA run 입력 풀에서는 제외한다.
+     * 물리 삭제(S3/DB delete)는 하지 않고 status만 ARCHIVED로 바꾸므로
+     * assessment_run.uploaded_image_ids_json 참조와 과거 이력은 그대로 보존된다.
+     */
+    public synchronized ArtifactDetailResponse archiveFailedRunImages(
+            String artifactId,
+            String assessmentRunId
+    ) {
+        VcaArtifactEntity artifact = requireArtifact(artifactId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
+        if (!"FAILED".equalsIgnoreCase(run.getStatus())) {
+            throw new VcaApiException(
+                    HttpStatus.CONFLICT,
+                    "RUN_NOT_FAILED",
+                    "Only images from a failed VCA run can be replaced."
+            );
+        }
+
+        for (String imageId : run.getUploadedImageIds()) {
+            UploadedImage image = requireImage(artifact, UUID.fromString(imageId));
+            if ("UPLOADED".equals(image.getStatus())) {
+                image.setStatus("ARCHIVED");
+                imageStore.save(image);
+            }
+        }
+
+        artifact.setUpdatedAt(toEntityTimestamp(Instant.now()));
+        artifactStore.save(artifact);
+        log.info("VCA failed-run images archived for replacement artifactId={} assessmentRunId={}",
+                artifactId, assessmentRunId);
+        return toDetail(artifact, advanceDemoRuns(artifact));
+    }
+
+    /**
+     * AI 결과가 없는 FAILED run을 사용자가 명시적으로 승인해 상위 워크플로우만 완료 처리한다.
+     * run.status는 FAILED로 유지하고 config_json에 승인 사실만 기록한다.
+     */
+    public synchronized RunResponse completeFailedRunWithoutResult(
+            String artifactId,
+            String assessmentRunId
+    ) {
+        VcaArtifactEntity artifact = requireArtifact(artifactId);
+        AssessmentRun run = requireRun(artifact, assessmentRunId);
+        if (!"FAILED".equalsIgnoreCase(run.getStatus())) {
+            throw new VcaApiException(
+                    HttpStatus.CONFLICT,
+                    "RUN_NOT_FAILED",
+                    "Only a failed VCA run can be completed without a result."
+            );
+        }
+        run.markWorkflowCompletedWithoutResult();
+        runStore.save(run);
+        artifact.setUpdatedAt(toEntityTimestamp(Instant.now()));
+        artifactStore.save(artifact);
+        log.info("VCA failed run accepted without result artifactId={} assessmentRunId={}",
+                artifactId, assessmentRunId);
+        return toRun(artifact, run);
+    }
+
     public RunResponse createRun(String artifactId) {
         return createRun(artifactId, null);
     }
@@ -1038,7 +1098,8 @@ public class VcaService {
         String normalizedSha256 = validateSha256(sha256);
         UploadedImage image = imageStore.findByArtifactId(artifact.getId()).stream()
                 .filter(candidate -> normalizedSha256.equals(candidate.getContentSha256())
-                        && "UPLOADED".equals(candidate.getStatus()))
+                        && ("UPLOADED".equals(candidate.getStatus())
+                        || "ARCHIVED".equals(candidate.getStatus())))
                 .findFirst()
                 .orElseThrow(() -> new VcaApiException(
                         HttpStatus.NOT_FOUND,
@@ -1456,16 +1517,19 @@ public class VcaService {
             AssessmentRun run,
             VcaAiAssessmentReport aiReport
     ) {
-        List<ReportResponse.Image> reportImages = imageStore.findByArtifactId(artifact.getId()).stream()
-                .filter(image -> "UPLOADED".equals(image.getStatus()))
+        List<UploadedImage> runImages = run.getUploadedImageIds().stream()
+                .map(UUID::fromString)
+                .map(imageId -> requireImage(artifact, imageId))
                 .sorted(Comparator.comparingInt(UploadedImage::getDisplayOrder))
+                .toList();
+        List<ReportResponse.Image> reportImages = runImages.stream()
                 .map(image -> new ReportResponse.Image(
                         image.getId().toString(),
                         image.getFilename(),
                         fileGatewayUrl(artifact.getId().toString(), image.getContentSha256())
                 ))
                 .toList();
-        List<ReportResponse.Finding> findings = toFindings(artifact, aiReport.findings());
+        List<ReportResponse.Finding> findings = toFindings(runImages, aiReport.findings());
         ReportResponse.PotteryInspection pottery = findPotteryInspection(run.getId()).orElse(null);
         String overallCondition = new VcaOverallConditionGenerator().generate(findings, pottery);
         return new ReportResponse(
@@ -1784,14 +1848,14 @@ public class VcaService {
     }
 
     private List<ReportResponse.Finding> toFindings(
-            VcaArtifactEntity artifact,
+            List<UploadedImage> runImages,
             List<VcaAiAssessmentFinding> aiFindings
     ) {
         // vca-ai/vca_v2는 이미지를 content sha256으로만 안다(vca_artifacts.py의
         // engine image_id -> sha256 변환 참고) - FE는 다른 모든 VCA 엔드포인트
         // (이미지 삭제/완료 등)와 동일하게 Spring의 업로드 uuid만 봐야 하므로,
         // Spring 경계에서 sha256을 uuid로 다시 변환해준다.
-        Map<String, String> imageIdBySha256 = imageStore.findByArtifactId(artifact.getId()).stream()
+        Map<String, String> imageIdBySha256 = runImages.stream()
                 .filter(image -> image.getContentSha256() != null)
                 .collect(Collectors.toMap(
                         UploadedImage::getContentSha256,
