@@ -3,6 +3,7 @@ package com.aivle.conservation_backend.pottery_inspection_ai.controller;
 import com.aivle.conservation_backend.artifact.service.ArtifactAccessService;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.InspectionResultPotteryResponseDto;
 import com.aivle.conservation_backend.pottery_inspection_ai.dto.PotteryInspectionResponseDto;
+import com.aivle.conservation_backend.pottery_inspection_ai.service.PotteryInspectionJobService;
 import com.aivle.conservation_backend.vca.domain.AssessmentRun;
 import com.aivle.conservation_backend.vca.domain.InspectionResultPottery;
 import com.aivle.conservation_backend.vca.repository.AssessmentRunRepository;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -35,29 +35,26 @@ public class InspectionResultPotteryController {
     private final AssessmentRunRepository assessmentRunRepository;
     private final ArtifactAccessService artifactAccessService;
     private final InspectionResultPotteryRepository inspectionResultPotteryRepository;
+    private final PotteryInspectionJobService potteryInspectionJobService;
 
     @PostMapping
     @Transactional
     public ResponseEntity<InspectionResultPotteryResponseDto> save(
             @PathVariable UUID artifactId,
             @PathVariable UUID assessmentRunId,
-            @RequestBody PotteryInspectionResponseDto aiResult
+            @RequestBody(required = false) PotteryInspectionResponseDto ignoredAiResult
     ) {
-        AssessmentRun run = requireRun(artifactId, assessmentRunId);
+        // 레거시 저장 API도 FE가 보낸 결과를 직접 저장하지 않는다.
+        // 서버에 검토 대기 상태로 보관된 pendingResult만 최종 확정해
+        // 신규 /pottery-inspection/jobs/{id}/complete와 동일한 저장 규칙을 유지한다.
+        potteryInspectionJobService.completeJob(artifactId, assessmentRunId);
 
-        InspectionResultPottery saved = inspectionResultPotteryRepository.save(
-                InspectionResultPottery.builder()
-                        .id(UUID.randomUUID())
-                        .assessmentRunId(run.getId())
-                        .inspectionText(aiResult.inspectionText())
-                        .humanReviewRecommended(aiResult.humanReviewRecommended())
-                        .detail(aiResult.detail())
-                        .createdAt(Instant.now())
-                        .build()
-        );
-
-        run.setStatus("COMPLETED");
-        assessmentRunRepository.save(run);
+        InspectionResultPottery saved = inspectionResultPotteryRepository
+                .findByAssessmentRunId(assessmentRunId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "완료된 문양 기반 상태 조사 결과를 찾을 수 없습니다."
+                ));
 
         return ResponseEntity.ok(InspectionResultPotteryResponseDto.from(saved));
     }

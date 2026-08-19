@@ -41,6 +41,9 @@ public class PotteryInspectionJobService {
     private static final String STAGE_ERROR_STATUS = "errorStatus";
     private static final String STAGE_ERROR_DETAIL = "errorDetail";
     private static final String STAGE_LAST_POLL_ERROR = "lastPollError";
+    private static final String STATE_AI_STATUS = "aiStatus";
+    private static final String STATE_PENDING_RESULT = "pendingResult";
+    private static final String STATE_FINALIZED_AT = "finalizedAt";
 
     private final AssessmentRunRepository assessmentRunRepository;
     private final InspectionResultPotteryRepository inspectionResultPotteryRepository;
@@ -261,7 +264,7 @@ public class PotteryInspectionJobService {
                 run.updateProgress("AI_ANALYSIS", 50);
                 assessmentRunRepository.save(run);
             }
-            case "done" -> completeRun(run, aiJob.get("result"));
+            case "done" -> prepareReview(run, aiJob.get("result"));
             case "failed" -> {
                 Object detail = aiJob.get("detail");
                 run.markFailed("AI_ANALYSIS", detailText(detail, "AI 분석 실패"));
@@ -280,7 +283,86 @@ public class PotteryInspectionJobService {
         }
     }
 
-    private void completeRun(AssessmentRun run, Object rawResult) {
+    /**
+     * AI 분석 완료 결과를 최종 결과 테이블에 즉시 저장하지 않고 review_ready 상태로
+     * 보관한다. 사용자가 화면에서 결과를 확인한 뒤 completeJob()을 호출해야만
+     * InspectionResultPottery 생성과 AssessmentRun COMPLETED 전환이 일어난다.
+     */
+    private void prepareReview(AssessmentRun run, Object rawResult) {
+        PotteryInspectionResponseDto result = validateResult(rawResult);
+
+        Map<String, Object> state = copyPotteryJobState(run);
+        state.put(STATE_AI_STATUS, "done");
+        state.put(STATE_PENDING_RESULT, objectMapper.convertValue(result, Map.class));
+        state.remove(STAGE_ERROR_STATUS);
+        state.remove(STAGE_ERROR_DETAIL);
+        state.remove(STAGE_LAST_POLL_ERROR);
+
+        run.markReviewReady();
+        run.updatePotteryJobState(state);
+        assessmentRunRepository.save(run);
+    }
+
+    /**
+     * 사용자가 '문양 기반 상태 조사 완료'를 눌렀을 때 호출되는 최종 확정 처리.
+     * 결과 저장과 run 완료 전환을 하나의 Spring transaction 안에서 처리한다.
+     */
+    @Transactional
+    public PotteryInspectionJobResponseDto completeJob(UUID artifactId, UUID assessmentRunId) {
+        AssessmentRun run = assessmentRunRepository
+                .findByIdAndArtifactIdForUpdate(assessmentRunId, artifactId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "육안조사 작업을 찾을 수 없습니다: " + assessmentRunId
+                ));
+
+        if (!AssessmentRun.RUN_TYPE_POTTERY_PATTERN.equals(run.getRunType())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "문양 기반 상태 조사 run이 아닙니다."
+            );
+        }
+
+        InspectionResultPottery existing = inspectionResultPotteryRepository
+                .findByAssessmentRunId(run.getId())
+                .orElse(null);
+
+        // 네트워크 재시도 등으로 완료 API가 중복 호출돼도 안전하게 같은 결과를 반환한다.
+        if (existing != null && "completed".equalsIgnoreCase(run.getStatus())) {
+            return toResponse(run);
+        }
+
+        if (!"review_ready".equalsIgnoreCase(run.getStatus())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "AI 분석 결과가 최종 검토 대기 상태가 아닙니다."
+            );
+        }
+
+        PotteryInspectionResponseDto pending = pendingResult(run);
+        if (pending == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "최종 저장할 문양 기반 상태 조사 결과를 찾을 수 없습니다."
+            );
+        }
+
+        if (existing == null) {
+            inspectionResultPotteryRepository.save(toEntity(run, pending));
+        }
+
+        Map<String, Object> state = copyPotteryJobState(run);
+        state.remove(STATE_PENDING_RESULT);
+        state.put(STATE_AI_STATUS, "done");
+        state.put(STATE_FINALIZED_AT, java.time.Instant.now().toString());
+        run.updatePotteryJobState(state);
+        run.markCompleted();
+        assessmentRunRepository.save(run);
+
+        return toResponse(run);
+    }
+
+    private PotteryInspectionResponseDto validateResult(Object rawResult) {
         PotteryInspectionResponseDto result = objectMapper.convertValue(
                 rawResult,
                 PotteryInspectionResponseDto.class
@@ -288,38 +370,45 @@ public class PotteryInspectionJobService {
         if (result == null || result.inspectionText() == null || result.inspectionText().isBlank()) {
             throw new IllegalStateException("AI 완료 응답에 육안조사 결과가 없습니다.");
         }
+        return result;
+    }
 
-        boolean alreadySaved = inspectionResultPotteryRepository
-                .findByAssessmentRunId(run.getId())
-                .isPresent();
-
-        if (!alreadySaved) {
-            Map<String, Object> detail = new LinkedHashMap<>();
-            if (result.detail() != null) {
-                detail.putAll(result.detail());
-            }
-            if (result.moduleVersion() != null) {
-                detail.put("_module_version", result.moduleVersion());
-            }
-            if (result.summary() != null) {
-                detail.put("_summary", result.summary());
-            }
-
-            inspectionResultPotteryRepository.save(
-                  InspectionResultPottery.create(
-                        UUID.randomUUID(),
-                        // VCA v2 엔티티 구조에 맞춰 AssessmentRun 객체 대신 FK UUID만 전달한다.
-                        run.getId(),
-                        result.inspectionText(),
-                        result.humanReviewRecommended(),
-                        detail
-                )
-            );
+    private InspectionResultPottery toEntity(AssessmentRun run, PotteryInspectionResponseDto result) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        if (result.detail() != null) {
+            detail.putAll(result.detail());
+        }
+        if (result.moduleVersion() != null) {
+            detail.put("_module_version", result.moduleVersion());
+        }
+        if (result.summary() != null) {
+            detail.put("_summary", result.summary());
         }
 
-        run.markCompleted();
-        run.updatePotteryJobState(Map.of("aiStatus", "done"));
-        assessmentRunRepository.save(run);
+        return InspectionResultPottery.create(
+                UUID.randomUUID(),
+                run.getId(),
+                result.inspectionText(),
+                result.humanReviewRecommended(),
+                detail
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private PotteryInspectionResponseDto pendingResult(AssessmentRun run) {
+        Map<String, Object> state = run.getPotteryJobStateJson();
+        if (state == null) return null;
+        Object raw = state.get(STATE_PENDING_RESULT);
+        if (raw == null) return null;
+        return objectMapper.convertValue(raw, PotteryInspectionResponseDto.class);
+    }
+
+    private Map<String, Object> copyPotteryJobState(AssessmentRun run) {
+        Map<String, Object> state = new LinkedHashMap<>();
+        if (run.getPotteryJobStateJson() != null) {
+            state.putAll(run.getPotteryJobStateJson());
+        }
+        return state;
     }
 
     private PotteryInspectionJobResponseDto toResponse(AssessmentRun run) {
@@ -329,7 +418,9 @@ public class PotteryInspectionJobService {
             .findByAssessmentRunId(run.getId())
             .orElse(null);
 
-        PotteryInspectionResponseDto result = stored == null ? null : toAiResult(stored);
+        PotteryInspectionResponseDto result = stored == null
+                ? pendingResult(run)
+                : toAiResult(stored);
 
         Object errorDetail = null;
         Integer errorStatus = null;
@@ -395,6 +486,7 @@ public class PotteryInspectionJobService {
     private String externalStatus(AssessmentRun run) {
         return switch (run.getStatus()) {
             case "completed" -> "done";
+            case "review_ready" -> "review_ready";
             case "failed" -> "failed";
             case "queued" -> "queued";
             default -> "AI_QUEUED".equals(run.getCurrentStage()) ? "queued" : "processing";
