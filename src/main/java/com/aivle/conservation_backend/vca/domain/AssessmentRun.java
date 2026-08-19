@@ -259,6 +259,19 @@ public class AssessmentRun {
         this.progressPercent = progressPercent;
     }
 
+    /**
+     * 문양 기반 상태 조사 AI 분석은 끝났지만 사용자가 아직 최종 확인 버튼을
+     * 누르지 않은 상태다. 분석 결과는 pottery_job_state_json의 pendingResult에
+     * 임시 보관하고, 이 상태에서는 InspectionResultPottery를 만들지 않는다.
+     */
+    public void markReviewReady() {
+        this.status = "review_ready";
+        this.currentStage = "REVIEW_READY";
+        this.progressPercent = 100;
+        this.failureReason = null;
+        this.completedAt = null;
+    }
+
     public void markCompleted() {
         this.status = "completed";
         this.currentStage = "COMPLETED";

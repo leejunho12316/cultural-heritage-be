@@ -74,6 +74,19 @@ public class PotteryInspectionAiController {
         return ResponseEntity.ok(jobService.getLatestJob(artifactId));
     }
 
+    /**
+     * AI 분석 결과를 사용자가 최종 확인한 뒤 문양 기반 상태 조사를 완료한다.
+     * 이 시점에 InspectionResultPottery를 저장하고 AssessmentRun을 COMPLETED로 전환한다.
+     */
+    @PostMapping("/jobs/{assessmentRunId}/complete")
+    public ResponseEntity<PotteryInspectionJobResponseDto> completeJob(
+            @PathVariable UUID assessmentRunId,
+            @RequestParam("artifact_id") UUID artifactId
+    ) {
+        artifactAccessService.requireArtifact(artifactId);
+        return ResponseEntity.ok(jobService.completeJob(artifactId, assessmentRunId));
+    }
+
     /** 문양조사 보정 이미지를 S3에 영구 저장하고 해당 run 결과에 연결한다. */
     @PostMapping(path = "/jobs/{assessmentRunId}/annotated-photo", consumes = "multipart/form-data")
     public ResponseEntity<PotteryInspectionJobResponseDto> saveAnnotatedPhoto(
