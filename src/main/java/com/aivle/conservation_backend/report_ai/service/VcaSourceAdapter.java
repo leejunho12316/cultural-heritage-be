@@ -46,13 +46,25 @@ public class VcaSourceAdapter {
                         AssessmentRun.RUN_TYPE_VCA
                 );
 
-        for (AssessmentRun run : runs) {
-            Optional<AssessmentReport> report = assessmentReportRepository.findById(run.getId());
-            if (report.isPresent() && report.get().getReportJson() != null) {
-                return Optional.of(toMap(report.get().getReportJson()));
-            }
+        if (runs.isEmpty()) {
+            return Optional.empty();
         }
-        return Optional.empty();
+
+        // 최신 VCA run을 사용자가 "결과 없이 완료"로 확정했다면 과거 성공
+        // report를 대신 끌어오지 않는다. 이번 조사 결과는 의도적으로 없음이
+        // 맞으므로 최종보고서에도 VCA 섹션을 비워둔다.
+        AssessmentRun latestRun = runs.get(0);
+        if (latestRun.isWorkflowCompletedWithoutResult()) {
+            return Optional.empty();
+        }
+
+        // 최종보고서는 "가장 최근 VCA 실행"만 근거로 삼는다. 최신 run이
+        // 실패했는데 과거 성공 report를 자동 재사용하면 사용자가 방금 실패한
+        // 조사를 결과 없음으로 처리하려는 의도와 어긋날 수 있다.
+        return assessmentReportRepository.findById(latestRun.getId())
+                .map(AssessmentReport::getReportJson)
+                .filter(report -> report != null)
+                .map(this::toMap);
     }
 
     private Map<String, Object> toMap(ReportResponse report) {

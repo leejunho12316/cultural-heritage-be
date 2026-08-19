@@ -35,6 +35,9 @@ public class AssessmentRun {
 
     public static final String RUN_TYPE_VCA = "VCA";
     public static final String RUN_TYPE_POTTERY_PATTERN = "POTTERY_PATTERN";
+    public static final String CONFIG_WORKFLOW_COMPLETION = "workflowCompletion";
+    public static final String WORKFLOW_COMPLETION_WITHOUT_RESULT = "USER_ACCEPTED_WITHOUT_RESULT";
+    public static final String CONFIG_WORKFLOW_COMPLETED_AT = "workflowCompletedAt";
 
     @Id
     @Column(name = "id")
@@ -192,6 +195,27 @@ public class AssessmentRun {
         }
 
         this.configJson.putAll(values);
+    }
+
+    /**
+     * AI run 자체는 FAILED로 유지하면서 사용자가 "결과 없이 완료"를 명시적으로
+     * 승인했음을 config_json에 기록한다. 별도 DB 컬럼을 추가하지 않고도 상위
+     * artifact workflow와 최종보고서 소스 선택에서 이 상태를 구분할 수 있다.
+     */
+    public void markWorkflowCompletedWithoutResult() {
+        mergeConfig(Map.of(
+                CONFIG_WORKFLOW_COMPLETION, WORKFLOW_COMPLETION_WITHOUT_RESULT,
+                CONFIG_WORKFLOW_COMPLETED_AT, Instant.now().toString()
+        ));
+    }
+
+    public boolean isWorkflowCompletedWithoutResult() {
+        if (configJson == null) {
+            return false;
+        }
+        return WORKFLOW_COMPLETION_WITHOUT_RESULT.equals(
+                configJson.get(CONFIG_WORKFLOW_COMPLETION)
+        );
     }
 
     public void setInputSnapshot(

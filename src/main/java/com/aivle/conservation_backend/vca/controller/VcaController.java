@@ -190,6 +190,26 @@ public class VcaController {
         return vcaService.cancelRun(artifactId, assessmentRunId);
     }
 
+    // FAILED run의 기존 입력 이미지는 과거 이력으로 보존하되 다음 run 입력에서는 제외한다.
+    // FE의 "사진 다시 선택"이 호출하며, 실제 S3/DB row 삭제는 하지 않는다.
+    @PostMapping("/{artifactId}/runs/{assessmentRunId}/archive-images")
+    public ArtifactDetailResponse archiveFailedRunImages(
+            @PathVariable String artifactId,
+            @PathVariable String assessmentRunId
+    ) {
+        return vcaService.archiveFailedRunImages(artifactId, assessmentRunId);
+    }
+
+    // AI 분석은 FAILED로 남기고, 사용자가 결과 없이 육안 상태 조사 단계를
+    // 완료하겠다고 명시적으로 승인한 사실만 저장한다.
+    @PostMapping("/{artifactId}/runs/{assessmentRunId}/complete-without-result")
+    public RunResponse completeFailedRunWithoutResult(
+            @PathVariable String artifactId,
+            @PathVariable String assessmentRunId
+    ) {
+        return vcaService.completeFailedRunWithoutResult(artifactId, assessmentRunId);
+    }
+
     // 리포트 PDF 생성 job을 등록. object storage(S3/MinIO)가 설정된 실제 환경에서는
     // PDFBox로 진짜 PDF를 동기 렌더링해 즉시 COMPLETED로 반환한다. object storage가
     // 없는 데모 모드만 예전처럼 QUEUED로 남기는 스텁 동작을 유지한다 - getPdfJob 참고.

@@ -80,11 +80,17 @@ static_object_detection_pack: Final = PromptPack(
         _object_record(RagLane.OWLV2, "whole artifact", 3),
         _object_record(RagLane.OWLV2, "separate object on white background", 4),
         _object_record(RagLane.OWLV2, "metal artifact on white background", 5),
+        _object_record(RagLane.OWLV2, "ceramic artifact", 6),
+        _object_record(RagLane.OWLV2, "pottery vessel", 7),
+        _object_record(RagLane.OWLV2, "porcelain object", 8),
         _object_record(RagLane.GROUNDINGDINO, "artifact object", 1),
         _object_record(RagLane.GROUNDINGDINO, "individual artifact", 2),
         _object_record(RagLane.GROUNDINGDINO, "whole artifact", 3),
         _object_record(RagLane.GROUNDINGDINO, "separate object on white background", 4),
         _object_record(RagLane.GROUNDINGDINO, "metal artifact on white background", 5),
+        _object_record(RagLane.GROUNDINGDINO, "ceramic artifact", 6),
+        _object_record(RagLane.GROUNDINGDINO, "pottery vessel", 7),
+        _object_record(RagLane.GROUNDINGDINO, "porcelain object", 8),
     ),
 )
 
