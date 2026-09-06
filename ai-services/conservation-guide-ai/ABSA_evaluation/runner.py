@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import traceback
 from pathlib import Path
 
@@ -159,10 +160,12 @@ def main() -> None:
 
     for after_path in after_images:
         stem = after_path.stem.removesuffix("_after_generated")
-        before_path = _find_before_image(stem, originals_dir)
+        # {original_stem}_v00 형식일 경우 _v## 접미사를 제거해 원본 이미지 탐색
+        base_stem = re.sub(r"_v\d+$", "", stem)
+        before_path = _find_before_image(base_stem, originals_dir)
 
         if before_path is None:
-            print(f"[runner] 경고: before 이미지를 찾을 수 없음 — {stem}, 스킵")
+            print(f"[runner] 경고: before 이미지를 찾을 수 없음 — {base_stem}, 스킵")
             continue
 
         gt_path = dataset_dir / f"{stem}_ground_truth.json"

@@ -2,7 +2,8 @@
 cd C:/Users/Hane/IdeaProjects/cultural-heritage-be/ai-services/conservation-guide-ai
 
 ### 1. 테스트 데이터 생성 (eval_original_photos → eval_test_photos)
-python -m ABSA_evaluation.generate_dataset --count 10
+X) python -m ABSA_evaluation.generate_dataset --count 10
+python -m ABSA_evaluation.generate_dataset --variants-per-image 10
 
 ### 2. 평가 실행 (K=5, gpt-5.5, temperature=0.7)
 python -m ABSA_evaluation.runner --k 5
@@ -29,15 +30,15 @@ python -m ABSA_evaluation.metrics
 
 =================================================================
 Reinforcement Wetting — VLM Consistency & Accuracy Report
-Results: C:\Users\Hane\IdeaProjects\cultural-heritage-be\ai-services\conservation-guide-ai\ABSA_evaluation\results   Pairs: 30
+Results: C:\Users\Hane\IdeaProjects\cultural-heritage-be\ai-services\conservation-guide-ai\ABSA_evaluation\results   Pairs: 330
 =================================================================
 
 --- Severity 값 평가 ---
 
-Metric                                 Baseline     ABSA (9-aspect mean)
+Metric                                 Baseline              ABSA (9-aspect mean)
 -----------------------------------------------------------------
-일관도 (Consistency)                         86.7%                     79.3%   -7.3pp
-Ground Truth (정답) 기반 정확도 (n=30)           49.3%                 31.9%   -17.4pp
+일관도 (Consistency)                         86.2%                     80.8%   -5.4pp
+Ground Truth (정답) 기반 정확도 (n=330)          41.2%                 29.0%   -12.2pp
 
 --- description 텍스트 품질 (LLM Judge, 1~5점) ---
 
