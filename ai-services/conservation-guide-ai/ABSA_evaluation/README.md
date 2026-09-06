@@ -24,7 +24,7 @@ python -m ABSA_evaluation.metrics
 기존에는 자유로운 description + 심각도 출력.
 하지만 이러면 사용자에게 일관된 답변 제공이 불가능. 그래서 ABSA 방식을 응용해서 9개의 속성을 4개의 단계로 추출하게 함.
 추출 속성이 많아질수록 답변 일관성이 낮아지는 문제 발생. 하지만 기존 방식은 하나의 칼럼을 4단계 중에서 맞추면 되니 높은거라 허수라고 판단.
-또한 description 텍스트 품질 LLM-as-a-Judge 평가를 진행했을 때 ABSA 방식이 기존 방식과 비교해 정보의 다양성 면에서 점수가 17% 높아짐.
+또한 description 텍스트 품질 LLM-as-a-Judge 평가를 진행했을 때 ABSA 방식이 기존 방식과 비교해 정보의 다양성 면에서 점수가 17.2% 높아짐.
 
 
 =================================================================
@@ -34,7 +34,7 @@ Results: C:\Users\Hane\IdeaProjects\cultural-heritage-be\ai-services\conservatio
 
 --- Severity 값 평가 ---
 
-Metric                                 Baseline ABSA (9-aspect mean)
+Metric                                 Baseline     ABSA (9-aspect mean)
 -----------------------------------------------------------------
 일관도 (Consistency)                         86.7%                     79.3%   -7.3pp
 Ground Truth (정답) 기반 정확도 (n=30)           49.3%                 31.9%   -17.4pp
