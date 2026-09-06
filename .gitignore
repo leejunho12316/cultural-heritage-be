@@ -122,6 +122,9 @@ ai-services/conservation-guide-ai/app/reinforcement_wetting_data/generated/*
 ai-services/conservation-guide-ai/app/bonding_rag/documents/*
 ai-services/conservation-guide-ai/app/restoration_rag/documents/*
 
+ai-services/conservation-guide-ai/ABSA_evaluation/eval_examples/*
+ai-services/conservation-guide-ai/ABSA_evaluation/eval_original_photos/*
+
 
 # ============================================================
 # xray-ai
