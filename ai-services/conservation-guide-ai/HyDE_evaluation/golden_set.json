@@ -1,0 +1,242 @@
+[
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "재질이 약화된 유물(손으로 만졌을 때 분말화·부스러짐)"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "자일렌"
+    },
+    "source_evidence": [
+      {
+        "source": "보존처리 지침서.pdf",
+        "page": 44,
+        "excerpt": "고체상태로 자일렌이나 아세톤에 용해"
+      }
+    ]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "재질이 약화된 유물(손으로 만졌을 때 분말화·부스러짐)"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "아세톤"
+    },
+    "source_evidence": [
+      {
+        "source": "보존처리 지침서.pdf",
+        "page": 44,
+        "excerpt": "고체상태로 자일렌이나 아세톤에 용해"
+      }
+    ]
+  },
+  {
+    "id": "토기_01",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "재질이 매우 약한 상태"
+    },
+    "golden": {
+      "agent": "수용성 Emulsion",
+      "solvent": "물"
+    },
+    "source_evidence": [
+      {
+        "source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf",
+        "page": 5,
+        "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"
+      },
+      {
+        "source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf",
+        "page": 5,
+        "excerpt": "Caparol® Binder 7%(in distilled water) 도포"
+      }
+    ]
+  },
+  {
+    "id": "토기_02",
+    "relic_info": {
+      "material": "토기"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "아세톤"
+    },
+    "source_evidence": [
+      {
+        "source": "문화재 보존처리의 접착제 보존복원 (2016).pdf",
+        "page": 72,
+        "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"
+      },
+      {
+        "source": "보존과복원의세계.pdf",
+        "page": 56,
+        "excerpt": "Paraloid B-44 20%(In acetone) 용액"
+      },
+      {
+        "source": "보존과복원의세계.pdf",
+        "page": 56,
+        "excerpt": "기포가 생기지 않도록 아세톤"
+      }
+    ]
+  },
+  {
+    "id": "토기_03",
+    "relic_info": {
+      "material": "토기"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "톨루엔"
+    },
+    "source_evidence": [
+      {
+        "source": "문화재 보존처리의 접착제 보존복원 (2016).pdf",
+        "page": 72,
+        "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"
+      }
+    ]
+  },
+  {
+    "id": "토기_04",
+    "relic_info": {
+      "material": "토기"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "자일렌"
+    },
+    "source_evidence": [
+      {
+        "source": "문화재 보존처리의 접착제 보존복원 (2016).pdf",
+        "page": 72,
+        "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"
+      }
+    ]
+  },
+  {
+    "id": "목재_01",
+    "relic_info": {
+      "material": "목재"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "아세톤"
+    },
+    "source_evidence": [
+      {
+        "source": "보존과학입문.pdf",
+        "page": 51,
+        "excerpt": "Paraloid B-72(in Acetone)"
+      }
+    ]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "톨루엔"
+    },
+    "source_evidence": [
+      {
+        "source": "문화재 보존처리 접착제.pdf",
+        "page": 133,
+        "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."
+      }
+    ]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "자일렌"
+    },
+    "source_evidence": [
+      {
+        "source": "문화재 보존처리 접착제.pdf",
+        "page": 133,
+        "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."
+      }
+    ]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "아세톤"
+    },
+    "source_evidence": [
+      {
+        "source": "문화재 보존처리 접착제.pdf",
+        "page": 133,
+        "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."
+      }
+    ]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "MEK"
+    },
+    "source_evidence": [
+      {
+        "source": "문화재 보존처리 접착제.pdf",
+        "page": 133,
+        "excerpt": "제거방법... 메틸에틸케톤 등 희석"
+      }
+    ]
+  },
+  {
+    "id": "도자기_01",
+    "relic_info": {
+      "material": "도자기"
+    },
+    "golden": {
+      "agent": "Paraloid B72",
+      "solvent": "아세톤"
+    },
+    "source_evidence": [
+      {
+        "source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf",
+        "page": 12,
+        "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"
+      }
+    ]
+  },
+  {
+    "id": "금속(철제)_01",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "Cl- 농도가 높을 경우 탈염 4회, 탈알칼리 4회를 실시"
+    },
+    "golden": {
+      "agent": "수용성 Emulsion",
+      "solvent": "물"
+    },
+    "source_evidence": [
+      {
+        "source": "보존처리 지침서.pdf",
+        "page": 21,
+        "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"
+      }
+    ]
+  }
+]
