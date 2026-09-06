@@ -80,6 +80,7 @@ def random_target_severities(seed: int | None = None) -> dict:
 
 def generate_after_photo(
     new_before_path: Path,
+    variant_id: str = "",
     target_severities: dict | None = None,
     seed: int | None = None,
 ) -> tuple[Path, Path]:
@@ -126,8 +127,9 @@ def generate_after_photo(
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     stem = new_before_path.stem
-    image_out_path = OUTPUT_DIR / f"{stem}_after_generated.png"
-    json_out_path  = OUTPUT_DIR / f"{stem}_ground_truth.json"
+    suffix = f"_{variant_id}" if variant_id else ""
+    image_out_path = OUTPUT_DIR / f"{stem}{suffix}_after_generated.png"
+    json_out_path  = OUTPUT_DIR / f"{stem}{suffix}_ground_truth.json"
 
     image_out_path.write_bytes(image_bytes)
     json_out_path.write_text(
@@ -145,8 +147,12 @@ if __name__ == "__main__":
         description="eval_original_photos/ → eval_test_photos/ 이미지 쌍 생성"
     )
     parser.add_argument(
-        "--count", type=int, default=10,
-        help="생성할 이미지 쌍 수 (기본값: 10)"
+        "--count", type=int, default=None,
+        help="처리할 원본 이미지 수 (기본값: 전체)"
+    )
+    parser.add_argument(
+        "--variants-per-image", type=int, default=1,
+        help="원본 이미지 1장당 생성할 테스트 이미지 수 (기본값: 1)"
     )
     parser.add_argument(
         "--force", action="store_true",
@@ -164,19 +170,28 @@ if __name__ == "__main__":
         print(f"[generate_dataset] eval_original_photos/ 에 이미지가 없습니다: {ORIGINALS_DIR}")
         raise SystemExit(1)
 
-    selected = candidates[:args.count]
-    print(f"[generate_dataset] {len(selected)}개 이미지 처리 시작 (전체 {len(candidates)}개 중)")
+    selected = candidates[:args.count] if args.count else candidates
+    variants = args.variants_per_image
+    total = len(selected) * variants
+    print(f"[generate_dataset] 원본 {len(selected)}장 × {variants}변형 = 총 {total}쌍 생성 시작")
 
+    done = 0
     for i, before_path in enumerate(selected):
         stem = before_path.stem
-        out_img  = OUTPUT_DIR / f"{stem}_after_generated.png"
-        out_json = OUTPUT_DIR / f"{stem}_ground_truth.json"
+        for v in range(variants):
+            variant_id = f"v{v:02d}" if variants > 1 else ""
+            suffix = f"_{variant_id}" if variant_id else ""
+            out_img  = OUTPUT_DIR / f"{stem}{suffix}_after_generated.png"
+            out_json = OUTPUT_DIR / f"{stem}{suffix}_ground_truth.json"
 
-        if not args.force and out_img.exists() and out_json.exists():
-            print(f"[generate_dataset] 스킵 (이미 존재): {stem}")
-            continue
+            if not args.force and out_img.exists() and out_json.exists():
+                print(f"[generate_dataset] 스킵 (이미 존재): {stem}{suffix}")
+                done += 1
+                continue
 
-        print(f"[generate_dataset] [{i + 1}/{len(selected)}] {before_path.name} 처리 중...")
-        generate_after_photo(new_before_path=before_path, seed=i)
+            seed = i * variants + v
+            print(f"[generate_dataset] [{done + 1}/{total}] {before_path.name} (변형 {v}) 처리 중...")
+            generate_after_photo(new_before_path=before_path, variant_id=variant_id, seed=seed)
+            done += 1
 
     print("[generate_dataset] 완료!")

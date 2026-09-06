@@ -122,9 +122,15 @@ ai-services/conservation-guide-ai/app/reinforcement_wetting_data/generated/*
 ai-services/conservation-guide-ai/app/bonding_rag/documents/*
 ai-services/conservation-guide-ai/app/restoration_rag/documents/*
 
+# ============================================================
+# 테스트 관련 데이터 (너무 커서 업로드 안함)
+# ============================================================
+
 ai-services/conservation-guide-ai/ABSA_evaluation/eval_examples/*
 ai-services/conservation-guide-ai/ABSA_evaluation/eval_original_photos/*
+ai-services/conservation-guide-ai/ABSA_evaluation/eval_test_photos/*
 
+ai-services/conservation-guide-ai/HyDE_evaluation/eval_original_pdfs/*
 
 # ============================================================
 # xray-ai
