@@ -13,11 +13,11 @@ COLLECTION_NAME = "hyde_eval_docs"
 
 EVAL_LLM_MODEL: str = "gpt-5.4-nano"
 EVAL_JUDGE_MODEL: str = "gpt-5.4-nano"
-EVAL_TEMPERATURE: float = 0.7
+EVAL_TEMPERATURE: float = 0.0
 EVAL_EMBED_MODEL: str = "text-embedding-3-small"
 CHUNK_SIZE: int = 800
 CHUNK_OVERLAP: int = 100
-DEFAULT_K: int = 5
+DEFAULT_K: int = 1
 DEFAULT_RETRIEVAL_K: int = 4
 
 # 강화제별 허용 용매 — 용매 정확도 판정 시 exact match 대신 이 목록으로 판단

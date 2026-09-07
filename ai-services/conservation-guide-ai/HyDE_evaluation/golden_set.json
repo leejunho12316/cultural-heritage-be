@@ -5,17 +5,89 @@
       "material": "토기, 도자기문화재(연질 토기/강화처리)",
       "current_status": "재질이 약화된 유물(손으로 만졌을 때 분말화·부스러짐)"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "자일렌"
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm01",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "표면을 가볍게 접촉하면 분말 형태로 탈락하는 극도로 취약한 상태"
     },
-    "source_evidence": [
-      {
-        "source": "보존처리 지침서.pdf",
-        "page": 44,
-        "excerpt": "고체상태로 자일렌이나 아세톤에 용해"
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm02",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "유물 전체의 소재 강도가 저하되어 약한 자극에도 분해 현상이 일어나는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm03",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "토체가 분말화되어 형태를 유지하기 어려운 심각한 재질 약화 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm04",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "손가락으로 눌렀을 때 쉽게 부스러지는 구조적 열화가 심각한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm05",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "재질 내부 결합력이 소실되어 쉽게 분해되는 취약한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm06",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "전면에 걸쳐 분말화가 진행 중이며 즉각적인 강화처리가 요구되는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm07",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "접촉 즉시 분말이 떨어질 정도로 재질 강도가 현저히 저하된 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm08",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "출토 후 건조되면서 결합 조직이 파괴되어 부스러지기 쉬운 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_01_llm09",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "극도로 약화된 재질로 인해 일상적인 취급조차 손상을 유발할 수 있는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
   },
   {
     "id": "토기, 도자기문화재(연질 토기/강화처리)_02",
@@ -23,17 +95,89 @@
       "material": "토기, 도자기문화재(연질 토기/강화처리)",
       "current_status": "재질이 약화된 유물(손으로 만졌을 때 분말화·부스러짐)"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "아세톤"
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm01",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "유물의 강도가 전반적으로 극히 낮아 가벼운 접촉에도 형태가 훼손되는 상태"
     },
-    "source_evidence": [
-      {
-        "source": "보존처리 지침서.pdf",
-        "page": 44,
-        "excerpt": "고체상태로 자일렌이나 아세톤에 용해"
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm02",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "재질 전체가 약화되어 취급 시 표면이 쉽게 탈락하는 불안정한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm03",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "재질 열화가 내부 깊이 진행되어 강화제 주입이 시급한 위급 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm04",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "경미한 진동에도 표면 입자가 탈락하는 매우 취약한 보존 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm05",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "형태는 유지되나 재질 강도가 거의 없어 손으로 만지면 쉽게 분해되는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm06",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "토체의 소성 결합이 분해되어 분말처럼 흐트러지기 쉬운 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm07",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "재질 구조가 파괴되어 전체 유물이 붕괴 직전의 위급한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm08",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "출토 환경의 화학적 영향으로 재질 분해가 심하게 진행된 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
+  },
+  {
+    "id": "토기, 도자기문화재(연질 토기/강화처리)_02_llm09",
+    "relic_info": {
+      "material": "토기, 도자기문화재(연질 토기/강화처리)",
+      "current_status": "유물 바닥부 및 측면 전체에서 분말화 현상이 동시에 진행 중인 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 44, "excerpt": "고체상태로 자일렌이나 아세톤에 용해"}]
   },
   {
     "id": "토기_01",
@@ -41,185 +185,942 @@
       "material": "토기",
       "current_status": "재질이 매우 약한 상태"
     },
-    "golden": {
-      "agent": "수용성 Emulsion",
-      "solvent": "물"
-    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
     "source_evidence": [
-      {
-        "source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf",
-        "page": 5,
-        "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"
-      },
-      {
-        "source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf",
-        "page": 5,
-        "excerpt": "Caparol® Binder 7%(in distilled water) 도포"
-      }
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm01",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "토체 전체의 강도가 지나치게 저하되어 자립조차 어려운 취약 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm02",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "출토 직후부터 건조와 함께 강도가 빠르게 약화되어 응급처리가 필요한 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm03",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "매장 중 수분 영향으로 소성 결합이 대부분 분해된 극도로 취약한 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm04",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "표면 전체에 걸쳐 강도가 거의 없어 가볍게 눌러도 변형되는 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm05",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "소성도가 매우 낮아 유물 자체의 구조적 강도가 원래부터 취약한 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm06",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "표면이 푸석하여 가벼운 접촉에도 입자가 탈락하는 불안정한 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm07",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "장기간 습윤 환경에 노출되어 재질 결합력이 상실된 매우 연약한 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm08",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "내부 공동화가 진행되어 외부 충격에 버티지 못하는 취약한 구조 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
+    ]
+  },
+  {
+    "id": "토기_01_llm09",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "건조와 습윤이 반복되면서 내부 응집력이 대부분 소실된 약화 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "침투성 및 색상 변화율이 적은 수용성 Emulsion"},
+      {"source": "화성 향남 요리 출토 심발형 토기 수습과 보존처리.pdf", "page": 5, "excerpt": "Caparol® Binder 7%(in distilled water) 도포"}
     ]
   },
   {
     "id": "토기_02",
-    "relic_info": {
-      "material": "토기"
-    },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "아세톤"
-    },
+    "relic_info": {"material": "토기"},
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
     "source_evidence": [
-      {
-        "source": "문화재 보존처리의 접착제 보존복원 (2016).pdf",
-        "page": 72,
-        "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"
-      },
-      {
-        "source": "보존과복원의세계.pdf",
-        "page": 56,
-        "excerpt": "Paraloid B-44 20%(In acetone) 용액"
-      },
-      {
-        "source": "보존과복원의세계.pdf",
-        "page": 56,
-        "excerpt": "기포가 생기지 않도록 아세톤"
-      }
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm01",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "표면 박락이 여러 곳에서 진행되어 강화처리가 시급한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm02",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "균열이 다수 발생하고 일부 파편이 이탈되어 원형 보존이 위험한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm03",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "표면 오염과 함께 구조적 강도 저하가 동반된 복합 손상 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm04",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "수분 흡수와 건조 반복으로 표면 균열 및 박락이 발생한 불안정 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm05",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "내부 공동화가 진행되어 외부 충격에 취약한 구조적 불안정 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm06",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "매장 환경의 토압으로 인해 변형 및 균열이 발생한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm07",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "소성 결함으로 인해 재질 전반의 강도가 낮아 강화가 필요한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm08",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "출토 후 건조 수축으로 미세 균열이 다수 발생한 불안정한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
+    ]
+  },
+  {
+    "id": "토기_02_llm09",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "표면 염류 결정화로 박락이 진행 중인 위험한 보존 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [
+      {"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "Paraloid B-44 20%(In acetone) 용액"},
+      {"source": "보존과복원의세계.pdf", "page": 56, "excerpt": "기포가 생기지 않도록 아세톤"}
     ]
   },
   {
     "id": "토기_03",
+    "relic_info": {"material": "토기"},
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm01",
     "relic_info": {
-      "material": "토기"
+      "material": "토기",
+      "current_status": "표면 미세 균열이 그물망처럼 발달하여 강화제 침투가 필요한 상태"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "톨루엔"
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm02",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "단면에서 층간 분리가 일어나 구조 안정화가 시급한 상태"
     },
-    "source_evidence": [
-      {
-        "source": "문화재 보존처리의 접착제 보존복원 (2016).pdf",
-        "page": 72,
-        "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm03",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "다수의 파편으로 분리되어 접합 전 선행 강화가 필요한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm04",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "유물 저부가 심하게 약화되어 자립이 어려운 구조적 불안정 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm05",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "표면에 토양 성분이 깊이 침투하여 재질 강도를 저하시킨 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm06",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "기벽 전면에 걸쳐 세로 방향 균열이 발달하여 위험한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm07",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "표면 도포층이 박리되어 본체 재질이 노출된 취약한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm08",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "출토 환경의 산성 토양으로 재질이 부식되어 취약화된 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_03_llm09",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "전반적인 재질 열화로 이동 중 추가 손상 위험이 높은 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
   },
   {
     "id": "토기_04",
+    "relic_info": {"material": "토기"},
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm01",
     "relic_info": {
-      "material": "토기"
+      "material": "토기",
+      "current_status": "표면 강도가 낮아 이동 및 포장 중 손상 위험이 높은 취약한 상태"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "자일렌"
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm02",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "취약한 부위가 산재하여 선별적 강화처리가 필요한 상태"
     },
-    "source_evidence": [
-      {
-        "source": "문화재 보존처리의 접착제 보존복원 (2016).pdf",
-        "page": 72,
-        "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm03",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "표면 이물질 제거 시 재질도 함께 손상될 우려가 있는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm04",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "내부 균열로 응력이 집중되어 추가 파괴 위험이 있는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm05",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "기벽이 얇고 균열이 많아 강화 없이는 형태 유지가 불가능한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm06",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "전면에 부분적 결손이 있으며 잔존 부위도 강도가 낮은 위험한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm07",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "수세기의 토압으로 전체적으로 압축 변형되어 불안정한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm08",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "출토 직후 수분 증발로 표면 수축 균열이 발생한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
+  },
+  {
+    "id": "토기_04_llm09",
+    "relic_info": {
+      "material": "토기",
+      "current_status": "토층 내 화학 성분의 영향으로 재질 열화가 진행된 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리의 접착제 보존복원 (2016).pdf", "page": 72, "excerpt": "아세톤, 톨루엔, 자일렌 등에 잘 용해"}]
   },
   {
     "id": "목재_01",
+    "relic_info": {"material": "목재"},
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm01",
     "relic_info": {
-      "material": "목재"
+      "material": "목재",
+      "current_status": "건조에 따른 균열이 발생하여 긴급한 강화처리가 필요한 상태"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "아세톤"
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm02",
+    "relic_info": {
+      "material": "목재",
+      "current_status": "수분 증발로 인한 수축 변형과 표면 박락이 동시에 진행 중인 상태"
     },
-    "source_evidence": [
-      {
-        "source": "보존과학입문.pdf",
-        "page": 51,
-        "excerpt": "Paraloid B-72(in Acetone)"
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm03",
+    "relic_info": {
+      "material": "목재",
+      "current_status": "내부 공동화로 외부 충격에 매우 취약한 구조적 불안정 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm04",
+    "relic_info": {
+      "material": "목재",
+      "current_status": "매장 중 수분 포화 상태에서 출토 후 급격한 건조가 진행 중인 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm05",
+    "relic_info": {
+      "material": "목재",
+      "current_status": "표면 섬유 분리와 도장층 박락이 동시에 발생하고 있는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm06",
+    "relic_info": {
+      "material": "목재",
+      "current_status": "충해로 인한 내부 손상과 함께 외관 열화가 진행된 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm07",
+    "relic_info": {
+      "material": "목재",
+      "current_status": "목재 결 방향으로 균열이 연장되어 구조 불안정이 우려되는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm08",
+    "relic_info": {
+      "material": "목재",
+      "current_status": "목재 섬유 조직이 약화되어 약한 압력에도 쉽게 변형되는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
+  },
+  {
+    "id": "목재_01_llm09",
+    "relic_info": {
+      "material": "목재",
+      "current_status": "장기 매장으로 리그닌이 분해되어 재질 강도가 크게 저하된 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "보존과학입문.pdf", "page": 51, "excerpt": "Paraloid B-72(in Acetone)"}]
   },
   {
     "id": "금속 및 토기, 골각, 목재_01",
+    "relic_info": {"material": "금속 및 토기, 골각, 목재"},
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm01",
     "relic_info": {
-      "material": "금속 및 토기, 골각, 목재"
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "금속 부위 부식과 토기 취약부가 복합적으로 나타나는 상태"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "톨루엔"
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm02",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "이종 재질 복합 유물로 각 재질별 강화 방법이 다르게 적용 필요한 상태"
     },
-    "source_evidence": [
-      {
-        "source": "문화재 보존처리 접착제.pdf",
-        "page": 133,
-        "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm03",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "금속 부식 산물이 인접한 유기물 재질에 영향을 미치는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm04",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "전체적으로 강도가 저하되고 특히 이종 재질 접합부가 취약한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm05",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "복합 재질 간 열팽창 계수 차이로 계면 분리가 진행 중인 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm06",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "금속 녹이 목재 및 골각 부위까지 번져 오염이 심각한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm07",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "각 재질이 파편화되어 형태 복원 전 강화 선행이 필요한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm08",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "토기 부위의 박락과 금속 부위의 부식이 동시에 진행 중인 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_01_llm09",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "출토 시 이미 분리된 상태로 원형 파악이 어려운 복합 손상 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "톨루엔"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
   },
   {
     "id": "금속 및 토기, 골각, 목재_02",
+    "relic_info": {"material": "금속 및 토기, 골각, 목재"},
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm01",
     "relic_info": {
-      "material": "금속 및 토기, 골각, 목재"
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "금속 부식과 유기질 재질 열화가 동시에 진행 중인 복합 손상 상태"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "자일렌"
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm02",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "이종 재질 접합부에서 균열과 분리가 발생하여 강화가 필요한 상태"
     },
-    "source_evidence": [
-      {
-        "source": "문화재 보존처리 접착제.pdf",
-        "page": 133,
-        "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm03",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "골각 부위의 층간 분리와 금속 부식이 함께 나타나는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm04",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "전체 강도 저하로 이동 및 전시를 위해 강화처리가 시급한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm05",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "금속과 유기물 재질이 각기 다른 열화 양상을 보이는 복잡한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm06",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "부식된 금속이 인접 목재 섬유를 오염시켜 복합 손상이 진행 중인 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm07",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "골각 재질의 탈수로 인한 균열과 금속 활성 부식이 함께 나타나는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm08",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "재질 경계부에서 이탈이 발생하여 원형 유지가 어려운 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_02_llm09",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "유기 재질 분해와 금속 산화가 동시에 진행되는 복잡한 손상 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "자일렌"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
   },
   {
     "id": "금속 및 토기, 골각, 목재_03",
+    "relic_info": {"material": "금속 및 토기, 골각, 목재"},
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm01",
     "relic_info": {
-      "material": "금속 및 토기, 골각, 목재"
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "이종 재질 복합 유물 전체의 구조 안정화가 필요한 상태"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "아세톤"
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm02",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "토기 부위와 금속 부위 모두 취약부가 있어 선별적 강화가 필요한 상태"
     },
-    "source_evidence": [
-      {
-        "source": "문화재 보존처리 접착제.pdf",
-        "page": 133,
-        "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm03",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "장기 매장으로 각 재질별 열화 양상이 다르게 나타나는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm04",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "골각 재질이 수분 손실로 수축되고 금속은 부식이 진행된 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm05",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "복합 재질 간 결합부가 약화되어 분리 및 탈락 위험이 있는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm06",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "물리적 충격에 전체적으로 취약하며 즉각적인 강화가 요구되는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm07",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "목재의 곰팡이 오염과 금속의 녹 형성이 복합적으로 나타나는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm08",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "재질별 수축률 차이로 내부 응력이 축적된 불안정 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_03_llm09",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "각 재질 경계면의 크랙이 형태적 완결성을 위협하는 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법 톨루엔, 자일렌, 아세톤..."}]
   },
   {
     "id": "금속 및 토기, 골각, 목재_04",
+    "relic_info": {"material": "금속 및 토기, 골각, 목재"},
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm01",
     "relic_info": {
-      "material": "금속 및 토기, 골각, 목재"
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "복합 재질 결합부가 심하게 약화되어 분리 위험이 높은 상태"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "MEK"
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm02",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "금속과 유기물이 화학적으로 상호 작용하여 손상이 가속화된 상태"
     },
-    "source_evidence": [
-      {
-        "source": "문화재 보존처리 접착제.pdf",
-        "page": 133,
-        "excerpt": "제거방법... 메틸에틸케톤 등 희석"
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm03",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "이종 재질 유물 전체에 걸쳐 강도가 저하된 불안정한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm04",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "골각 부위 탈콜라겐화와 금속의 전기화학적 부식이 함께 진행 중인 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm05",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "재질 간 팽창·수축 양상의 차이로 계면 손상이 심한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm06",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "출토 후 급격한 환경 변화로 인해 복합 재질 유물 전체가 열화된 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm07",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "부식 생성물이 인접 재질에 침착되어 복합 오염이 진행 중인 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm08",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "유기 재질 분해 산물이 금속 부식을 촉진하는 악화 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
+  },
+  {
+    "id": "금속 및 토기, 골각, 목재_04_llm09",
+    "relic_info": {
+      "material": "금속 및 토기, 골각, 목재",
+      "current_status": "전체적으로 형태 유지가 어려우며 응급 강화가 필수적인 위급 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "MEK"},
+    "source_evidence": [{"source": "문화재 보존처리 접착제.pdf", "page": 133, "excerpt": "제거방법... 메틸에틸케톤 등 희석"}]
   },
   {
     "id": "도자기_01",
+    "relic_info": {"material": "도자기"},
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm01",
     "relic_info": {
-      "material": "도자기"
+      "material": "도자기",
+      "current_status": "유약 표면에 균열망이 형성되고 박락이 진행 중인 상태"
     },
-    "golden": {
-      "agent": "Paraloid B72",
-      "solvent": "아세톤"
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm02",
+    "relic_info": {
+      "material": "도자기",
+      "current_status": "접합선이 분리되어 여러 파편으로 나뉘어진 불안정한 상태"
     },
-    "source_evidence": [
-      {
-        "source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf",
-        "page": 12,
-        "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"
-      }
-    ]
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm03",
+    "relic_info": {
+      "material": "도자기",
+      "current_status": "오염층이 두텁게 형성되어 원형 파악이 어려운 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm04",
+    "relic_info": {
+      "material": "도자기",
+      "current_status": "유약층이 부분적으로 박리되어 본체가 노출된 취약한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm05",
+    "relic_info": {
+      "material": "도자기",
+      "current_status": "내부 균열로 외부 충격에 취약한 구조적 불안정 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm06",
+    "relic_info": {
+      "material": "도자기",
+      "current_status": "수용성 염류 결정화로 인한 표면 박락이 진행 중인 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm07",
+    "relic_info": {
+      "material": "도자기",
+      "current_status": "요지 출토품으로 내화토 잔존 및 표면 오염이 심한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm08",
+    "relic_info": {
+      "material": "도자기",
+      "current_status": "표면 변색과 함께 유약 전면에 미세 균열이 발달한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
+  },
+  {
+    "id": "도자기_01_llm09",
+    "relic_info": {
+      "material": "도자기",
+      "current_status": "구연부 및 저부에 결손이 있으며 접합 전 강화처리가 필요한 상태"
+    },
+    "golden": {"agent": "Paraloid B72", "solvent": "아세톤"},
+    "source_evidence": [{"source": "광주 조선백자 요지 출토 폐자기의 보존처리.pdf", "page": 12, "excerpt": "유기용제에 용해되는 Paraloid B-72(in Acetone) 5% 용액"}]
   },
   {
     "id": "금속(철제)_01",
@@ -227,16 +1128,88 @@
       "material": "금속(철제)",
       "current_status": "Cl- 농도가 높을 경우 탈염 4회, 탈알칼리 4회를 실시"
     },
-    "golden": {
-      "agent": "수용성 Emulsion",
-      "solvent": "물"
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm01",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "염소 이온 농도가 기준치를 초과하여 반복적인 탈염 및 탈알칼리 처리가 필요한 상태"
     },
-    "source_evidence": [
-      {
-        "source": "보존처리 지침서.pdf",
-        "page": 21,
-        "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"
-      }
-    ]
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm02",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "활성 부식이 진행 중이며 염소 이온 제거를 위한 집중 탈염이 요구되는 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm03",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "철제 유물에 고농도 염소가 잔존하여 다단계 탈염 공정이 필요한 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm04",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "부식 생성물 내 염소 이온이 다량 함유되어 반복 탈염 처리가 필요한 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm05",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "철제 내부 염화물 농도가 기준치 이상으로 높아 지속적 탈염이 진행 중인 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm06",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "탈염 처리를 여러 차례 반복해야 할 만큼 염소 함량이 높은 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm07",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "높은 염소이온 농도로 인해 탈염과 탈알칼리를 각각 여러 번 반복해야 하는 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm08",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "내부 활성 부식 염화물 제거를 위한 집중 처리가 필요한 위급 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
+  },
+  {
+    "id": "금속(철제)_01_llm09",
+    "relic_info": {
+      "material": "금속(철제)",
+      "current_status": "염소 성분이 깊이 침투하여 일반적 탈염 횟수로는 부족한 심한 부식 상태"
+    },
+    "golden": {"agent": "수용성 Emulsion", "solvent": "물"},
+    "source_evidence": [{"source": "보존처리 지침서.pdf", "page": 21, "excerpt": "이온수를 담은 비이커에 침적…저온 탈염처리"}]
   }
 ]

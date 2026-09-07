@@ -46,14 +46,23 @@ def _docs_to_list(docs) -> list[dict]:
 
 def _generate_hypothetical_doc(query: str, api_key: str, model: str) -> str:
     llm = ChatOpenAI(model=model, temperature=0, api_key=api_key)
-    prompt = f"""당신은 문화재 보존처리 전문가입니다.
-아래 질문에 대해, 보존처리 관련 문헌에 실려 있을 법한 전문적인 설명을 한 문단으로 작성해주세요.
-내용이 실제로 정확한지는 중요하지 않습니다. 벡터 검색에 사용할 것이므로 관련 전문 용어를 풍부하게 포함해서 작성해주세요.
+    prompt = f"""당신은 한국 문화재 보존처리 지침서를 집필하는 보존과학 전문가입니다.
+아래 유물 정보를 바탕으로, 실제 보존처리 지침서·학술 보고서에 실릴 법한 강화처리 단락을 작성하세요.
 
-#질문
+[작성 규칙]
+1. 해당 재질과 손상 상태에 적합한 강화제와 용매를 반드시 명시할 것
+   - 강화제 후보: Paraloid B72 / HPC / 폴리비닐부티랄 / 수용성 Emulsion / Paraloid NAD-10
+   - 용매 후보: 아세톤 / 에탄올 / 톨루엔 / 자일렌 / 물 / 나프타 / 화이트스피릿 등
+2. 강화제 선택 근거(재질 특성과의 연관), 희석 농도, 도포 방법을 포함할 것
+3. 문헌 특유의 서술체 사용 ("~를 권장한다", "~% 용액을 도포한다", "~에 용해하여 사용한다")
+4. 180자 내외로 작성
+
+[유물 정보]
 {query}"""
     response = llm.invoke(prompt)
     return response.content
+
+
 
 
 def retrieve_plain_rag(

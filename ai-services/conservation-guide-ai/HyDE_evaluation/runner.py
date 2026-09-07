@@ -93,7 +93,8 @@ def _run_case(
             })
             print(f"error — {e}")
 
-    out_path = output_dir / f"{test_id}_eval.json"
+    safe_id = test_id.replace("/", "_").replace("\\", "_").replace(":", "_")
+    out_path = output_dir / f"{safe_id}_eval.json"
     out_path.write_text(
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
     )
