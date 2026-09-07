@@ -1,0 +1,82 @@
+{
+  "test_id": "도자기_01_llm09",
+  "relic_info": {
+    "material": "도자기",
+    "current_status": "구연부 및 저부에 결손이 있으며 접합 전 강화처리가 필요한 상태"
+  },
+  "golden": {
+    "agent": "Paraloid B72",
+    "solvent": "아세톤"
+  },
+  "query": "유물 정보 {'material': '도자기', 'current_status': '구연부 및 저부에 결손이 있으며 접합 전 강화처리가 필요한 상태'}에 적합한 강화처리용 강화제와 유기용매 추천",
+  "k": 1,
+  "model": "gpt-5.4-nano",
+  "temperature": 0.0,
+  "plain_rag_runs": [
+    {
+      "run": 0,
+      "status": "ok",
+      "chunks": [
+        {
+          "content": "25\n1.\t금속문화재\t보존처리\n제\n1장 총 론\n제\n2장 재질별 보존처리\n제\n3장 부 록\n 강화처리\n부식되어\t파손될\t우려가\t있는\t유물에\t구조적\t강도를\t주기\t위한\t과정이다.\n\t \t금속유물의\t대부분은 \t녹으로 \t덮여 \t있고 \t내부에는 \t다수의 \t균열이나 \t틈이 \t있어 \t파손되기 \t쉽기 \t\n때문에\t합성수지를\t주입시켜\t표면을\t코팅시키고\t재질을\t강화처리한다.\t\n\t \t강화처리\t 과정을 \t 통해 \t 약화된 \t 유물을 \t 강화시켜 \t 주고, \t 공기 \t 중의 \t 습기 \t 및 \t 오염가스 \t 등의\t\n부식인자도\t차단한다.\t\n\t \t강화처리에\t사용되는 \t합성수지는 \t삼투효과가 \t크고 \t건조가 \t빠른 \t타입의 \t것이 \t좋고 \t재처리가\t\n용이한\t재료를\t사용한다.\n1) 강화처리\nㄱ. 철제유물 \n  •   철제유물은 합성수지로 진공함침하여 강화처리하며, 합성수지는 가역성이 \n우수하고 용제에 용해 가능한 것을 사용한다. 합성수지로는 Paraloid NAD-\n10과 V-flon을 사용할 수 있다. 다만 유물의 보존상태가 취약한 경우에는 고압의 \n진공함침이 유물에 손상을 가할 수 있으므로 자연함침한다. \n  •   강화처리 재료는 저점도에서부터 고점도로 1회 이상 실시하며, 접합 복원이 \n완료된 이후에도 고점도의 강화처리 재료로 자연함침법으로 강화처리한다. \n  •   진공함침 방법은 진공함침탱크(Chamber)에 유물을 넣고 약 200~300mmHg \n(20~30torr)로 감압하여 1시간 내외 함침한 후 다시 상압으로 전환하여 \n1~2시간 정도 유지한 다음 실온 상태에서 건조한다.",
+          "source": "C:\\Users\\Hane\\IdeaProjects\\cultural-heritage-be\\ai-services\\conservation-guide-ai\\HyDE_evaluation\\eval_original_pdfs\\보존처리 지침서.pdf",
+          "page": 24
+        },
+        {
+          "content": "이 심하지 않은 유물, 또는 진공 챔버에 넣을 수 없는 대형유물 등에 사용된다. 물리적\n인 충격이 없어 비교적 안정적이나 합성수지로 접합되었거나 표면이 취약한 유물은 \n분리 또는 와해 될 우려가 있다. 유물에 사용되는 강화제는 가역적인 것 즉 񜨞리 시 \n용해가 가능한 약품을 선택하여야 한다. 일반적으로 보򎨞리 시에는 아크릴계 수지\n인 Paraloid B-72, Paraloid NAD-10, Incralac과 V-Flon(불소계 아크릴 수지) 등이 \n많이 사용된다(도6-16). \n3. 6  접합 및 복원\n부식된 유물을 강화처리 한 후 완전히 건조되면 유물의 원형을 찾아주기 위해 파손된 \n편들을 접합하고, 결손 부분은 복원하여 주는 과정으로 가능한 출토 당시의 형태를 유\n지하고 원형을 살려 접합복원 후 유물의 형태 변화가 없도록 해야 한다. 또한 충분한 \n타당성과 필요성이 인정될 때에만 복원을 실시하며, 񜨞리가 가능한 방법 및 재료를 \n선택하여 사용하여야 한다. 여러 형태의 합성수지와 񵶯제, 충진제가 있으나 각각의 \n유물에 맞는 재료를 선택하는 것이 중요하다.\n접합·복원제로는 Acryl계인 Cyanoacrylate(순간񵶯제), Cellulose nitrate계 수지\n인 Cemedine-C, Epoxy계 수지인 Araldite, CDK-520 등이 사용된다. 성형성을 높\n이거나 경화 시 생기는 수축을 최소화하는 역할을 하는 충진제로는 Phenol계 Micro-\nballon과 Talc 등이 있으며\n20)\n, 또한 각종 무기안료 등을 񵶯제와 혼합하여 사용한다.",
+          "source": "C:\\Users\\Hane\\IdeaProjects\\cultural-heritage-be\\ai-services\\conservation-guide-ai\\HyDE_evaluation\\eval_original_pdfs\\[KSC] 2021_보존과학입문.pdf",
+          "page": 110
+        },
+        {
+          "content": "102\n보존처리 지침서 \n 강화처리 \n\t \t직물을\t구성하는 \t섬유 \t자체가 \t약해져서 \t다른 \t물질의 \t주입(Impregnation)이 \t필요하거나 \t직물\t\n표면의\t먹, \t안료 \t등이 \t보존처리 \t과정 \t중 \t탈락의 \t우려가 \t있는 \t부분에 \t접착제를 \t사용하여 \t안정화 \t\n시키는\t작업이다.\t\n강화제를\t도포하여\t처리하며,\t횟수와\t농도는\t보존\t상태에\t따라\t조절하여\t작업한다.\t\n  •   직금 및 부금직물, 금니로 명문이 있는 경우에는 아교 또는 어교, HPC 등으로 \n강화처리 한다. 습식 세척을 실시하는 경우 세척 전·후에 실시한다. \n  •   출토직물·수착직물 등 직물의 탄성이 회복되지 않을 경우, 직물 열화가 심하여 \n섬유가 절단되는 경우에는 표면 오염을 제거한 상태에서 HPC 또는 파라로이드 \nB-72(Paraloid B-72)를 사용하여 강화처리 한다. \n  •   약품이 뭉침, 주변에 직물에 스며들거나 얼룩이 생기지 않도록 주의가 필요하다. \n안료나 직물의 색 변화나 광택 변화가 없어야 한다. \n  • 강화 수지의 온·습도 등에 따른 상태 변화로 인한 단점이 있다. \nTIP\n수착직물과 같이 직물이 탈락하거나 절단될 우려가 있는 경우에는 강화제를 사용하여 직물의 현재 상태를 \n유지하도록 한다.\n묵서 부분 강화(Paraloid B72) 장식 심지실 강화(Klucel G)",
+          "source": "C:\\Users\\Hane\\IdeaProjects\\cultural-heritage-be\\ai-services\\conservation-guide-ai\\HyDE_evaluation\\eval_original_pdfs\\보존처리 지침서.pdf",
+          "page": 101
+        },
+        {
+          "content": "26\n보존처리 지침서 \n  •   강화처리한 후 액체 상태의 약품을 닦아 낼 때는 먼지 발생이 적은 종이티슈  \n(킴와이프스)를 이용하여 유물 표면에 티슈의 먼지가 묻지 않도록 한다.\n  •   V-flon은 완전 경화까지 오랜 시간이 소요되므로 강화처리 한 이후에는 60℃ \n내외의 온도에서 열풍건조하여 경화를 돕는다.\n※ 진공함침법\n\t \t유물을 \t 진공탱크에 \t 넣고 \t 진공 \t 상태를 \t 만든 \t 뒤, \t 진공을 \t 풀면 \t 공기가 \t 있던 \t 유물 \t 내부의 \t\n미세기공까지\t 합성수지가 \t 들어가게 \t 되고, \t 수지가 \t 건조되면 \t 부식된 \t 부분은 \t 강화되고 \t 유물의\t\n표면은\t코팅되는\t방법이다.\nㄴ. 비철제유물(청동, 은, 금동 등) \n  •   비철제유물은 합성수지로 진공함침하여 강화처리하며, 합성수지로는 Paraloid-\nB72나 Incralac을 사용한다. 다만 유물의 보존상태가 취약한 경우에는 고압의 \n진공함침이 유물에 손상을 가할 수 있으므로 자연함침한다. \n  •   강화처리 재료는 저점도에서부터 고점도로 1회 이상 실시하며, 접합 복원이 \n완료된 이후에도 고점도의 강화처리 재료로 자연함침법으로 강화처리한다. \n  •   진공함침 방법은 철제유물의 방법과 동일하게 하며, 유물의 상태에 따라 진공  \n시간을 짧게 가진다. \n  •   자연함침 방법은 철제유물의 방법과 동일하게 적용한다.\n  •   세척과정에서 순간접착제나 Paraloid-B72, Cemedine-C 접착제로 가접합한 \n경우에는 강화처리 약품에 침적된 상태에서 가접합된 부분이 용해되어 분리될 수",
+          "source": "C:\\Users\\Hane\\IdeaProjects\\cultural-heritage-be\\ai-services\\conservation-guide-ai\\HyDE_evaluation\\eval_original_pdfs\\보존처리 지침서.pdf",
+          "page": 25
+        }
+      ],
+      "result": {
+        "recommended_agent": "Paraloid B72",
+        "recommended_solvent": "아세톤",
+        "reason": "도자기 유물은 구연부와 저부의 결손이 있어 접합 전에 표면을 안정화하고 약화된 부분을 단단히 만들어 주는 강화처리가 필요합니다. 이때 아크릴계 강화제인 Paraloid B72는 보존과학에서 널리 사용하는 가역성 합성수지로, 유기용매에 용해되어 비교적 침투가 잘 되고 건조도 빠르게 진행되어 접합 작업 전 안정화에 적합합니다. 대표 용매인 아세톤을 사용하면 용해가 확실하고 농도 조절이 쉬워 결손 주변의 취약 부위에 필요한 정도로만 침투시킬 수 있습니다. 또한 도자기는 물에 대한 내성이 낮거나 처리 과정에서 표면 상태가 변할 수 있어 수용성 에멀전이나 HPC처럼 물 기반 강화제를 우선하기보다, Paraloid B72처럼 유기용매 기반의 제어가 용이한 재료를 선택하는 것이 일반적으로 안전합니다."
+      }
+    }
+  ],
+  "hyde_rag_runs": [
+    {
+      "run": 0,
+      "status": "ok",
+      "hypothetical_doc": "도자기 결손부 보강을 위해 Paraloid B72를 3–5% 아세톤 용액에 용해, 구연부·저부 접합 전 붓도포한 뒤 자연 증발을 권장한다.",
+      "chunks": [
+        {
+          "content": "•   세척과정에서 순간접착제나 Paraloid-B72, Cemedine-C 접착제로 가접합한 \n경우에는 강화처리 약품에 침적된 상태에서 가접합된 부분이 용해되어 분리될 수 \n있으므로, 강화처리 시간을 짧게 가진다. \n침적 방법의 강화처리 도포법에 의한 대형 금속유물 강화처리",
+          "source": "C:\\Users\\Hane\\IdeaProjects\\cultural-heritage-be\\ai-services\\conservation-guide-ai\\HyDE_evaluation\\eval_original_pdfs\\보존처리 지침서.pdf",
+          "page": 25
+        },
+        {
+          "content": "로, 대상 유물의 상태에 따라 에폭시계 수지 등 기타 접착제와 병행해 사용하기도 한다. 또한 상업용\n으로 출시된 Paraloid B-72 접착제에는 질산셀룰로오스가 첨가되어 있으므로 일부 전문가들은 유물 \n보존처리 시 시판되는 접착제보다는 직접 바로 제조해서 사용하는 것을 권장한다(Koob, 2014). \n본 연구에서는 아크릴계 수지의 수명 연구를 위해 Paraloid B-72 50% 용액(in xylene, Rohm & \nHaas, U.S.A.)을 제조하여 대상 시료로 선정하였다. 시료의 기본 구조식을 Fig. 19에, 화학조성 및 물\n성을 Table 17에 나타내었다.\nFig. 19. Ethyl methacrylate의 기본구조 \n제품명 화학조성 점도\n(mPa・s)\n부피밀도\n(g/cm3)\n유리전이온도\n(℃)\n녹는점\n(℃)\nParaloid B-72 EMA copolymer\n200 (in acetone)\n600 (in toluene)\n980 (in xylene)\n(40% solution at 25℃)\n0.66\n(at 25℃) 40 150\nTable 17. 아크릴계 수지의 물리화학적 특성(Rohm & Haas, 2007)",
+          "source": "C:\\Users\\Hane\\IdeaProjects\\cultural-heritage-be\\ai-services\\conservation-guide-ai\\HyDE_evaluation\\eval_original_pdfs\\문화재 보존처리 접착제.pdf",
+          "page": 179
+        },
+        {
+          "content": "169광주 조선백자 요지 출토 폐자기의 보존처리\n이 가능해야 한며 안료의 제거가 가능하고, 유물에 불필요한 영향을 주지 않도록 작업하였다. 유약의 광택과 \n채색층을 보호하기 위하여 물에 희석한 글로스바니시(LiquitexⓇ, France)를 넓은 붓을 사용하였다(도9).\na. 처리 전 상태(전면, 후면)\nb. Paraloid B-72 5% 용액 도포 c. HM sheet를 사용한 복원 과정\nd. 복원재를 사용한 복원(전면, 후면)",
+          "source": "C:\\Users\\Hane\\IdeaProjects\\cultural-heritage-be\\ai-services\\conservation-guide-ai\\HyDE_evaluation\\eval_original_pdfs\\광주 조선백자 요지 출토 폐자기의 보존처리.pdf",
+          "page": 9
+        },
+        {
+          "content": "Paraloid 872 접착제 만드는 방법 \nThe Koob Recipe-광구병 활용 \n---------| X재료 준비 : Paral 。id 872, Acetone, Fumed I \nI silica, 광구병, 거ξ 실 I \nζ==〉\n2 I 뜸01 가넓은병을 A點그병의댐달아 | \n기록한다 \nζ=====〉\n--~ 수지 전부가 용해되면 병뚜껑을 걷어낸 다음, | \n끈을 물고 병과 병 속의 내용물의 무게를 샌다. | \n※ 100g은 100ml 와 같지 않음. \n※ 경우에 따라 안료를 혼힘h하여 저|조할 수 있음 \n38 사 'I 연Z 관c 아내λ \n영온 f주머니훗월 \nζ====〉\nC〕 C그 \n병 속의 내용물을 저어 놓고, 환기가 잘 되는 장소 \n또는 흉 후드가 있는 장소에서 아세톤을 증발시키 \n며, 매 시간 무게를 체크하여 혼합물의 무게가 45g \n정도(아세톤이 45g 정도 증발) 줄었을 때 다시 랩을 \n씌우고 거품이 사라질 때까지 뚜껑을 닫아 놓는다",
+          "source": "C:\\Users\\Hane\\IdeaProjects\\cultural-heritage-be\\ai-services\\conservation-guide-ai\\HyDE_evaluation\\eval_original_pdfs\\도자기 보존 관리 안내서.pdf",
+          "page": 37
+        }
+      ],
+      "result": {
+        "recommended_agent": "Paraloid B72",
+        "recommended_solvent": "에틸아세테이트",
+        "reason": "도자기는 구연부와 저부의 결손 부위를 보강하고 접합 전에 안정적인 강화층을 형성해야 하므로, 작업 중 재료가 비교적 잘 조절되고 여러 용매에서 용해도가 확보되는 아크릴계 강화제인 Paraloid B72를 권합니다. Paraloid B72는 대표 용매인 아세톤 외에도 에틸아세테이트처럼 상대적으로 순한 유기용매로도 사용 가능하여 침투와 건조 속도를 작업 환경에 맞추기 쉽습니다. 에틸아세테이트를 희석 용매로 선택하면 용해가 원활하면서도 과도한 용제 영향이나 급격한 건조로 인한 수축 위험을 상대적으로 줄여 도자기의 유약과 채색층 주변부 보강에 유리합니다. 또한 참고 문헌에서 Paraloid B72를 도포 방식으로 사용한 사례가 확인되어, 도자기 결손부 강화에 적용 가능성이 높습니다."
+      }
+    }
+  ]
+}
